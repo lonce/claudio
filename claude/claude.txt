@@ -1,0 +1,15 @@
+I would like to make a WebAudio API app.
+I would like a AudioSystem object that manages the AudioContext so that there only needs to be one AudioConext despite possibly very many sounds. 
+I will make several models, sound some using worklets, other using just using predefined WebAudio nodes, and I want one base sound class ('BaseSound') that incporates as much of the generic sound capabilities as possible. For example, all sounds will  have a "play" and a "stop" method for starting and stopping the sound. There should also be a separate method (not stop) for destorying the graph and releasing all the graph nodes. All sounds should also have a string name set in the init() function. 
+
+There should also be a class for parameters that includes a string for the parameter name. Sounds will expose an API for setting (and getting) parameters by name using either natural units (such a frequency) or normalized units in [0,1]. Of course, all paraemters must thus have a minimum and maximum value attribute as well).  All sounds will have a parameter, "gain" for getting (and setting) their volume. All parameters will maintain a nominal value (controlled by 'set' functions), as well as an "attack" and "decay" time that use parmeter automation. Attack will always interpolate toward the nominal value, and decay will always glide from the current actual value (usually the nominal value, but could be different if, for example, we are in the middle of the attach when the "stop" function is called). 
+
+The BaseSound method will also need a getParameters method that gets the whole list of the parameters so that they can for example, be displayed on a graphical interface.
+
+Each SoundModel (derived from BaseSound) will also be a separate class (eg Drone Model, Engine Model, Wind Model, etc.) that manages the creation of instances of the particular sound models each with their own characterisics (web audio graph graph construction and destruction, behaviors, parameters). 
+
+To test the architectore, plase also create two simple Sound Models. One will be a drone that includes a parmater for frequency, and the other a model that generates a click train with a parameter for rate (with a min value of 1 per second, and a max value of 20 per second).
+
+Finally, I'd like a little web app that creates instances of each of these sound models, and shows a graphical interface for starting and stopping the sounds, as well as sliders for setting their paraemters. A text box should show the value of the paremeters even as they change. 
+
+Please make the organization clean and clear, so that your usage of the API in the web app is convenient, understandable,  and easy to use. 

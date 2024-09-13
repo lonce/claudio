@@ -1,0 +1,23 @@
+body {
+    font-family: Arial, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+.sound-control {
+    border: 1px solid #ccc;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.parameter-control {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.parameter-control label {
+    width: 100px;
+}
+.parameter-control input {
+    flex-grow: 1;
+    margin: 0 10px;
+}
