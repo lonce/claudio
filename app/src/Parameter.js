@@ -1,11 +1,11 @@
 export class Parameter {
-    constructor(name, defaultValue, min, max) {
+    constructor(name, defaultValue, min, max, attackTime=.05, decayTime=.4) {
         this.name = name;
         this.min = min;
         this.max = max;
         this.value = defaultValue;
-        this.attackTime = 0.1; // Default attack time
-        this.decayTime = 0.1;  // Default decay time
+        this.attackTime = attackTime;
+        this.decayTime = decayTime;  
     }
 
     set(value) {

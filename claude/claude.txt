@@ -13,3 +13,12 @@ To test the architectore, plase also create two simple Sound Models. One will be
 Finally, I'd like a little web app that creates instances of each of these sound models, and shows a graphical interface for starting and stopping the sounds, as well as sliders for setting their paraemters. A text box should show the value of the paremeters even as they change. 
 
 Please make the organization clean and clear, so that your usage of the API in the web app is convenient, understandable,  and easy to use. 
+
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Id like to create a new UI.
+The 'header' should be 'Claudio' rather that 'WebAduioAPI Application'
+I'd like the "slider box" (with sound name, play/stop buttons an sliders, similar to what you have now) to show only one sound at a time. That sound to display should be selectable from a drop-down menue in the top corner. 
+Underneath the header, should be a square that we will use as an interface to contol the sound and its parameters. The x position will control one parameter, y another. We play when touching (or mouse is down) stop when not touching (or mouse is not down). A small drop down menu to the right of each slider will allow us to assign the control for the parameter where we can choose between [none, slider, x, y]. 
+The x and y values from the box can each be normalized to [0,1], and then the sound setParamNorm can be used to set the sound parameater. The previous interactions (buttons and sliders) should still work if they are used, and the new control through the x/y square should not only control the sound play/stop and paraemters, but also be reflected on the sliders and shown with their values as they are in the old version. 

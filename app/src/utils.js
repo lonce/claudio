@@ -31,6 +31,10 @@ export class Phasor {
         this.rate = newRate;
     }
 
+    setPhase(newPhase){
+        this.phase=newPhase;
+    }
+
     // Add new event (with a 'phase' and potentially other attributes)
     addEvent(event) {
         this.eventList.push(event);

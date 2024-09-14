@@ -3,7 +3,7 @@ import { BaseSound } from '../BaseSound.js';
 export class DroneModel extends BaseSound {
     constructor(context, name) {
         super(context, name);
-        this.addParameter('frequency', 440, 20, 2000);
+        this.addParameter('frequency', 440, 20, 2000, 0, 0);
         this.createNodes();
     }
 
@@ -39,13 +39,14 @@ export class DroneModel extends BaseSound {
         this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
         this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + gainParam.decayTime);
         
-        setTimeout(() => {
+        this.timeoutID = setTimeout(() => {
             console.log(`stopSound timeout called, disconnecting oscilator`)
             if (this.oscillator && !this.isPlaying) {
                 this.oscillator.stop();
                 this.oscillator.disconnect();
                 this.oscillator = null;
             }
+            this.timeoutID=0;
         }, gainParam.decayTime * 1000 + 100);
         console.log(`stopSound`)
     }

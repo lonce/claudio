@@ -33,22 +33,30 @@ class WorkletProcessor extends AudioWorkletProcessor {
         this.port.onmessage = (event) => {
             if (event.data.action === 'stop') {
                 this.active = false;
+            } else if (event.data.action === 'start') {
+                this.active = true;
+                this.phasor.setPhase(0.0);
             }
         };
     }
 
     process(inputs, outputs, parameters) {
-        console.log(`in process(), parameters.active[0] is ${parameters.active[0]}, and this.active is ${this.active}`)
-        if (parameters.active[0] < 0.5) {
-        //if (!this.active) {
-            console.log('false')
-            return false; // This will remove the worklet from the rendering graph
+        if (!this.active) {
+            return true;  // Keep alive, but do no processing
         }
 
         const output = outputs[0];
         const channel = output[0];
+        
+        if (parameters.active[0] === 0) {
+            // Fill the output with silence and get outa here to save processing time
+            channel.fill(0);
+            return true;
+        }
+
+
         const clickRate = parameters.clickRate.length > 0 ? parameters.clickRate[0] : 1.0;
-        const active = parameters.active[0];
+
 
         this.phasor.setRate(clickRate);
 

@@ -29,6 +29,7 @@ export class ClickTrainModel extends BaseSound {
         const gainParam = this.getParameter('gain');
         this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
         this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
+        console.log(`stopping with decayTime=${gainParam.decayTime}`)
         this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + gainParam.decayTime);
     }
 

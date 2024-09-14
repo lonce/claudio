@@ -8,6 +8,7 @@ export class ClickerWorkletSoundModel extends BaseSound {
         this.addParameter('rate', 10, 1, 20);
         this.workletNode = null;
         this.gainNode = null;
+
         this.createNodes();
     }
 
@@ -44,17 +45,23 @@ export class ClickerWorkletSoundModel extends BaseSound {
     }
 
     stopSound() {
-        if (this.workletNode) {
-            console.log(`${this.name}: Stopping sound`);
-            // Deactivate the worklet
-            this.workletNode.parameters.get('active').setValueAtTime(0, this.context.currentTime);
-            console.log(`stopSound - setting worklet 'acive' to 0!`)
             // Ramp down the gain
             const gainParam = this.getParameter('gain');
             this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
             this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
+            console.log(`stopping with decayTime=${gainParam.decayTime}`)
             this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + gainParam.decayTime);
-        }
+
+            this.timeoutID = setTimeout(() => {
+                console.log(`stopSound timeout called, disconnecting oscilator`)
+                if (this.workletNode) {
+                    console.log(`${this.name}: Stopping sound`);
+                    // Deactivate the worklet
+                    this.workletNode.parameters.get('active').setValueAtTime(0, this.context.currentTime);
+                    console.log(`stopSound - setting worklet 'acive' to 0!`)
+                }
+                this.timeoutID = 0
+             }, gainParam.decayTime * 1000 + 100);
     }
 
     updateParameter(name) {

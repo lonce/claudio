@@ -9,11 +9,13 @@ export class BaseSound {
         this.isPlaying = false;
         this.destination = null;
 
+        this.timeoutID=0; // keeps track so a play can sutoff the timeout.
+
         this.addParameter('gain', 1, 0, 1);
     }
 
-    addParameter(name, defaultValue, min, max) {
-        this.parameters.set(name, new Parameter(name, defaultValue, min, max));
+    addParameter(name, defaultValue, min, max, attackTime=.05, decayTime=5) {
+        this.parameters.set(name, new Parameter(name, defaultValue, min, max, attackTime, decayTime));
     }
 
     getParameter(name) {
@@ -50,6 +52,10 @@ export class BaseSound {
     }
 
     play() {
+        if (this.timeoutID!=0) {
+            clearTimeout(this.timeoutID)
+            this.timeoutID=0;
+        }
         if (!this.isPlaying) {
             this.isPlaying = true;
             this.startSound();
