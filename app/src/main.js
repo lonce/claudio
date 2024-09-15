@@ -6,6 +6,7 @@ import { ClickerWorkletSoundModel } from './models/ClickerWorkletSoundModel.js';
 const audioSystem = new AudioSystem();
 let currentSound = null;
 let parameterControls = new Map();
+let hasOrientationSupport = false;
 
 
 // Initialized in initApp, used by other functions
@@ -37,6 +38,9 @@ async function initApp() {
         const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet Clicker');
 
         const sounds = [drone, clickTrain, workletClicker];
+
+        checkOrientationSupport();
+
         sounds.forEach(sound => {
             const option = document.createElement('option');
             option.value = sound.name;
@@ -77,6 +81,43 @@ function initializeParameterControls() {
     });
 }
 
+
+//////////////////////////////////////////////////////////////
+function checkOrientationSupport() {
+    if ('DeviceOrientationEvent' in window) {
+        hasOrientationSupport = true;
+        window.addEventListener('deviceorientation', handleOrientation);
+        log('Device orientation support detected');
+    } else {
+        log('Device orientation not supported');
+    }
+}
+
+function handleOrientation(event) {
+    if (!currentSound || !currentSound.isPlaying) return;
+
+    const pitch = (event.beta + 90) / 180; // Map -90 to 90 to 0 to 1
+    const roll = (event.gamma + 90) / 180; // Map -90 to 90 to 0 to 1
+
+    updateSoundFromOrientation(pitch, roll);
+}
+
+function updateSoundFromOrientation(pitch, roll) {
+    parameterControls.forEach((control, paramName) => {
+        const param = control.param;
+        if (control.type === 'pitch') {
+            param.setNormalized(pitch);
+            currentSound.updateParameter(paramName);
+        } else if (control.type === 'roll') {
+            param.setNormalized(roll);
+            currentSound.updateParameter(paramName);
+        }
+    });
+
+    updateSliderValues();
+}
+
+///////////////////////////////////////////////////////////////
 function updateSliderBox() {
     const sliderBox = document.getElementById('sliderBox');
     sliderBox.innerHTML = '';
@@ -91,10 +132,15 @@ function updateSliderBox() {
     stopButton.addEventListener('click', () => currentSound.stop());
     sliderBox.appendChild(stopButton);
 
+    const controlOptions = ['none', 'slider', 'x', 'y'];
+    if (hasOrientationSupport) {
+        controlOptions.push('pitch', 'roll');
+    }
+
     currentSound.getParameters().forEach(param => {
         const paramControl = document.createElement('div');
         paramControl.className = 'parameter-control';
-        paramControl.dataset.paramName = param.name; // Add data attribute for easy selection
+        paramControl.dataset.paramName = param.name;
 
         const label = document.createElement('label');
         label.textContent = param.name;
@@ -119,7 +165,7 @@ function updateSliderBox() {
         paramControl.appendChild(valueDisplay);
 
         const controlSelect = document.createElement('select');
-        ['none', 'slider', 'x', 'y'].forEach(option => {
+        controlOptions.forEach(option => {
             const optionElement = document.createElement('option');
             optionElement.value = option;
             optionElement.textContent = option;
@@ -161,6 +207,7 @@ function updateSound(e) {
             param.setNormalized(normalizedY);
             currentSound.updateParameter(paramName);
         }
+        // Note: pitch and roll are handled in handleOrientation
     });
 
     updateSliderValues();
