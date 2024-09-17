@@ -8,6 +8,8 @@ export class BaseSound {
         this.outputNode = null;
         this.isPlaying = false;
         this.destination = null;
+        this.loadAudioPromise = null; // used if the sound loads an audio file
+
 
         this.timeoutID=0; // keeps track so a play can sutoff the timeout.
 
@@ -95,4 +97,34 @@ export class BaseSound {
         this.stop();
         this.disconnect();
     }
+
+    // ---------    Used if derived model needs an audio file
+    async loadAudioFile(url) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+            console.log(`Audio file loaded successfully for ${this.name}`);
+            return audioBuffer;
+        } catch (error) {
+            console.error(`Error loading audio file for ${this.name}:`, error);
+            throw error;
+        }
+    }
+
+    initializeAudio(url) {
+        this.loadAudioPromise = this.loadAudioFile(url);
+        return this.loadAudioPromise;
+    }
+
+    async waitForLoad() {
+        if (this.loadAudioPromise) {
+            await this.loadAudioPromise;
+        }
+    }
+    //------------
+
 }

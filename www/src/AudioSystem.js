@@ -20,6 +20,13 @@ export class AudioSystem {
         }
         
         const sound = new SoundClass(this.context, name, ...args);
+
+        // Wait for audio loading if the method exists
+        if (typeof sound.waitForLoad === 'function') {
+            await sound.waitForLoad();
+        }
+
+
         sound.connect(this.masterGainNode);
         this.sounds.set(name, sound);
         return sound;

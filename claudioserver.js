@@ -24,8 +24,7 @@ console.log('so far so good !!!!!!!!!!!!!!!!');
 
 var m_useRoot="/www";
 
-const allowedOrigins = ['https://aisound.sonicthings.org']; // Add your allowed origins here
-
+const allowedOrigins = ['https://aisound.sonicthings.org', 'https://claudio.sonicthings.org']; // Add your allowed origins here
 app.use(function (req, res, next) {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {

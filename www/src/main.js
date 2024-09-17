@@ -1,7 +1,9 @@
 import { AudioSystem } from './AudioSystem.js';
 import { DroneModel } from './models/DroneModel.js';
-import { ClickTrainModel } from './models/ClickTrainModel.js';
+//import { ClickTrainModel } from './models/ClickTrainModel.js';
 import { ClickerWorkletSoundModel } from './models/ClickerWorkletSoundModel.js';
+import { AnotherGranny } from './models/AnotherGranny.js';
+
 
 const audioSystem = new AudioSystem();
 let currentSound = null;
@@ -34,10 +36,11 @@ async function initApp() {
 
     try {
         const drone = await audioSystem.createSound(DroneModel, 'Drone');
-        const clickTrain = await audioSystem.createSound(ClickTrainModel, 'Click Train');
+//        const clickTrain = await audioSystem.createSound(ClickTrainModel, 'Click Train');
         const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet Clicker');
+        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 'audioResources/BeingRural22k.mp3');
 
-        const sounds = [drone, clickTrain, workletClicker];
+        const sounds = [drone, workletClicker, granny];
 
         checkOrientationSupport();
 
