@@ -8,7 +8,8 @@ export class FaustClarinet extends BaseSound {
         super(context, name);
         this.gainNode = this.context.createGain();
         this.outputNode = this.gainNode;
-        this.ffact = new FaustFactory(this.context, 'https://172.18.0.1:8221/src/models/faust.clarinet');
+        //this.ffact = new FaustFactory(this.context, 'https://172.18.0.1:8221/src/models/faust.clarinet');
+        this.ffact = new FaustFactory(this.context, '/src/models/faust.clarinet');
         this.faustNode = null;
         this.faustParams = new Map(); // To store Faust parameter info
 
