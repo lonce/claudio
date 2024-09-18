@@ -16,7 +16,7 @@ export class BaseSound {
         this.addParameter('gain', 1, 0, 1);
     }
 
-    addParameter(name, defaultValue, min, max, attackTime=.05, decayTime=5) {
+    addParameter(name, defaultValue, min, max, attackTime=.05, decayTime=.3) {
         this.parameters.set(name, new Parameter(name, defaultValue, min, max, attackTime, decayTime));
     }
 

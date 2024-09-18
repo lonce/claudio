@@ -1,5 +1,5 @@
 export class Parameter {
-    constructor(name, defaultValue, min, max, attackTime=.05, decayTime=.4) {
+    constructor(name, defaultValue, min, max, attackTime=.05, decayTime=.3) {
         this.name = name;
         this.min = min;
         this.max = max;

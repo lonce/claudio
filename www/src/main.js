@@ -3,6 +3,7 @@ import { DroneModel } from './models/DroneModel.js';
 //import { ClickTrainModel } from './models/ClickTrainModel.js';
 import { ClickerWorkletSoundModel } from './models/ClickerWorkletSoundModel.js';
 import { AnotherGranny } from './models/AnotherGranny.js';
+import { FaustClarinet } from './models/FaustClarinet.js';
 
 
 const audioSystem = new AudioSystem();
@@ -39,8 +40,9 @@ async function initApp() {
 //        const clickTrain = await audioSystem.createSound(ClickTrainModel, 'Click Train');
         const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet Clicker');
         const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 'audioResources/BeingRural22k.mp3');
+        const faustClarinet = await audioSystem.createSound(FaustClarinet, 'FaustClarinet');
 
-        const sounds = [drone, workletClicker, granny];
+        const sounds = [drone, workletClicker, granny, faustClarinet];
 
         checkOrientationSupport();
 
@@ -52,6 +54,7 @@ async function initApp() {
         });
 
         soundSelector.addEventListener('change', (e) => {
+            audioSystem.resume();
             currentSound = sounds.find(s => s.name === e.target.value);
             initializeParameterControls();
             updateSliderBox();
