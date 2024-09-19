@@ -89,11 +89,46 @@ function initializeParameterControls() {
 
 
 //////////////////////////////////////////////////////////////
+// function checkOrientationSupport() {
+//     if ('DeviceOrientationEvent' in window) {
+//         hasOrientationSupport = true;
+//         window.addEventListener('deviceorientation', handleOrientation);
+//         log('Device orientation support detected');
+//     } else {
+//         log('Device orientation not supported');
+//     }
+// }
+
+
 function checkOrientationSupport() {
     if ('DeviceOrientationEvent' in window) {
-        hasOrientationSupport = true;
-        window.addEventListener('deviceorientation', handleOrientation);
-        log('Device orientation support detected');
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            // iOS 13+ devices
+            let button = document.createElement('button');
+            button.innerHTML = 'Enable Device Orientation';
+            button.addEventListener('click', async () => {
+                try {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission === 'granted') {
+                        hasOrientationSupport = true;
+                        window.addEventListener('deviceorientation', handleOrientation);
+                        log('Device orientation support enabled on iOS');
+                    } else {
+                        log('Device orientation permission denied');
+                    }
+                } catch (error) {
+                    log('Error requesting device orientation permission: ' + error);
+                }
+                document.body.removeChild(button);
+            });
+            document.body.appendChild(button);
+            log('Please tap the button to enable device orientation');
+        } else {
+            // Non-iOS devices or older iOS versions
+            hasOrientationSupport = true;
+            window.addEventListener('deviceorientation', handleOrientation);
+            log('Device orientation support detected');
+        }
     } else {
         log('Device orientation not supported');
     }
