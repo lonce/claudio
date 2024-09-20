@@ -99,79 +99,52 @@ function initializeParameterControls() {
 //         log('Device orientation not supported');
 //     }
 // }
-document.addEventListener('DOMContentLoaded', () => {
-  const permissionDiv = document.getElementById('xyPad');
 
-  if (!permissionDiv) {
-    console.error('Element with id "permissionDiv" not found.');
-    return;
-  }
 
-  // Set the instructional text
-  permissionDiv.textContent = 'Tap or Click here to enable device orientation sensors.';
-
-  // Define the event handler
-  async function handlePermissionRequest(event) {
-    event.preventDefault();
-
-    // Remove the event listeners to ensure it's a one-time interaction
-    permissionDiv.removeEventListener('click', handlePermissionRequest);
-    permissionDiv.removeEventListener('touchstart', handlePermissionRequest);
-
-    // Clear the instructional text
-    permissionDiv.textContent = '';
-
-    try {
-      // Check if DeviceOrientationEvent is supported
-      if (typeof DeviceOrientationEvent !== 'undefined') {
-        // For devices that require permission (e.g., iOS 13+)
+function checkOrientationSupport() {
+    if ('DeviceOrientationEvent' in window) {
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          const response = await DeviceOrientationEvent.requestPermission();
-          if (response === 'granted') {
-            console.log('Device orientation permission granted.');
-            window.addEventListener('deviceorientation', handleDeviceOrientation);
-          } else {
-            console.log('Device orientation permission denied.');
-            // Optionally, provide feedback to the user
-            permissionDiv.textContent = 'Permission denied. Device orientation features are disabled.';
-          }
+            // iOS 13+ devices
+            let button = document.createElement('button');
+            button.innerHTML = 'Enable Device Orientation';
+            button.addEventListener('click', async () => {
+                try {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission === 'granted') {
+                        hasOrientationSupport = true;
+                        window.addEventListener('deviceorientation', handleOrientation);
+                        log('Device orientation support enabled on iOS');
+                    } else {
+                        log('Device orientation permission denied');
+                    }
+                } catch (error) {
+                    log('Error requesting device orientation permission: ' + error);
+                }
+                document.body.removeChild(button);
+            });
+            document.body.appendChild(button);
+            log('Please tap the button to enable device orientation');
         } else {
-          // For devices that do not require permission (e.g., most Android devices)
-          if (hasDeviceOrientationSupport()) {
-            window.addEventListener('deviceorientation', handleDeviceOrientation);
-            console.log('Device orientation enabled.');
-          } else {
-            console.log('Device orientation not supported.');
-            permissionDiv.textContent = 'Device orientation sensors are not available on this device.';
-          }
+            // Non-iOS devices or older iOS versions
+            hasOrientationSupport = true;
+            window.addEventListener('deviceorientation', handleOrientation);
+            log('Device orientation support detected');
         }
-      } else {
-        console.log('DeviceOrientationEvent is not supported by this browser.');
-        permissionDiv.textContent = 'Device orientation is not supported by your browser.';
-      }
-    } catch (error) {
-      console.error('Error while requesting device orientation permission:', error);
-      permissionDiv.textContent = 'An error occurred while enabling device orientation.';
+    } else {
+        log('Device orientation not supported');
     }
-  }
+}
 
-  // Function to check if device orientation is supported
-  function hasDeviceOrientationSupport() {
-    // Basic feature detection
-    return 'DeviceOrientationEvent' in window;
-  }
-
-  // Example handler for device orientation events
-  function handleDeviceOrientation(event) {
+function handleOrientation(event) {
     if (!currentSound || !currentSound.isPlaying) return;
 
     const pitch = (event.beta + 90) / 180; // Map -90 to 90 to 0 to 1
     const roll = (event.gamma + 90) / 180; // Map -90 to 90 to 0 to 1
 
     updateSoundFromOrientation(pitch, roll);
-  }
+}
 
-  function updateSoundFromOrientation(pitch, roll) {
+function updateSoundFromOrientation(pitch, roll) {
     parameterControls.forEach((control, paramName) => {
         const param = control.param;
         if (control.type === 'pitch') {
@@ -184,77 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     updateSliderValues();
-  }
-
-    
-
-
-
-  // Add event listeners for both click and touchstart
-  permissionDiv.addEventListener('click', handlePermissionRequest);
-  permissionDiv.addEventListener('touchstart', handlePermissionRequest);
-});
-
-///////////////////////////////////////////////////////////////////////////////////
-
-
-// function checkOrientationSupport() {
-//     if ('DeviceOrientationEvent' in window) {
-//         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-//             // iOS 13+ devices
-//             let button = document.createElement('button');
-//             button.innerHTML = 'Enable Device Orientation';
-//             button.addEventListener('click', async () => {
-//                 try {
-//                     const permission = await DeviceOrientationEvent.requestPermission();
-//                     if (permission === 'granted') {
-//                         hasOrientationSupport = true;
-//                         window.addEventListener('deviceorientation', handleOrientation);
-//                         log('Device orientation support enabled on iOS');
-//                     } else {
-//                         log('Device orientation permission denied');
-//                     }
-//                 } catch (error) {
-//                     log('Error requesting device orientation permission: ' + error);
-//                 }
-//                 document.body.removeChild(button);
-//             });
-//             document.body.appendChild(button);
-//             log('Please tap the button to enable device orientation');
-//         } else {
-//             // Non-iOS devices or older iOS versions
-//             hasOrientationSupport = true;
-//             window.addEventListener('deviceorientation', handleOrientation);
-//             log('Device orientation support detected');
-//         }
-//     } else {
-//         log('Device orientation not supported');
-//     }
-// }
-
-// function handleOrientation(event) {
-//     if (!currentSound || !currentSound.isPlaying) return;
-
-//     const pitch = (event.beta + 90) / 180; // Map -90 to 90 to 0 to 1
-//     const roll = (event.gamma + 90) / 180; // Map -90 to 90 to 0 to 1
-
-//     updateSoundFromOrientation(pitch, roll);
-// }
-
-// function updateSoundFromOrientation(pitch, roll) {
-//     parameterControls.forEach((control, paramName) => {
-//         const param = control.param;
-//         if (control.type === 'pitch') {
-//             param.setNormalized(pitch);
-//             currentSound.updateParameter(paramName);
-//         } else if (control.type === 'roll') {
-//             param.setNormalized(roll);
-//             currentSound.updateParameter(paramName);
-//         }
-//     });
-
-//     updateSliderValues();
-// }
+}
 
 ///////////////////////////////////////////////////////////////
 function updateSliderBox() {
