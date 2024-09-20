@@ -45,7 +45,7 @@ async function initApp() {
 
         const sounds = [drone, workletClicker, granny, faustClarinet];
 
-        checkOrientationSupport();
+        //checkOrientationSupport();
 
         sounds.forEach(sound => {
             const option = document.createElement('option');
