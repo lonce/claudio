@@ -126,6 +126,8 @@ function checkOrientationSupport() {
     }
 }
 
+
+
 function requestPermission() {
     if (needsPermissionRequest) {
         DeviceOrientationEvent.requestPermission()
@@ -148,11 +150,31 @@ function requestPermission() {
 }
 
 
+// function handleOrientation(event) {
+//     if (!currentSound || !currentSound.isPlaying) return;
+
+//     const pitch = (event.beta + 90) / 180; // Map -90 to 90 to 0 to 1
+//     const roll = (event.gamma + 90) / 180; // Map -90 to 90 to 0 to 1
+
+//     updateSoundFromOrientation(pitch, roll);
+// }
+
 function handleOrientation(event) {
     if (!currentSound || !currentSound.isPlaying) return;
 
-    const pitch = (event.beta + 90) / 180; // Map -90 to 90 to 0 to 1
-    const roll = (event.gamma + 90) / 180; // Map -90 to 90 to 0 to 1
+    // Helper function to map and clamp values
+    function mapAndClamp(value, inMin, inMax, outMin, outMax) {
+        // First, clamp the input value to the input range
+        const clampedValue = Math.min(Math.max(value, inMin), inMax);
+        // Then map the clamped value to the output range
+        return ((clampedValue - inMin) / (inMax - inMin)) * (outMax - outMin) + outMin;
+    }
+
+    // Map pitch (beta) from -45 to 45 degrees to 0 to 1
+    const pitch = mapAndClamp(event.beta, -45, 45, 0, 1);
+
+    // Map roll (gamma) from -45 to 45 degrees to 0 to 1
+    const roll = mapAndClamp(event.gamma, -45, 45, 0, 1);
 
     updateSoundFromOrientation(pitch, roll);
 }
