@@ -1,5 +1,5 @@
 export function createSoundControl(sound) {
-    console.log(`createSoundControl for ${sound.name}`)
+    console.log(`createSoundControl for ${sound.name}`);
     
     const container = document.createElement('div');
     container.className = 'sound-control';
@@ -30,22 +30,36 @@ export function createSoundControl(sound) {
         label.textContent = param.name;
         paramControl.appendChild(label);
 
-        const slider = document.createElement('input');
-        slider.type = 'range';
-        slider.min = 0;
-        slider.max = 1;
-        slider.step = 0.01;
-        slider.value = param.getNormalized();
-        slider.addEventListener('input', () => {
-            param.setNormalized(parseFloat(slider.value));
-            sound.setParameter(param.name, param.get());
-            valueDisplay.textContent = param.get().toFixed(2);
-        });
-        paramControl.appendChild(slider);
+        if (param.isStringParameter && param.isStringParameter()) {
+            // String parameter
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = param.get();
+            input.addEventListener('keyup', (event) => {
+                if (event.key === 'Enter') {
+                    sound.setStringParameter(param.name, input.value);
+                }
+            });
+            paramControl.appendChild(input);
+        } else {
+            // Numerical parameter
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = 0;
+            slider.max = 1;
+            slider.step = 0.01;
+            slider.value = param.getNormalized();
+            slider.addEventListener('input', () => {
+                param.setNormalized(parseFloat(slider.value));
+                sound.setParameter(param.name, param.get());
+                valueDisplay.textContent = param.get().toFixed(2);
+            });
+            paramControl.appendChild(slider);
 
-        const valueDisplay = document.createElement('span');
-        valueDisplay.textContent = param.get().toFixed(2);
-        paramControl.appendChild(valueDisplay);
+            const valueDisplay = document.createElement('span');
+            valueDisplay.textContent = param.get().toFixed(2);
+            paramControl.appendChild(valueDisplay);
+        }
 
         parameterContainer.appendChild(paramControl);
     });
