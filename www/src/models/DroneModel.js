@@ -4,6 +4,7 @@ export class DroneModel extends BaseSound {
     constructor(context, name) {
         super(context, name);
         this.addParameter('frequency', 440, 20, 2000, 0, 0);
+        this.addStringParameter('waveform', 'sine');
         this.createNodes();
     }
 
@@ -58,6 +59,9 @@ export class DroneModel extends BaseSound {
         } else if (name === 'gain') {
             this.gainNode.gain.setTargetAtTime(param.get(), this.context.currentTime, param.attackTime);
             console.log(`updateParameter, gain = ${param.get()}`)
+        } else if (name === 'waveform' && this.oscillator) {
+            this.oscillator.type = param.get();
+            console.log(`updateParameter, waveform = ${param.get()}`)
         }
     }
 
