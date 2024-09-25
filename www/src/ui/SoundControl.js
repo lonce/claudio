@@ -37,7 +37,8 @@ export function createSoundControl(sound) {
             input.value = param.get();
             input.addEventListener('keyup', (event) => {
                 if (event.key === 'Enter') {
-                    sound.setStringParameter(param.name, input.value);
+                    //sound.setStringParameter(param.name, input.value);
+                    sound.setParameter(param.name, input.value);
                 }
             });
             paramControl.appendChild(input);

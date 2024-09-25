@@ -238,7 +238,8 @@ function updateSliderBox() {
             input.value = param.get();
             input.addEventListener('keyup', (event) => {
                 if (event.key === 'Enter') {
-                    currentSound.setStringParameter(param.name, input.value);
+                    //currentSound.setStringParameter(param.name, input.value);
+                    currentSound.setParameter(param.name, input.value);
                 }
             });
             paramControl.appendChild(input);
