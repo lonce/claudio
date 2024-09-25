@@ -30,7 +30,7 @@ export function createSoundControl(sound) {
         label.textContent = param.name;
         paramControl.appendChild(label);
 
-        if (param.isStringParameter && param.isStringParameter()) {
+        if (param.isStringParameter()) {
             const input = document.createElement('input');
             input.type = 'text';
             input.value = param.get();

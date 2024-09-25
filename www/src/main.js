@@ -231,7 +231,7 @@ function updateSliderBox() {
         label.textContent = param.name;
         paramControl.appendChild(label);
 
-        if (param.isStringParameter && param.isStringParameter()) {
+        if (param.isStringParameter()) {
             const input = document.createElement('input');
             input.type = 'text';
             input.value = param.get();
@@ -328,7 +328,7 @@ function updateSliderValues() {
         const paramControl = sliderBox.querySelector(`.parameter-control[data-param-name="${paramName}"]`);
         if (paramControl) {
             const param = control.param;
-            if (param.isStringParameter && param.isStringParameter()) {
+            if (param.isStringParameter()) {
                 const input = paramControl.querySelector('input[type="text"]');
                 if (input && input.dataset.editing !== 'true') {
                     input.value = param.get();
