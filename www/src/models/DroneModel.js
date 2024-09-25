@@ -61,7 +61,7 @@ export class DroneModel extends BaseSound {
             console.log(`updateParameter, gain = ${param.get()}`)
         } else if (name === 'waveform' && this.oscillator) {
             this.oscillator.type = param.get();
-            console.log(`updateParameter, waveform = ${param.get()}`)
+            console.log(`updateParameter, waveform = ${param.get()}`)   
         }
     }
 
