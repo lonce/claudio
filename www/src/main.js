@@ -37,6 +37,7 @@ async function initApp() {
     const sliderBox = document.getElementById('sliderBox');
 
     try {
+        log('Loading sounds...');
         const drone = await audioSystem.createSound(DroneModel, 'Drone');
 //        const clickTrain = await audioSystem.createSound(ClickTrainModel, 'Click Train');
         const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet Clicker');
@@ -47,7 +48,7 @@ async function initApp() {
 
         log('Sounds loaded');
         checkOrientationSupport();
-        log
+        log ('Orientation support checked');
 
         sounds.forEach(sound => {
             const option = document.createElement('option');
@@ -76,9 +77,11 @@ async function initApp() {
         xyPad.addEventListener('touchcancel', stopSound);
 
         currentSound = sounds[0];
+        log(`now initialize parameter controls`);
         initializeParameterControls();
         log('Parameter controls initialized, now updating slider box');  
         updateSliderBox();
+        log('Slider box updated');
 
     } catch (error) {
         console.error('Failed to initialize app:', error);
