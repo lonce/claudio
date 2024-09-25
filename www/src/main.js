@@ -45,7 +45,9 @@ async function initApp() {
 
         const sounds = [drone, workletClicker, granny, faustClarinet];
 
+        log('Sounds loaded');
         checkOrientationSupport();
+        log
 
         sounds.forEach(sound => {
             const option = document.createElement('option');
@@ -54,6 +56,7 @@ async function initApp() {
             soundSelector.appendChild(option);
         });
 
+        log('Sound selector populated');
         soundSelector.addEventListener('change', (e) => {
             audioSystem.resume();
             currentSound = sounds.find(s => s.name === e.target.value);
@@ -61,6 +64,7 @@ async function initApp() {
             updateSliderBox();
         });
 
+        log('Sound selector event listener added, now initializing xyPad event listeners');
         xyPad.addEventListener('mousedown', startSound);
         xyPad.addEventListener('mousemove', updateSound);
         xyPad.addEventListener('mouseup', stopSound);
@@ -73,6 +77,7 @@ async function initApp() {
 
         currentSound = sounds[0];
         initializeParameterControls();
+        log('Parameter controls initialized, now updating slider box');  
         updateSliderBox();
 
     } catch (error) {
@@ -223,41 +228,56 @@ function updateSliderBox() {
         label.textContent = param.name;
         paramControl.appendChild(label);
 
-        const slider = document.createElement('input');
-        slider.type = 'range';
-        slider.min = 0;
-        slider.max = 1;
-        slider.step = 0.01;
-        slider.value = param.getNormalized();
-        slider.addEventListener('input', () => {
-            param.setNormalized(parseFloat(slider.value));
-            currentSound.updateParameter(param.name);
+        if (param.isStringParameter && param.isStringParameter()) {
+            // String parameter
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = param.get();
+            input.addEventListener('keyup', (event) => {
+                if (event.key === 'Enter') {
+                    currentSound.setStringParameter(param.name, input.value);
+                }
+            });
+            paramControl.appendChild(input);
+        } else {
+            // Numerical parameter
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = 0;
+            slider.max = 1;
+            slider.step = 0.01;
+            slider.value = param.getNormalized();
+            slider.addEventListener('input', () => {
+                param.setNormalized(parseFloat(slider.value));
+                currentSound.updateParameter(param.name);
+                valueDisplay.textContent = param.get().toFixed(2);
+            });
+            paramControl.appendChild(slider);
+
+            const valueDisplay = document.createElement('span');
+            valueDisplay.className = 'parameter-value';
             valueDisplay.textContent = param.get().toFixed(2);
-        });
-        paramControl.appendChild(slider);
+            paramControl.appendChild(valueDisplay);
 
-        const valueDisplay = document.createElement('span');
-        valueDisplay.className = 'parameter-value';
-        valueDisplay.textContent = param.get().toFixed(2);
-        paramControl.appendChild(valueDisplay);
-
-        const controlSelect = document.createElement('select');
-        controlOptions.forEach(option => {
-            const optionElement = document.createElement('option');
-            optionElement.value = option;
-            optionElement.textContent = option;
-            controlSelect.appendChild(optionElement);
-        });
-        controlSelect.value = parameterControls.get(param.name).type;
-        controlSelect.addEventListener('change', (e) => {
-            parameterControls.get(param.name).type = e.target.value;
-            slider.disabled = e.target.value !== 'slider';
-        });
-        paramControl.appendChild(controlSelect);
+            const controlSelect = document.createElement('select');
+            controlOptions.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                controlSelect.appendChild(optionElement);
+            });
+            controlSelect.value = parameterControls.get(param.name).type;
+            controlSelect.addEventListener('change', (e) => {
+                parameterControls.get(param.name).type = e.target.value;
+                slider.disabled = e.target.value !== 'slider';
+            });
+            paramControl.appendChild(controlSelect);
+        }
 
         sliderBox.appendChild(paramControl);
     });
 }
+
 
 function startSound(e) {
     e.preventDefault();
@@ -295,13 +315,20 @@ function updateSliderValues() {
     parameterControls.forEach((control, paramName) => {
         const paramControl = sliderBox.querySelector(`.parameter-control[data-param-name="${paramName}"]`);
         if (paramControl) {
-            const slider = paramControl.querySelector('input[type="range"]');
-            const valueDisplay = paramControl.querySelector('.parameter-value');
-            slider.value = control.param.getNormalized();
-            valueDisplay.textContent = control.param.get().toFixed(2);
+            const param = control.param;
+            if (param.isStringParameter && param.isStringParameter()) {
+                const input = paramControl.querySelector('input[type="text"]');
+                if (input) input.value = param.get();
+            } else {
+                const slider = paramControl.querySelector('input[type="range"]');
+                const valueDisplay = paramControl.querySelector('.parameter-value');
+                if (slider) slider.value = param.getNormalized();
+                if (valueDisplay) valueDisplay.textContent = param.get().toFixed(2);
+            }
         }
     });
 }
+
 
 function stopSound(e) {
     e.preventDefault();

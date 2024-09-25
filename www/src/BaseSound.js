@@ -1,4 +1,5 @@
 import { Parameter } from './Parameter.js';
+import { StringParameter } from './StringParameter.js';
 
 export class BaseSound {
     constructor(context, name) {
@@ -20,6 +21,10 @@ export class BaseSound {
         this.parameters.set(name, new Parameter(name, defaultValue, min, max, attackTime, decayTime));
     }
 
+    addStringParameter(name, defaultValue) {
+        this.parameters.set(name, new StringParameter(name, defaultValue));
+    }
+
     getParameter(name) {
         return this.parameters.get(name);
     }
@@ -30,9 +35,17 @@ export class BaseSound {
 
     setParameter(name, value) {
         const param = this.getParameter(name);
-        if (param) {
+        if (param && !(param instanceof StringParameter)) {
             param.set(value);
             this.updateParameter(name);
+        }
+    }
+
+    setStringParameter(name, value) {
+        const param = this.getParameter(name);
+        if (param instanceof StringParameter) {
+            param.set(value);
+            this.updateStringParameter(name);
         }
     }
 
