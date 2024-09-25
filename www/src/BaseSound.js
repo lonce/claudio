@@ -66,6 +66,10 @@ export class BaseSound {
         // To be implemented by derived classes
     }
 
+    updateStringParameter(name) {
+        // To be implemented by derived classes if using string parameters
+    }
+
     play() {
         if (this.timeoutID!=0) {
             clearTimeout(this.timeoutID)

@@ -59,11 +59,17 @@ export class DroneModel extends BaseSound {
         } else if (name === 'gain') {
             this.gainNode.gain.setTargetAtTime(param.get(), this.context.currentTime, param.attackTime);
             console.log(`updateParameter, gain = ${param.get()}`)
-        } else if (name === 'waveform' && this.oscillator) {
+        } 
+    }
+
+    updateStringParameter(name) {
+        const param = this.getStringParameter(name);
+        if (name === 'waveform' && this.oscillator) {
             this.oscillator.type = param.get();
             console.log(`updateParameter, waveform = ${param.get()}`)   
         }
     }
+
 
     destroy() {
         super.destroy();
