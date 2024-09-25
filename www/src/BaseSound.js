@@ -35,10 +35,10 @@ export class BaseSound {
 
     setParameter(name, value) {
         const param = this.getParameter(name);
-        if (param && !(param instanceof StringParameter)) {
+        //if (param && !(param instanceof StringParameter)) {
             param.set(value);
             this.updateParameter(name);
-        }
+        //}
     }
 
     // setStringParameter(name, value) {
