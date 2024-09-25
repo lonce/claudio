@@ -37,6 +37,7 @@ async function initApp() {
     const sliderBox = document.getElementById('sliderBox');
 
     try {
+        log('Loading sounds...');
         const drone = await audioSystem.createSound(DroneModel, 'Drone');
 //        const clickTrain = await audioSystem.createSound(ClickTrainModel, 'Click Train');
         const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet Clicker');
@@ -47,7 +48,7 @@ async function initApp() {
 
         log('Sounds loaded');
         checkOrientationSupport();
-        log
+        log ('Orientation support checked');
 
         sounds.forEach(sound => {
             const option = document.createElement('option');
@@ -76,9 +77,11 @@ async function initApp() {
         xyPad.addEventListener('touchcancel', stopSound);
 
         currentSound = sounds[0];
+        log(`now initialize parameter controls`);
         initializeParameterControls();
         log('Parameter controls initialized, now updating slider box');  
         updateSliderBox();
+        log('Slider box updated');
 
     } catch (error) {
         console.error('Failed to initialize app:', error);
@@ -228,15 +231,24 @@ function updateSliderBox() {
         label.textContent = param.name;
         paramControl.appendChild(label);
 
-        if (param.isStringParameter && param.isStringParameter()) {
-            // String parameter
+        if (param.isStringParameter()) {
             const input = document.createElement('input');
             input.type = 'text';
             input.value = param.get();
-            input.addEventListener('keyup', (event) => {
+            input.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter') {
-                    currentSound.setStringParameter(param.name, input.value);
+                    event.preventDefault(); // Prevent default to avoid any unintended form submission
+                    currentSound.setParameter(param.name, input.value);
                 }
+            });
+            // Prevent updateSliderValues from changing the input while typing
+            input.addEventListener('focus', () => {
+                input.dataset.editing = 'true';
+            });
+            input.addEventListener('blur', () => {
+                input.dataset.editing = 'false';
+                // Update the parameter value when the input loses focus
+                currentSound.setParameter(param.name, input.value);
             });
             paramControl.appendChild(input);
         } else {
@@ -316,10 +328,13 @@ function updateSliderValues() {
         const paramControl = sliderBox.querySelector(`.parameter-control[data-param-name="${paramName}"]`);
         if (paramControl) {
             const param = control.param;
-            if (param.isStringParameter && param.isStringParameter()) {
+            if (param.isStringParameter()) {
                 const input = paramControl.querySelector('input[type="text"]');
-                if (input) input.value = param.get();
+                if (input && input.dataset.editing !== 'true') {
+                    input.value = param.get();
+                }
             } else {
+                // Handle numerical parameters
                 const slider = paramControl.querySelector('input[type="range"]');
                 const valueDisplay = paramControl.querySelector('.parameter-value');
                 if (slider) slider.value = param.getNormalized();
@@ -328,7 +343,6 @@ function updateSliderValues() {
         }
     });
 }
-
 
 function stopSound(e) {
     e.preventDefault();

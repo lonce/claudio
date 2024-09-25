@@ -23,4 +23,9 @@ export class Parameter {
     getNormalized() {
         return (this.value - this.min) / (this.max - this.min);
     }
+
+    // Method to identify this as a string parameter
+    isStringParameter() {
+        return false;
+    }
 }

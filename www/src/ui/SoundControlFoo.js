@@ -30,15 +30,24 @@ export function createSoundControl(sound) {
         label.textContent = param.name;
         paramControl.appendChild(label);
 
-        if (param.isStringParameter && param.isStringParameter()) {
-            // String parameter
+        if (param.isStringParameter()) {
             const input = document.createElement('input');
             input.type = 'text';
             input.value = param.get();
-            input.addEventListener('keyup', (event) => {
+            input.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter') {
-                    sound.setStringParameter(param.name, input.value);
+                    event.preventDefault(); // Prevent default to avoid any unintended form submission
+                    currentSound.setParameter(param.name, input.value);
                 }
+            });
+            // Prevent updateSliderValues from changing the input while typing
+            input.addEventListener('focus', () => {
+                input.dataset.editing = 'true';
+            });
+            input.addEventListener('blur', () => {
+                input.dataset.editing = 'false';
+                // Update the parameter value when the input loses focus
+                currentSound.setParameter(param.name, input.value);
             });
             paramControl.appendChild(input);
         } else {

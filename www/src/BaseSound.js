@@ -35,19 +35,19 @@ export class BaseSound {
 
     setParameter(name, value) {
         const param = this.getParameter(name);
-        if (param && !(param instanceof StringParameter)) {
+        //if (param && !(param instanceof StringParameter)) {
             param.set(value);
             this.updateParameter(name);
-        }
+        //}
     }
 
-    setStringParameter(name, value) {
-        const param = this.getParameter(name);
-        if (param instanceof StringParameter) {
-            param.set(value);
-            this.updateStringParameter(name);
-        }
-    }
+    // setStringParameter(name, value) {
+    //     const param = this.getParameter(name);
+    //     if (param instanceof StringParameter) {
+    //         param.set(value);
+    //         this.updateParameter(name);
+    //     }
+    // }
 
     setParameterNormalized(name, normalizedValue) {
         const param = this.getParameter(name);
@@ -65,6 +65,10 @@ export class BaseSound {
     updateParameter(name) {
         // To be implemented by derived classes
     }
+
+    // updateStringParameter(name) {
+    //     // To be implemented by derived classes if using string parameters
+    // }
 
     play() {
         if (this.timeoutID!=0) {
