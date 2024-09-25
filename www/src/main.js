@@ -45,7 +45,9 @@ async function initApp() {
 
         const sounds = [drone, workletClicker, granny, faustClarinet];
 
+        log('Sounds loaded');
         checkOrientationSupport();
+        log
 
         sounds.forEach(sound => {
             const option = document.createElement('option');
@@ -54,6 +56,7 @@ async function initApp() {
             soundSelector.appendChild(option);
         });
 
+        log('Sound selector populated');
         soundSelector.addEventListener('change', (e) => {
             audioSystem.resume();
             currentSound = sounds.find(s => s.name === e.target.value);
@@ -61,6 +64,7 @@ async function initApp() {
             updateSliderBox();
         });
 
+        log('Sound selector event listener added, now initializing xyPad event listeners');
         xyPad.addEventListener('mousedown', startSound);
         xyPad.addEventListener('mousemove', updateSound);
         xyPad.addEventListener('mouseup', stopSound);
@@ -73,6 +77,7 @@ async function initApp() {
 
         currentSound = sounds[0];
         initializeParameterControls();
+        log('Parameter controls initialized, now updating slider box');  
         updateSliderBox();
 
     } catch (error) {
