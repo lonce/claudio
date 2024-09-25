@@ -232,15 +232,23 @@ function updateSliderBox() {
         paramControl.appendChild(label);
 
         if (param.isStringParameter && param.isStringParameter()) {
-            // String parameter
             const input = document.createElement('input');
             input.type = 'text';
             input.value = param.get();
-            input.addEventListener('keyup', (event) => {
+            input.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter') {
-                    //currentSound.setStringParameter(param.name, input.value);
+                    event.preventDefault(); // Prevent default to avoid any unintended form submission
                     currentSound.setParameter(param.name, input.value);
                 }
+            });
+            // Prevent updateSliderValues from changing the input while typing
+            input.addEventListener('focus', () => {
+                input.dataset.editing = 'true';
+            });
+            input.addEventListener('blur', () => {
+                input.dataset.editing = 'false';
+                // Update the parameter value when the input loses focus
+                currentSound.setParameter(param.name, input.value);
             });
             paramControl.appendChild(input);
         } else {
@@ -322,8 +330,11 @@ function updateSliderValues() {
             const param = control.param;
             if (param.isStringParameter && param.isStringParameter()) {
                 const input = paramControl.querySelector('input[type="text"]');
-                if (input) input.value = param.get();
+                if (input && input.dataset.editing !== 'true') {
+                    input.value = param.get();
+                }
             } else {
+                // Handle numerical parameters
                 const slider = paramControl.querySelector('input[type="range"]');
                 const valueDisplay = paramControl.querySelector('.parameter-value');
                 if (slider) slider.value = param.getNormalized();
@@ -332,7 +343,6 @@ function updateSliderValues() {
         }
     });
 }
-
 
 function stopSound(e) {
     e.preventDefault();
