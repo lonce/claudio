@@ -37,7 +37,7 @@ async function initApp() {
     const sliderBox = document.getElementById('sliderBox');
 
     try {
-        log('Loading sounds...');
+        console.log('Loading sounds...');
         const drone = await audioSystem.createSound(DroneModel, 'Drone');
 //        const clickTrain = await audioSystem.createSound(ClickTrainModel, 'Click Train');
         const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet Clicker');
@@ -46,9 +46,9 @@ async function initApp() {
 
         const sounds = [drone, workletClicker, granny, faustClarinet];
 
-        log('Sounds loaded');
+        console.log('Sounds loaded');
         checkOrientationSupport();
-        log ('Orientation support checked');
+        console.log ('Orientation support checked');
 
         sounds.forEach(sound => {
             const option = document.createElement('option');
@@ -57,7 +57,7 @@ async function initApp() {
             soundSelector.appendChild(option);
         });
 
-        log('Sound selector populated');
+        console.log('Sound selector populated');
         soundSelector.addEventListener('change', (e) => {
             audioSystem.resume();
             currentSound = sounds.find(s => s.name === e.target.value);
@@ -65,7 +65,7 @@ async function initApp() {
             updateSliderBox();
         });
 
-        log('Sound selector event listener added, now initializing xyPad event listeners');
+        console.log('Sound selector event listener added, now initializing xyPad event listeners');
         xyPad.addEventListener('mousedown', startSound);
         xyPad.addEventListener('mousemove', updateSound);
         xyPad.addEventListener('mouseup', stopSound);
@@ -77,11 +77,10 @@ async function initApp() {
         xyPad.addEventListener('touchcancel', stopSound);
 
         currentSound = sounds[0];
-        log(`now initialize parameter controls`);
+        console.log(`now initialize parameter controls`);
         initializeParameterControls();
-        log('Parameter controls initialized, now updating slider box');  
         updateSliderBox();
-        log('Slider box updated');
+        console.log('Slider box updated');
 
     } catch (error) {
         console.error('Failed to initialize app:', error);
@@ -115,7 +114,7 @@ function checkOrientationSupport() {
     // Step a: Check if the device supports deviceOrientation
     if ('DeviceOrientationEvent' in window) {
         hasOrientationSupport = true;
-        console.log('Device orientation support detected');
+        log('Device orientation support detected');
 
         // Step b: Check if permissions are necessary
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -130,7 +129,7 @@ function checkOrientationSupport() {
             window.addEventListener('deviceorientation', handleOrientation);
         }
     } else {
-        console.log('Device orientation not supported');
+        log('Device orientation not supported');
     }
 }
 
@@ -143,8 +142,9 @@ function requestPermission() {
                 if (permissionState === 'granted') {
                     hasOrientationPermission = true;
                     window.addEventListener('deviceorientation', handleOrientation);
+                    log('Orientation permission granted');
                 } else {
-                    console.log('Orientation permission denied');
+                    log('Orientation permission denied');
                 }
             })
             .catch(console.error)
@@ -158,14 +158,6 @@ function requestPermission() {
 }
 
 
-// function handleOrientation(event) {
-//     if (!currentSound || !currentSound.isPlaying) return;
-
-//     const pitch = (event.beta + 90) / 180; // Map -90 to 90 to 0 to 1
-//     const roll = (event.gamma + 90) / 180; // Map -90 to 90 to 0 to 1
-
-//     updateSoundFromOrientation(pitch, roll);
-// }
 
 function handleOrientation(event) {
     if (!currentSound || !currentSound.isPlaying) return;
@@ -192,10 +184,10 @@ function updateSoundFromOrientation(pitch, roll) {
         const param = control.param;
         if (control.type === 'pitch') {
             param.setNormalized(pitch);
-            currentSound.updateParameter(paramName);
+            //-- currentSound.updateParameter(paramName);
         } else if (control.type === 'roll') {
             param.setNormalized(roll);
-            currentSound.updateParameter(paramName);
+            //- currentSound.updateParameter(paramName);
         }
     });
 
@@ -237,22 +229,38 @@ function updateSliderBox() {
             input.value = param.get();
             input.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter') {
-                    event.preventDefault(); // Prevent default to avoid any unintended form submission
+                    event.preventDefault();
                     currentSound.setParameter(param.name, input.value);
                 }
             });
-            // Prevent updateSliderValues from changing the input while typing
             input.addEventListener('focus', () => {
                 input.dataset.editing = 'true';
             });
             input.addEventListener('blur', () => {
                 input.dataset.editing = 'false';
-                // Update the parameter value when the input loses focus
                 currentSound.setParameter(param.name, input.value);
             });
             paramControl.appendChild(input);
+        } else if (param.isIntegerParameter()) {
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = param.min;
+            slider.max = param.max;
+            slider.step = 1;
+            slider.value = param.get();
+            slider.addEventListener('input', () => {
+                //-- param.set(parseInt(slider.value));
+                // -- currentSound.updateParameter(param.name);
+                currentSound.setParameter(param.name, slider.value);
+                valueDisplay.textContent = param.get();
+            });
+            paramControl.appendChild(slider);
+
+            const valueDisplay = document.createElement('span');
+            valueDisplay.textContent = param.get();
+            paramControl.appendChild(valueDisplay);
         } else {
-            // Numerical parameter
+            // Float parameter
             const slider = document.createElement('input');
             slider.type = 'range';
             slider.min = 0;
@@ -260,8 +268,9 @@ function updateSliderBox() {
             slider.step = 0.01;
             slider.value = param.getNormalized();
             slider.addEventListener('input', () => {
-                param.setNormalized(parseFloat(slider.value));
-                currentSound.updateParameter(param.name);
+                //-- param.setNormalized(parseFloat(slider.value));
+                //-- currentSound.updateParameter(param.name);
+                currentSound.setParameterNormalized(param.name, slider.value);
                 valueDisplay.textContent = param.get().toFixed(2);
             });
             paramControl.appendChild(slider);
@@ -310,11 +319,13 @@ function updateSound(e) {
     parameterControls.forEach((control, paramName) => {
         const param = control.param;
         if (control.type === 'x') {
-            param.setNormalized(normalizedX);
-            currentSound.updateParameter(paramName);
+            //-- param.setNormalized(normalizedX);
+            //-- currentSound.updateParameter(paramName);
+            setParamNormalized(paramName, normalizedX);
         } else if (control.type === 'y') {
-            param.setNormalized(normalizedY);
-            currentSound.updateParameter(paramName);
+            //-- param.setNormalized(normalizedY);
+            //-- currentSound.updateParameter(paramName);
+            setParamNormalized(paramName, normalizedY);
         }
         // Note: pitch and roll are handled in handleOrientation
     });
@@ -324,6 +335,7 @@ function updateSound(e) {
 
 function updateSliderValues() {
     const sliderBox = document.getElementById('sliderBox');
+
     parameterControls.forEach((control, paramName) => {
         const paramControl = sliderBox.querySelector(`.parameter-control[data-param-name="${paramName}"]`);
         if (paramControl) {
@@ -333,8 +345,13 @@ function updateSliderValues() {
                 if (input && input.dataset.editing !== 'true') {
                     input.value = param.get();
                 }
+            } else if (param.isIntegerParameter()) {
+                const slider = paramControl.querySelector('input[type="range"]');
+                const valueDisplay = paramControl.querySelector('span');
+                if (slider) slider.value = param.get();
+                if (valueDisplay) valueDisplay.textContent = param.get();
             } else {
-                // Handle numerical parameters
+                // Handle float parameters
                 const slider = paramControl.querySelector('input[type="range"]');
                 const valueDisplay = paramControl.querySelector('.parameter-value');
                 if (slider) slider.value = param.getNormalized();

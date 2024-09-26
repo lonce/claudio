@@ -1,5 +1,5 @@
-import { Parameter } from './Parameter.js';
-import { StringParameter } from './StringParameter.js';
+import { FloatParameter, StringParameter, IntegerParameter } from './Parameter.js';
+
 
 export class BaseSound {
     constructor(context, name) {
@@ -11,18 +11,21 @@ export class BaseSound {
         this.destination = null;
         this.loadAudioPromise = null; // used if the sound loads an audio file
 
-
         this.timeoutID=0; // keeps track so a play can sutoff the timeout.
-
-        this.addParameter('gain', 1, 0, 1);
+        // Add gain parameter with default attack and decay times
+        this.addParameter('gain', .6, 0, 1, 0.05, .25);
     }
 
-    addParameter(name, defaultValue, min, max, attackTime=.05, decayTime=.3) {
-        this.parameters.set(name, new Parameter(name, defaultValue, min, max, attackTime, decayTime));
+    addParameter(name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01) {
+        this.parameters.set(name, new FloatParameter(this, name, defaultValue, min, max, attackTime, decayTime));
     }
 
     addStringParameter(name, defaultValue) {
-        this.parameters.set(name, new StringParameter(name, defaultValue));
+        this.parameters.set(name, new StringParameter(this, name, defaultValue));
+    }
+
+    addIntegerParameter(name, defaultValue, min, max) {
+        this.parameters.set(name, new IntegerParameter(this, name, defaultValue, min, max));
     }
 
     getParameter(name) {
@@ -35,25 +38,21 @@ export class BaseSound {
 
     setParameter(name, value) {
         const param = this.getParameter(name);
-        //if (param && !(param instanceof StringParameter)) {
+        if (param) {
             param.set(value);
-            this.updateParameter(name);
-        //}
+            //-- this.updateParameter(name);
+        }
     }
 
-    // setStringParameter(name, value) {
-    //     const param = this.getParameter(name);
-    //     if (param instanceof StringParameter) {
-    //         param.set(value);
-    //         this.updateParameter(name);
-    //     }
-    // }
+    updateParameter(name) {
+        // To be implemented by derived classes
+    }
 
     setParameterNormalized(name, normalizedValue) {
         const param = this.getParameter(name);
         if (param) {
             param.setNormalized(normalizedValue);
-            this.updateParameter(name);
+            //-- this.updateParameter(name);
         }
     }
 
@@ -62,13 +61,7 @@ export class BaseSound {
         return param ? param.getNormalized() : null;
     }
 
-    updateParameter(name) {
-        // To be implemented by derived classes
-    }
 
-    // updateStringParameter(name) {
-    //     // To be implemented by derived classes if using string parameters
-    // }
 
     play() {
         if (this.timeoutID!=0) {

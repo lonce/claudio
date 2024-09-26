@@ -4,9 +4,12 @@ export class DroneModel extends BaseSound {
     constructor(context, name) {
         super(context, name);
         this.addParameter('frequency', 440, 20, 2000, 0, 0);
-        this.addStringParameter('waveform', 'sine');
+        //this.addStringParameter('waveform', 'sine');
+        this.addIntegerParameter('waveshape', 0, 0, 3);
         this.createNodes();
     }
+
+    waves = ['sine', 'triangle', 'sawtooth', 'square'];
 
     createNodes() {
         this.oscillator = null;
@@ -23,6 +26,9 @@ export class DroneModel extends BaseSound {
         
         const freqParam = this.getParameter('frequency');
         this.oscillator.frequency.setValueAtTime(freqParam.get(), this.context.currentTime);
+
+        const waveshapeParam = this.getParameter('waveshape');
+        this.oscillator.type = this.waves[waveshapeParam.get()];
         
         const gainParam = this.getParameter('gain');
         this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
@@ -30,8 +36,7 @@ export class DroneModel extends BaseSound {
         this.gainNode.gain.linearRampToValueAtTime(gainParam.get(), this.context.currentTime + gainParam.attackTime);
 
         console.log(`Starting sound with gain of ${gainParam.get()}`)
-        let foo = this.oscillator.start();
-        console.log(`foo  ${foo}`)
+        this.oscillator.start();
     }
 
     stopSound() {
@@ -39,9 +44,10 @@ export class DroneModel extends BaseSound {
         this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
         this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
         this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + gainParam.decayTime);
+        //console.log(`stopping with decayTime=${gainParam.decayTime}`)
         
         this.timeoutID = setTimeout(() => {
-            console.log(`stopSound timeout called, disconnecting oscilator`)
+            //console.log(`stopSound timeout called, disconnecting oscilator`)
             if (this.oscillator && !this.isPlaying) {
                 this.oscillator.stop();
                 this.oscillator.disconnect();
@@ -56,16 +62,17 @@ export class DroneModel extends BaseSound {
         const param = this.getParameter(name);
         if (name === 'frequency' && this.oscillator) {
             this.oscillator.frequency.setValueAtTime(param.get(), this.context.currentTime);
-        } else if (name === 'gain') {
+        } 
+        else if (name === 'gain') {
             this.gainNode.gain.setTargetAtTime(param.get(), this.context.currentTime, param.attackTime);
-            console.log(`updateParameter, gain = ${param.get()}`)
-        } else if (name === 'waveform' && this.oscillator) {
+        } 
+        else if (name === 'waveshape' && this.oscillator) {
+            this.oscillator.type = this.waves[param.get()];
+        }
+        else if (name === 'waveform' && this.oscillator) {
             this.oscillator.type = param.get();
-            console.log(`updateParameter, waveform = ${param.get()}`)   
         }
     }
-
-
 
     destroy() {
         super.destroy();

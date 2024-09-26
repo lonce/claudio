@@ -59,7 +59,7 @@ export class AnotherGranny extends BaseSound {
         this.addParameter('grainPlayInterval', this.m_grainPlayInterval, 0.05, 1);
         this.addParameter('fileLoopStart', this.p_fileLoopStartRel, 0, 1);
         this.addParameter('fileLoopLength', this.p_fileLoopLengthRel, 0, 1);
-        this.addParameter('gain', 0.4, 0, 1);
+        //this.addParameter('gain', 0.4, 0, 1);
 
            // Initialize gainNode
         this.gainNode = this.context.createGain();
