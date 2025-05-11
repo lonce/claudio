@@ -17,46 +17,64 @@ export class DroneModel extends BaseSound {
         this.outputNode = this.gainNode;
     }
 
-    startSound() {
-        if (this.oscillator) {
-            this.oscillator.disconnect();
-        }
-        this.oscillator = this.context.createOscillator();
-        this.oscillator.connect(this.gainNode);
-        
-        const freqParam = this.getParameter('frequency');
-        this.oscillator.frequency.setValueAtTime(freqParam.get(), this.context.currentTime);
+ startSound() {
+    const now = this.context.currentTime;
 
-        const waveshapeParam = this.getParameter('waveshape');
-        this.oscillator.type = this.waves[waveshapeParam.get()];
-        
-        const gainParam = this.getParameter('gain');
-        this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
-        this.gainNode.gain.setValueAtTime(0, this.context.currentTime);
-        this.gainNode.gain.linearRampToValueAtTime(gainParam.get(), this.context.currentTime + gainParam.attackTime);
+    // Create per-oscillator gain and oscillator
+    const voiceGain = this.context.createGain();
+    const oscillator = this.context.createOscillator();
+    oscillator.connect(voiceGain);
+    voiceGain.connect(this.outputNode); // Connect to shared output
 
-        console.log(`Starting sound with gain of ${gainParam.get()}`)
-        this.oscillator.start();
-    }
+    const freqParam = this.getParameter('frequency');
+    oscillator.frequency.setValueAtTime(freqParam.get(), now);
 
-    stopSound() {
-        const gainParam = this.getParameter('gain');
-        this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
-        this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
-        this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + gainParam.decayTime);
-        //console.log(`stopping with decayTime=${gainParam.decayTime}`)
-        
-        this.timeoutID = setTimeout(() => {
-            //console.log(`stopSound timeout called, disconnecting oscilator`)
-            if (this.oscillator && !this.isPlaying) {
-                this.oscillator.stop();
-                this.oscillator.disconnect();
-                this.oscillator = null;
-            }
-            this.timeoutID=0;
-        }, gainParam.decayTime * 1000 + 100);
-        console.log(`stopSound`)
-    }
+    const waveshapeParam = this.getParameter('waveshape');
+    oscillator.type = this.waves[waveshapeParam.get()];
+
+    const gainParam = this.getParameter('gain');
+    const targetGain = gainParam.get();
+    const attackTime = gainParam.attackTime;
+
+    voiceGain.gain.setValueAtTime(0, now);
+    voiceGain.gain.linearRampToValueAtTime(targetGain, now + attackTime);
+
+    oscillator.start();
+
+    // Save this as the current playing voice
+    this.currentVoice = {
+        oscillator,
+        gainNode: voiceGain
+    };
+
+    console.log(`Starting new voice with gain ${targetGain}`);
+}
+
+
+stopSound() {
+    if (!this.currentVoice) return;
+
+    const now = this.context.currentTime;
+    const gainParam = this.getParameter('gain');
+    const decayTime = gainParam.decayTime;
+
+    const { gainNode, oscillator } = this.currentVoice;
+
+    // Begin decay ramp
+    gainNode.gain.cancelScheduledValues(now);
+    gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+    gainNode.gain.linearRampToValueAtTime(0, now + decayTime);
+
+    // Schedule cleanup after decay
+    setTimeout(() => {
+        oscillator.stop();
+        oscillator.disconnect();
+        gainNode.disconnect();
+    }, decayTime * 1000 + 100);
+
+    this.currentVoice = null;
+    console.log(`Stopping voice with decay time ${decayTime}`);
+}
 
     updateParameter(name) {
         const param = this.getParameter(name);
