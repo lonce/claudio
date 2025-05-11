@@ -17,14 +17,14 @@ export class DroneModel extends BaseSound {
         this.outputNode = this.gainNode;
     }
 
- startSound() {
+startSound() {
     const now = this.context.currentTime;
 
-    // Create per-oscillator gain and oscillator
+    // Create new voice
     const voiceGain = this.context.createGain();
     const oscillator = this.context.createOscillator();
     oscillator.connect(voiceGain);
-    voiceGain.connect(this.outputNode); // Connect to shared output
+    voiceGain.connect(this.outputNode);
 
     const freqParam = this.getParameter('frequency');
     oscillator.frequency.setValueAtTime(freqParam.get(), now);
@@ -36,18 +36,26 @@ export class DroneModel extends BaseSound {
     const targetGain = gainParam.get();
     const attackTime = gainParam.attackTime;
 
+    // Ramp up from 0 to targetGain
     voiceGain.gain.setValueAtTime(0, now);
     voiceGain.gain.linearRampToValueAtTime(targetGain, now + attackTime);
 
+    // Save ramp metadata for use by stopSound()
+    voiceGain.gain._scheduledTime = now;
+    voiceGain.gain._scheduledTarget = {
+        time: now + attackTime,
+        value: targetGain
+    };
+
     oscillator.start();
 
-    // Save this as the current playing voice
+    // Save this voice for stopping later
     this.currentVoice = {
         oscillator,
         gainNode: voiceGain
     };
 
-    console.log(`Starting new voice with gain ${targetGain}`);
+    console.log(`Started oscillator with gain ${targetGain}`);
 }
 
 
@@ -60,12 +68,23 @@ stopSound() {
 
     const { gainNode, oscillator } = this.currentVoice;
 
-    // Begin decay ramp
+    // Estimate current gain if ramp was in progress
+    const scheduledTime = gainNode.gain._scheduledTime || now;
+    const scheduledTarget = gainNode.gain._scheduledTarget || { time: now, value: gainNode.gain.value };
+
+    let currentGain = gainNode.gain.value;
+    const elapsed = now - scheduledTime;
+    const rampDuration = scheduledTarget.time - scheduledTime;
+
+    if (rampDuration > 0 && elapsed < rampDuration) {
+        currentGain = (elapsed / rampDuration) * scheduledTarget.value;
+    }
+
+    // Smooth decay from estimated current value
     gainNode.gain.cancelScheduledValues(now);
-    gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+    gainNode.gain.setValueAtTime(currentGain, now);
     gainNode.gain.linearRampToValueAtTime(0, now + decayTime);
 
-    // Schedule cleanup after decay
     setTimeout(() => {
         oscillator.stop();
         oscillator.disconnect();
@@ -73,7 +92,7 @@ stopSound() {
     }, decayTime * 1000 + 100);
 
     this.currentVoice = null;
-    console.log(`Stopping voice with decay time ${decayTime}`);
+    console.log(`Stopped oscillator with decay time ${decayTime}`);
 }
 
     updateParameter(name) {
