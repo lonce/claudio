@@ -333,7 +333,7 @@ function updateSound(e, force=false) {
         // Note: pitch and roll are handled in handleOrientation
     });
 
-    updateSliderValues();
+   // updateSliderValues();
 }
 
 function updateSliderValues() {
