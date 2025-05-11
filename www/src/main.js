@@ -305,7 +305,9 @@ function startSound(e) {
     log("start sound");
     e.preventDefault();
     updateSound(e, true);
-    currentSound.play();
+    setTimeout((currentSound) => {
+         currentSound.play()
+    }, 20, currentSound);
     
 }
 
@@ -337,7 +339,6 @@ function updateSound(e, force=false) {
 }
 
 function updateSliderValues() {
-    return;
     log("updateSliderValues")
     const sliderBox = document.getElementById('sliderBox');
 
