@@ -98,17 +98,6 @@ function initializeParameterControls() {
 }
 
 
-//////////////////////////////////////////////////////////////
-// function checkOrientationSupport() {
-//     if ('DeviceOrientationEvent' in window) {
-//         hasOrientationSupport = true;
-//         window.addEventListener('deviceorientation', handleOrientation);
-//         log('Device orientation support detected');
-//     } else {
-//         log('Device orientation not supported');
-//     }
-// }
-
 
 function checkOrientationSupport() {
      const xyDiv = document.getElementById('xyPad');
@@ -207,6 +196,7 @@ function updateSoundFromOrientation(pitch, roll) {
 
 ///////////////////////////////////////////////////////////////
 function updateSliderBox() {
+    log("updateSliderBox")
     const sliderBox = document.getElementById('sliderBox');
     sliderBox.innerHTML = '';
 
@@ -312,14 +302,16 @@ function updateSliderBox() {
 
 
 function startSound(e) {
+    log("start sound");
     e.preventDefault();
+    updateSound(e, true);
     currentSound.play();
-    updateSound(e);
+    
 }
 
-function updateSound(e) {
+function updateSound(e, force=false) {
     e.preventDefault();
-    if (!currentSound.isPlaying) return;
+    if (!currentSound.isPlaying  && !force) return;
 
     const rect = e.target.getBoundingClientRect();
     const x = (e.clientX || e.touches[0].clientX) - rect.left;
@@ -345,6 +337,7 @@ function updateSound(e) {
 }
 
 function updateSliderValues() {
+    log("updateSliderValues")
     const sliderBox = document.getElementById('sliderBox');
 
     parameterControls.forEach((control, paramName) => {
