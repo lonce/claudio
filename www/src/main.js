@@ -337,7 +337,7 @@ function updateSound(e, force=false) {
 }
 
 function updateSliderValues() {
-    return();
+    return;
     log("updateSliderValues")
     const sliderBox = document.getElementById('sliderBox');
 
