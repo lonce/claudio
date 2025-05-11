@@ -307,7 +307,7 @@ function startSound(e) {
     updateSound(e, true);
     setTimeout((currentSound) => {
          currentSound.play()
-    }, 20, currentSound);
+    }, 500, currentSound);
     
 }
 
