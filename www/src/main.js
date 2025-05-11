@@ -12,7 +12,9 @@ let parameterControls = new Map();
 let hasOrientationSupport = false;
 let hasOrientationPermission = false;
 
+let needsPermissionRequest = false;
 
+let ocount=0; // orientation event counter
 // Initialized in initApp, used by other functions
 let logElement = null;
 function log(message) {
@@ -119,6 +121,7 @@ function checkOrientationSupport() {
         // Step b: Check if permissions are necessary
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             needsPermissionRequest = true;
+            log('requesting Device orientation');
             
             // Step c: Set up XY div for permission request
             xyDiv.textContent = 'Push to grant motion permission';
@@ -126,6 +129,7 @@ function checkOrientationSupport() {
         } else {
             // No permission needed, enable orientation features
             hasOrientationPermission = true;
+            log('Device orientation granted with no permission necessary');
             window.addEventListener('deviceorientation', handleOrientation);
         }
     } else {
@@ -160,6 +164,7 @@ function requestPermission() {
 
 
 function handleOrientation(event) {
+    console.log('orientation event...' + ocount++);
     if (!currentSound || !currentSound.isPlaying) return;
 
     // Helper function to map and clamp values
@@ -321,11 +326,11 @@ function updateSound(e) {
         if (control.type === 'x') {
             //-- param.setNormalized(normalizedX);
             //-- currentSound.updateParameter(paramName);
-            setParamNormalized(paramName, normalizedX);
+            currentSound.setParameterNormalized(paramName, normalizedX);
         } else if (control.type === 'y') {
             //-- param.setNormalized(normalizedY);
             //-- currentSound.updateParameter(paramName);
-            setParamNormalized(paramName, normalizedY);
+            currentSound.setParameterNormalized(paramName, normalizedY);
         }
         // Note: pitch and roll are handled in handleOrientation
     });
