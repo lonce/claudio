@@ -130,7 +130,11 @@ function checkOrientationSupport() {
             // No permission needed, enable orientation features
             hasOrientationPermission = true;
             log('Device orientation granted with no permission necessary');
-            window.addEventListener('deviceorientation', handleOrientation);
+            // Wait for user gesture before attaching
+            document.body.addEventListener('click', () => {
+                window.addEventListener('deviceorientation', handleOrientation);
+                log('Orientation event listener attached after user click');
+            }, { once: true });
         }
     } else {
         log('Device orientation not supported');
