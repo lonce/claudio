@@ -6,6 +6,8 @@ import { AnotherGranny } from './models/AnotherGranny.js';
 import { FaustClarinet } from './models/FaustClarinet.js';
 
 
+
+
 const audioSystem = new AudioSystem();
 let currentSound = null;
 let parameterControls = new Map();
@@ -304,10 +306,8 @@ function updateSliderBox() {
 function startSound(e) {
     log("start sound");
     e.preventDefault();
+    currentSound.play()
     updateSound(e, true);
-    setTimeout((currentSound) => {
-         currentSound.play()
-    }, 50, currentSound);
     
 }
 
@@ -339,7 +339,7 @@ function updateSound(e, force=false) {
 }
 
 function updateSliderValues() {
-    log("updateSliderValues")
+    
     const sliderBox = document.getElementById('sliderBox');
 
     parameterControls.forEach((control, paramName) => {

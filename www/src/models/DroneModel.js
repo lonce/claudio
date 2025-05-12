@@ -4,6 +4,7 @@ export class DroneModel extends BaseSound {
     constructor(context, name) {
         super(context, name);
         this.addParameter('frequency', 440, 20, 2000, 0, 0);
+        //this.addStringParameter('waveform', 'sine');
         this.addIntegerParameter('waveshape', 0, 0, 3);
         this.createNodes();
     }
@@ -17,78 +18,53 @@ export class DroneModel extends BaseSound {
     }
 
     startSound() {
-        const now = this.context.currentTime;
-
         if (this.oscillator) {
             this.oscillator.disconnect();
         }
-
         this.oscillator = this.context.createOscillator();
         this.oscillator.connect(this.gainNode);
-
+        
         const freqParam = this.getParameter('frequency');
-        this.oscillator.frequency.setValueAtTime(freqParam.get(), now);
+        this.oscillator.frequency.setValueAtTime(freqParam.get(), this.context.currentTime);
 
         const waveshapeParam = this.getParameter('waveshape');
         this.oscillator.type = this.waves[waveshapeParam.get()];
-
+        
         const gainParam = this.getParameter('gain');
-        const attackTime = gainParam.attackTime;
-        const targetGain = gainParam.get();
+        this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
+        this.gainNode.gain.setValueAtTime(0, this.context.currentTime);
+        this.gainNode.gain.linearRampToValueAtTime(gainParam.get(), this.context.currentTime + gainParam.attackTime);
 
-        // Smooth start using cancelAndHoldAtTime if supported
-        const gain = this.gainNode.gain;
-        if (typeof gain.cancelAndHoldAtTime === 'function') {
-            gain.cancelAndHoldAtTime(now);
-        } else {
-            gain.cancelScheduledValues(now);
-            gain.setValueAtTime(gain.value, now); // fallback for older browsers
-        }
-
-        gain.linearRampToValueAtTime(targetGain, now + attackTime);
-
-        console.log(`Starting sound with gain ${targetGain}`);
-        this.oscillator.start(now);
+        console.log(`Starting sound with gain of ${gainParam.get()}`)
+        this.oscillator.start();
     }
 
-   stopSound() {
-    const now = this.context.currentTime;
-    const gainParam = this.getParameter('gain');
-    const decayTime = gainParam.decayTime;
-
-    const gain = this.gainNode.gain;
-
-    if (typeof gain.cancelAndHoldAtTime === 'function') {
-        gain.cancelAndHoldAtTime(now);
-        gain.setValueAtTime(gain.value, now); // ⬅ ensures ramp starts from actual held value
-    } else {
-        gain.cancelScheduledValues(now);
-        gain.setValueAtTime(gain.value, now); // fallback
+    stopSound() {
+        const gainParam = this.getParameter('gain');
+        this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
+        this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
+        this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + gainParam.decayTime);
+        //console.log(`stopping with decayTime=${gainParam.decayTime}`)
+        
+        this.timeoutID = setTimeout(() => {
+            //console.log(`stopSound timeout called, disconnecting oscilator`)
+            if (this.oscillator && !this.isPlaying) {
+                this.oscillator.stop();
+                this.oscillator.disconnect();
+                this.oscillator = null;
+            }
+            this.timeoutID=0;
+        }, gainParam.decayTime * 1000 + 100);
+        console.log(`stopSound`)
     }
-
-    gain.linearRampToValueAtTime(0, now + decayTime);
-
-    this.timeoutID = setTimeout(() => {
-        if (this.oscillator && !this.isPlaying) {
-            this.oscillator.stop();
-            this.oscillator.disconnect();
-            this.oscillator = null;
-        }
-        this.timeoutID = 0;
-    }, decayTime * 1000 + 100);
-
-    console.log(`stopSound`);
-}
 
     updateParameter(name) {
         const param = this.getParameter(name);
-        const now = this.context.currentTime;
-
         if (name === 'frequency' && this.oscillator) {
-            this.oscillator.frequency.setValueAtTime(param.get(), now);
+            this.oscillator.frequency.setValueAtTime(param.get(), this.context.currentTime);
         } 
         else if (name === 'gain') {
-            this.gainNode.gain.setTargetAtTime(param.get(), now, param.attackTime || 0.01);
+            this.gainNode.gain.setTargetAtTime(param.get(), this.context.currentTime, param.attackTime);
         } 
         else if (name === 'waveshape' && this.oscillator) {
             this.oscillator.type = this.waves[param.get()];
@@ -105,6 +81,6 @@ export class DroneModel extends BaseSound {
             this.oscillator.disconnect();
         }
         this.gainNode.disconnect();
-        console.log(`gain disconnected`);
+        console.log(`gain disconnected`)
     }
 }

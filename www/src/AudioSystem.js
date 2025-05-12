@@ -1,3 +1,5 @@
+import SoundModelWrapper from './SoundModelWrapper.js';
+
 export class AudioSystem {
     constructor() {
         this.context = new (window.AudioContext || window.webkitAudioContext)();
@@ -18,18 +20,21 @@ export class AudioSystem {
         if (SoundClass.WORKLET_PATH) {
             await this.loadWorklet(SoundClass.WORKLET_PATH);
         }
-        
-        const sound = new SoundClass(this.context, name, ...args);
 
-        // Wait for audio loading if the method exists
-        if (typeof sound.waitForLoad === 'function') {
-            await sound.waitForLoad();
+        // Create a prototype to pre-load anything (like waitForLoad)
+        const prototype = new SoundClass(this.context, name, ...args);
+        if (typeof prototype.waitForLoad === 'function') {
+            await prototype.waitForLoad();
         }
 
+        // Define a factory function that creates new instances
+        const factory = () => new SoundClass(this.context, name, ...args);
 
-        sound.connect(this.masterGainNode);
-        this.sounds.set(name, sound);
-        return sound;
+        // Wrap it in SoundModelWrapper
+        const wrapped = new SoundModelWrapper(factory, this.context, name);
+        wrapped.connect(this.masterGainNode);
+        this.sounds.set(name, wrapped);
+        return wrapped;
     }
 
     async resume() {
