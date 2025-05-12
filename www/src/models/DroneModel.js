@@ -18,6 +18,7 @@ export class DroneModel extends BaseSound {
     }
 
     startSound() {
+        
         if (this.oscillator) {
             this.oscillator.disconnect();
         }
@@ -31,18 +32,22 @@ export class DroneModel extends BaseSound {
         this.oscillator.type = this.waves[waveshapeParam.get()];
         
         const gainParam = this.getParameter('gain');
+        console.log(`Drone START with gain of ${gainParam.get()}`)
         this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
         this.gainNode.gain.setValueAtTime(0, this.context.currentTime);
+        console.log(`Drone ramp UP to gain=${gainParam.get()} from now = ${this.context.currentTime} to then=${this.context.currentTime+gainParam.attackTime}`)
         this.gainNode.gain.linearRampToValueAtTime(gainParam.get(), this.context.currentTime + gainParam.attackTime);
 
-        console.log(`Starting sound with gain of ${gainParam.get()}`)
+        
         this.oscillator.start();
     }
 
     stopSound() {
+        console.log("Drone STOP")
         const gainParam = this.getParameter('gain');
         this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
         this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
+        console.log(`Drone ramp DOWN to gain= 0 from now = ${this.context.currentTime} to then=${this.context.currentTime+gainParam.decayTime}`)
         this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + gainParam.decayTime);
         //console.log(`stopping with decayTime=${gainParam.decayTime}`)
         
@@ -64,6 +69,7 @@ export class DroneModel extends BaseSound {
             this.oscillator.frequency.setValueAtTime(param.get(), this.context.currentTime);
         } 
         else if (name === 'gain') {
+            console.log(`Drone update GAIN with value ${param.get()}`)
             this.gainNode.gain.setTargetAtTime(param.get(), this.context.currentTime, param.attackTime);
         } 
         else if (name === 'waveshape' && this.oscillator) {

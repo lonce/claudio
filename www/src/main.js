@@ -17,6 +17,8 @@ let hasOrientationPermission = false;
 let needsPermissionRequest = false;
 
 let ocount=0; // orientation event counter
+let mouseDownP=false;
+
 // Initialized in initApp, used by other functions
 let logElement = null;
 function log(message) {
@@ -70,14 +72,26 @@ async function initApp() {
         });
 
         console.log('Sound selector event listener added, now initializing xyPad event listeners');
+        xyPad.addEventListener('mousedown', function(event) {
+            mouseDownP=true
+        });
         xyPad.addEventListener('mousedown', startSound);
         xyPad.addEventListener('mousemove', updateSound);
         xyPad.addEventListener('mouseup', stopSound);
+        xyPad.addEventListener('mouseup', function(event) {
+            mouseDownP=false
+        });
         xyPad.addEventListener('mouseleave', stopSound);
 
+        xyPad.addEventListener('touchstart', function(event) {
+            mouseDownP=true
+        });
         xyPad.addEventListener('touchstart', startSound);
         xyPad.addEventListener('touchmove', updateSound);
         xyPad.addEventListener('touchend', stopSound);
+        xyPad.addEventListener('touchend', function(event) {
+            mouseDownP=false
+        });
         xyPad.addEventListener('touchcancel', stopSound);
 
         currentSound = sounds[0];
@@ -303,8 +317,10 @@ function updateSliderBox() {
 }
 
 
+
 function startSound(e) {
     log("start sound");
+
     e.preventDefault();
     updateSound(e, true);
     currentSound.play()
@@ -312,6 +328,8 @@ function startSound(e) {
 }
 
 function updateSound(e, force=false) {
+    if (! mouseDownP) return;
+
     e.preventDefault();
     if (!currentSound.isPlaying  && !force) return;
 

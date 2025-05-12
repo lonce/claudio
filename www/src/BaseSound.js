@@ -13,7 +13,7 @@ export class BaseSound {
 
         this.timeoutID=0; // keeps track so a play can sutoff the timeout.
         // Add gain parameter with default attack and decay times
-        this.addParameter('gain', .6, 0, 1, 0.05, .25);
+        this.addParameter('gain', .6, 0, 1, 0.5, .5);
     }
 
     addParameter(name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01) {
