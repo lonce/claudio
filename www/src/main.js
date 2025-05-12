@@ -306,8 +306,8 @@ function updateSliderBox() {
 function startSound(e) {
     log("start sound");
     e.preventDefault();
-    currentSound.play()
     updateSound(e, true);
+    currentSound.play()
     
 }
 
