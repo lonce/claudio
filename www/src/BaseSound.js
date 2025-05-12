@@ -76,8 +76,11 @@ export class BaseSound {
 
     stop() {
         if (this.isPlaying) {
-            this.isPlaying = false;
-            this.stopSound();
+            console.log("BaseSound stopping")
+            this.stopSound(() => {
+                console.log("BaseSound released")
+                this.isPlaying = false;  // Actual release point
+            });
         }
     }
 

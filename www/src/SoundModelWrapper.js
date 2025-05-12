@@ -34,13 +34,18 @@ export class SoundModelWrapper {
 
     _getAvailableVoice() {
         const freeVoice = this.pool.find(v => !v.isPlaying);
-        if (freeVoice) return freeVoice;
+        if (freeVoice) {
+            console.log(`[Wrapper] Using free voice`);
+            return freeVoice;
+        }
 
         if (this.pool.length < this.maxPoolSize) {
+            console.log(`[Wrapper] Expanding pool`);
             this._addVoiceToPool();
             return this.pool[this.pool.length - 1];
         }
 
+        console.warn(`[Wrapper] No free voices`);
         return null;
     }
 

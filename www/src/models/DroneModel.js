@@ -42,27 +42,29 @@ export class DroneModel extends BaseSound {
         this.oscillator.start();
     }
 
-    stopSound() {
-        console.log("Drone STOP")
+    stopSound(onReleased) {
+        const now = this.context.currentTime;
         const gainParam = this.getParameter('gain');
-        this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
-        this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
-        console.log(`Drone ramp DOWN to gain= 0 from now = ${this.context.currentTime} to then=${this.context.currentTime+gainParam.decayTime}`)
-        this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + gainParam.decayTime);
-        //console.log(`stopping with decayTime=${gainParam.decayTime}`)
-        
+        const decayTime = gainParam.decayTime;
+
+        const gain = this.gainNode.gain;
+        gain.cancelAndHoldAtTime(now);
+        gain.setValueAtTime(gain.value, now);
+        gain.linearRampToValueAtTime(0, now + decayTime);
+
         this.timeoutID = setTimeout(() => {
-            //console.log(`stopSound timeout called, disconnecting oscilator`)
-            if (this.oscillator && !this.isPlaying) {
+            if (this.oscillator) {
                 this.oscillator.stop();
                 this.oscillator.disconnect();
                 this.oscillator = null;
             }
-            this.timeoutID=0;
-        }, gainParam.decayTime * 1000 + 100);
-        console.log(`stopSound`)
+            this.timeoutID = 0;
+            if (typeof onReleased === 'function') {
+                onReleased();  // <- Notify BaseSound
+            }
+        }, decayTime * 1000 + 100);
     }
-
+    
     updateParameter(name) {
         const param = this.getParameter(name);
         if (name === 'frequency' && this.oscillator) {
