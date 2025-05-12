@@ -50,6 +50,11 @@ export class SoundModelWrapper {
     }
 
     play() {
+        if (this.currentVoice && this.currentVoice.isPlaying) {
+            this.currentVoice.stop();  // let it decay
+            // don't null it yet — we'll overwrite it right after
+        }
+
         const voice = this._getAvailableVoice();
         if (!voice) {
             console.warn(`No available voices in pool for model ${this.name}`);
