@@ -13,6 +13,7 @@ export class BaseSound {
         this.inAttackSegment = false;
         this.inDecaySegment = false;
         this.attackTimeoutID = null;
+        this.decayTimeoutID = null;
 
         this.addParameter('gain', 0.6, 0, 1, 0.5, 0.5);
     }
@@ -62,7 +63,7 @@ export class BaseSound {
         // To be overridden in subclass
     }
 
-    scheduleAttack(gainNode) {
+    scheduleAttack(gainNode, resumeFromDecay = false) {
         const now = this.context.currentTime;
         const gainParam = this.getParameter('gain');
         const gain = gainNode.gain;
@@ -74,13 +75,20 @@ export class BaseSound {
             gain.setValueAtTime(gain.value, now);
         }
 
-        gain.setValueAtTime(0, now);
+        if (!resumeFromDecay) {
+            gain.setValueAtTime(0, now);
+        } else {
+            gain.setValueAtTime(gain.value, now);
+        }
+
         gain.linearRampToValueAtTime(gainParam.get(), now + gainParam.attackTime);
 
         this.inAttackSegment = true;
         this.inDecaySegment = false;
 
         if (this.attackTimeoutID) clearTimeout(this.attackTimeoutID);
+        if (this.decayTimeoutID) clearTimeout(this.decayTimeoutID); // cancel pending decay stop
+
         this.attackTimeoutID = setTimeout(() => {
             this.inAttackSegment = false;
         }, gainParam.attackTime * 1000);
@@ -100,12 +108,12 @@ export class BaseSound {
             gain.setValueAtTime(gain.value, now);
         }
 
-        gain.setValueAtTime(gain.value, now);  // pin current value before ramp
+        gain.setValueAtTime(gain.value, now);
         gain.linearRampToValueAtTime(0, now + gainParam.decayTime);
 
         this.inDecaySegment = true;
 
-        setTimeout(() => {
+        this.decayTimeoutID = setTimeout(() => {
             this.inDecaySegment = false;
             if (typeof onReleased === 'function') {
                 onReleased();
@@ -131,7 +139,14 @@ export class BaseSound {
     }
 
     play() {
-        if (!this.isPlaying) {
+        if (this.isPlaying) {
+            if (this.inDecaySegment) {
+                console.log(`${this.name}: interrupting decay, resuming attack`);
+                this.scheduleAttack(this.gainNode, true);
+            } else {
+                return;
+            }
+        } else {
             this.isPlaying = true;
             this.startSound();
         }

@@ -1,14 +1,10 @@
-import SoundModelWrapper from './SoundModelWrapper.js';
-
 export class AudioSystem {
     constructor() {
         this.context = new (window.AudioContext || window.webkitAudioContext)();
         this.sounds = new Map();
         this.masterGainNode = this.context.createGain();
+        this.masterGainNode.gain.value = 0.4; // default master gain
         this.masterGainNode.connect(this.context.destination);
-
-        this.masterGainNode.gain.value = 0.4; 
-
         this.loadedWorklets = new Set();
     }
 
@@ -19,25 +15,28 @@ export class AudioSystem {
         }
     }
 
-    async createSound(SoundClass, name, ...args) {
+    async createSound(SoundClass, name, maxPoolSize = 4, ...args) {
         if (SoundClass.WORKLET_PATH) {
             await this.loadWorklet(SoundClass.WORKLET_PATH);
         }
 
-        // Create a prototype to pre-load anything (like waitForLoad)
-        const prototype = new SoundClass(this.context, name, ...args);
-        if (typeof prototype.waitForLoad === 'function') {
-            await prototype.waitForLoad();
+        const createModel = () => new SoundClass(this.context, name, ...args);
+
+        let sound;
+        if (maxPoolSize > 0) {
+            const { SoundModelWrapper } = await import('./SoundModelWrapper.js');
+            sound = new SoundModelWrapper(createModel, this.context, name, Math.min(4, maxPoolSize), maxPoolSize);
+        } else {
+            sound = createModel();
         }
 
-        // Define a factory function that creates new instances
-        const factory = () => new SoundClass(this.context, name, ...args);
+        if (typeof sound.waitForLoad === 'function') {
+            await sound.waitForLoad();
+        }
 
-        // Wrap it in SoundModelWrapper
-        const wrapped = new SoundModelWrapper(factory, this.context, name);
-        wrapped.connect(this.masterGainNode);
-        this.sounds.set(name, wrapped);
-        return wrapped;
+        sound.connect(this.masterGainNode);
+        this.sounds.set(name, sound);
+        return sound;
     }
 
     async resume() {
@@ -51,3 +50,5 @@ export class AudioSystem {
         return this.sounds.get(name);
     }
 }
+
+export default AudioSystem;

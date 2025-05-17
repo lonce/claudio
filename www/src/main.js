@@ -44,11 +44,11 @@ async function initApp() {
 
     try {
         console.log('Loading sounds...');
-        const drone = await audioSystem.createSound(DroneModel, 'Drone');
-//        const clickTrain = await audioSystem.createSound(ClickTrainModel, 'Click Train');
-        const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet Clicker');
-        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 'audioResources/BeingRural22k.mp3');
-        const faustClarinet = await audioSystem.createSound(FaustClarinet, 'FaustClarinet');
+        // The third argument can be greater than 0 in which case you get a pool of sounds that can sound simultaneously
+        const drone = await audioSystem.createSound(DroneModel, 'Drone', 0);
+        const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet Clicker', 0);
+        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 'audioResources/BeingRural22k.mp3');
+        const faustClarinet = await audioSystem.createSound(FaustClarinet, 'FaustClarinet', 0);
 
         const sounds = [drone, workletClicker, granny, faustClarinet];
 
@@ -212,7 +212,7 @@ function updateSoundFromOrientation(pitch, roll) {
 
 ///////////////////////////////////////////////////////////////
 function updateSliderBox() {
-    log("updateSliderBox")
+    //log("updateSliderBox")
     const sliderBox = document.getElementById('sliderBox');
     sliderBox.innerHTML = '';
 
@@ -319,7 +319,7 @@ function updateSliderBox() {
 
 
 function startSound(e) {
-    log("start sound");
+    //log("start sound");
 
     e.preventDefault();
     updateSound(e, true);
