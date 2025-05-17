@@ -11,7 +11,7 @@ export class BaseSound {
         this.destination = null;
         this.loadAudioPromise = null; // used if the sound loads an audio file
 
-        this.timeoutID=0; // keeps track so a play can sutoff the timeout.
+        //this.timeoutID=0; // keeps track so a play can sutoff the timeout.
         // Add gain parameter with default attack and decay times
         this.addParameter('gain', .6, 0, 1, 0.5, .5);
     }
@@ -64,20 +64,16 @@ export class BaseSound {
 
 
     play() {
-        if (this.timeoutID!=0) {
-            clearTimeout(this.timeoutID)
-            this.timeoutID=0;
-        }
         if (!this.isPlaying) {
             this.isPlaying = true;
             this.startSound();
         }
     }
 
-    stop() {
+    stop(cb) {
         if (this.isPlaying) {
-            console.log("BaseSound stopping")
-            this.stopSound(() => {
+            console.log("BaseSound start decay")
+            this.stopSound((cb) => {
                 console.log("BaseSound released")
                 this.isPlaying = false;  // Actual release point
             });

@@ -6,6 +6,9 @@ export class AudioSystem {
         this.sounds = new Map();
         this.masterGainNode = this.context.createGain();
         this.masterGainNode.connect(this.context.destination);
+
+        this.masterGainNode.gain.value = 0.4; 
+
         this.loadedWorklets = new Set();
     }
 

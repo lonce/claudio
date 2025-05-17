@@ -1,5 +1,5 @@
 // SoundModelWrapper.js
-// Generic wrapper for BaseSound-compatible models as an ES module
+// Simplified SoundModelWrapper with always-active currentVoice
 
 export class SoundModelWrapper {
     constructor(SoundFactory, context, name, initialPoolSize = 4, maxPoolSize = 8) {
@@ -8,78 +8,87 @@ export class SoundModelWrapper {
         this.name = name;
         this.pool = [];
         this.maxPoolSize = maxPoolSize;
-        this.parameterMap = new Map();
         this.outputNode = this.context.createGain();
-        this.currentVoice = null;
-        this.prototypeVoice = this.SoundFactory();
-        this.prototypeVoice.connect(this.outputNode); // connect for completeness
+
+        this.outputNode.gain.value = 0.4;
+
+        this.idCount=0
+        console.log(`IN Wrapper Constructor, idCount = ${this.idCount}`)
 
         for (let i = 0; i < initialPoolSize; i++) {
             this._addVoiceToPool();
         }
+
+        this.currentVoice = this._getAvailableVoice();
+        this.currentVoice.connect(this.outputNode);
+
+
     }
 
+   
     _addVoiceToPool() {
         const voice = this.SoundFactory();
+        voice.ID=this.idCount;
+        this.idCount=this.idCount+1
+        console.log(`pushing voice with ID=${voice.ID} to the pool`)
         voice.connect(this.outputNode);
-        this._applyStoredParametersTo(voice);
         this.pool.push(voice);
-    }
-
-    _applyStoredParametersTo(voice) {
-        for (const [name, value] of this.parameterMap.entries()) {
-            voice.setParameter(name, value);
-        }
     }
 
     _getAvailableVoice() {
         const freeVoice = this.pool.find(v => !v.isPlaying);
-        if (freeVoice) {
-            console.log(`[Wrapper] Using free voice`);
-            return freeVoice;
-        }
+        if (freeVoice) return freeVoice;
 
         if (this.pool.length < this.maxPoolSize) {
-            console.log(`[Wrapper] Expanding pool`);
             this._addVoiceToPool();
             return this.pool[this.pool.length - 1];
         }
 
-        console.warn(`[Wrapper] No free voices`);
         return null;
     }
 
+    _copyParameters(fromVoice, toVoice) {
+        const params = fromVoice?.getParameters?.() ?? [];
+        for (const param of params) {
+            const name = param.name;
+            const value = fromVoice.getParameter(name)?.get?.();
+            if (value !== undefined) {
+                toVoice.setParameter(name, value);
+            }
+        }
+    }
+
     play() {
-        if (this.currentVoice && this.currentVoice.isPlaying) {
-            this.currentVoice.stop();  // let it decay
-            // don't null it yet — we'll overwrite it right after
+        if (this.currentVoice?.isPlaying) {
+            this.currentVoice.stop(); // allow it to decay
+            console.log(`STOP voiceID = ${this.currentVoice.ID}`)
         }
 
-        const voice = this._getAvailableVoice();
-        if (!voice) {
+        const newVoice = this._getAvailableVoice();
+        
+        if (!newVoice) {
             console.warn(`No available voices in pool for model ${this.name}`);
             return;
         }
 
-        this._applyStoredParametersTo(voice);
-        voice.play();
-        this.currentVoice = voice;
+        this._copyParameters(this.currentVoice, newVoice);
+        newVoice.connect(this.outputNode);
+        newVoice.play();
+        console.log(`PLAY voiceID = ${newVoice.ID}`)
+        this.currentVoice = newVoice;
     }
 
     stop() {
         if (this.currentVoice) {
             this.currentVoice.stop();
-            this.currentVoice = null;
+            console.log(`STOP voiceID = ${this.currentVoice.ID}`)
+            // Remains currentVoice until replaced on next play()
         }
     }
 
     setParameter(name, value) {
-        this.parameterMap.set(name, value);
         if (this.currentVoice) {
             this.currentVoice.setParameter(name, value);
-        }
-        if (this.prototypeVoice) {
-            this.prototypeVoice.setParameter(name, value);
         }
     }
 
@@ -87,28 +96,18 @@ export class SoundModelWrapper {
         if (this.currentVoice) {
             this.currentVoice.setParameterNormalized(name, value);
         }
-        if (this.prototypeVoice) {
-            this.prototypeVoice.setParameterNormalized(name, value);
-        }
-
-        const unnormalizedValue = this.getParameter(name)?.get?.();
-        if (Number.isFinite(unnormalizedValue)) {
-            this.parameterMap.set(name, unnormalizedValue);
-        } else {
-            console.warn(`Parameter ${name} has non-finite value:`, unnormalizedValue);
-        }
     }
 
     getParameter(name) {
-        return this.currentVoice?.getParameter(name) ?? this.prototypeVoice.getParameter(name);
+        return this.currentVoice?.getParameter(name);
     }
 
     getParameterNormalized(name) {
-        return this.currentVoice?.getParameterNormalized(name) ?? this.prototypeVoice.getParameterNormalized(name);
+        return this.currentVoice?.getParameterNormalized(name);
     }
 
     getParameters() {
-        return this.currentVoice?.getParameters() ?? this.prototypeVoice.getParameters();
+        return this.currentVoice?.getParameters() || [];
     }
 
     connect(destination) {
@@ -128,7 +127,6 @@ export class SoundModelWrapper {
         for (const voice of this.pool) {
             voice.destroy();
         }
-        this.prototypeVoice?.destroy();
         this.pool = [];
         this.disconnect();
     }
