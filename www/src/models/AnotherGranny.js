@@ -88,8 +88,11 @@ export class AnotherGranny extends BaseSound {
         this.gainNode.gain.setValueAtTime(this.getParameter('gain').get(), this.context.currentTime);
     }
 
-    stopSound() {
+    stopSound(onReleased) {
         this.continuePlaying = false;
+        if (typeof onReleased === 'function') {
+            onReleased();
+        }
     }
 
     schedule() {

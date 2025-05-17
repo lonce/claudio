@@ -15,22 +15,18 @@ export class ClickTrainModel extends BaseSound {
 
     startSound() {
         this.clearClickInterval();
-        
-        const gainParam = this.getParameter('gain');
-        this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
-        this.gainNode.gain.setValueAtTime(0, this.context.currentTime);
-        this.gainNode.gain.linearRampToValueAtTime(gainParam.get(), this.context.currentTime + gainParam.attackTime);
-
+        this.scheduleAttack(this.gainNode);
+        this.startTime = this.context.currentTime;
         this.restartClickInterval();
     }
 
-    stopSound() {
+    stopSound(onReleased) {
         this.clearClickInterval();
-        const gainParam = this.getParameter('gain');
-        this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
-        this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
-        console.log(`stopping with decayTime=${gainParam.decayTime}`)
-        this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + gainParam.decayTime);
+        this.scheduleDecay(this.gainNode, () => {
+            if (typeof onReleased === 'function') {
+                onReleased();
+            }
+        }
     }
 
     restartClickInterval() {
@@ -70,7 +66,15 @@ export class ClickTrainModel extends BaseSound {
             this.restartClickInterval();
         } else if (name === 'gain') {
             const param = this.getParameter(name);
-            this.gainNode.gain.setTargetAtTime(param.get(), this.context.currentTime, param.attackTime);
+            if (this.inDecaySegment) {
+                console.log('Ignoring gain update during decay.');
+                return;
+            }
+            if (this.inAttackSegment) {
+                this.updateGainDuringAttack(this.gainNode, param.get(), this.startTime, param.attackTime);
+            } else {
+                this.gainNode.gain.setTargetAtTime(param.get(), this.context.currentTime, 0.05);
+            }
         }
     }
 

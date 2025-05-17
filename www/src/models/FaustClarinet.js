@@ -58,10 +58,13 @@ export class FaustClarinet extends BaseSound {
 
     }
 
-    stopSound() {
+    stopSound(onReleased) {
         const pressureParam = this.faustParams.get('pressure');
         if (pressureParam) {
             this.faustNode.setParamValue(pressureParam.address, 0);
+        }
+        if (typeof onReleased === 'function') {
+            onReleased();
         }
     }
 

@@ -6,9 +6,6 @@ export class ClickerWorkletSoundModel extends BaseSound {
     constructor(context, name) {
         super(context, name);
         this.addParameter('rate', 10, 1, 20);
-        this.workletNode = null;
-        this.gainNode = null;
-
         this.createNodes();
     }
 
@@ -21,10 +18,7 @@ export class ClickerWorkletSoundModel extends BaseSound {
             this.workletNode.connect(this.gainNode);
             this.outputNode = this.gainNode;
 
-            // Explicitly set the worklet to inactive state
             this.workletNode.parameters.get('active').setValueAtTime(0, this.context.currentTime);
-            
-            // Set initial gain to 0
             this.gainNode.gain.setValueAtTime(0, this.context.currentTime);
         }
     }
@@ -32,44 +26,41 @@ export class ClickerWorkletSoundModel extends BaseSound {
     startSound() {
         if (this.workletNode) {
             console.log(`${this.name}: Starting sound`);
-            // Activate the worklet
             this.workletNode.parameters.get('active').setValueAtTime(1, this.context.currentTime);
-            console.log(`this.workletNode.parameters.get('active') is ${this.workletNode.parameters.get('active')}`)
-            // Ramp up the gain
-            const gainParam = this.getParameter('gain');
-            this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
-            this.gainNode.gain.setValueAtTime(0, this.context.currentTime);
-            this.gainNode.gain.linearRampToValueAtTime(gainParam.get(), this.context.currentTime + gainParam.attackTime);
+            this.scheduleAttack(this.gainNode);
+            this.startTime = this.context.currentTime;
             this.updateParameter('rate');
         }
     }
 
-    stopSound() {
-            // Ramp down the gain
-            const gainParam = this.getParameter('gain');
-            this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
-            this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, this.context.currentTime);
-            console.log(`stopping with decayTime=${gainParam.decayTime}`)
-            this.gainNode.gain.linearRampToValueAtTime(0, this.context.currentTime + gainParam.decayTime);
-
-            this.timeoutID = setTimeout(() => {
-                console.log(`stopSound timeout called, disconnecting oscilator`)
-                if (this.workletNode) {
-                    console.log(`${this.name}: Stopping sound`);
-                    // Deactivate the worklet
-                    this.workletNode.parameters.get('active').setValueAtTime(0, this.context.currentTime);
-                    console.log(`stopSound - setting worklet 'acive' to 0!`)
-                }
-                this.timeoutID = 0
-             }, gainParam.decayTime * 1000 + 100);
+    stopSound(onReleased) {
+        this.scheduleDecay(this.gainNode, () => {
+            if (this.workletNode) {
+                console.log(`${this.name}: Stopping sound`);
+                this.workletNode.parameters.get('active').setValueAtTime(0, this.context.currentTime);
+            }
+            if (typeof onReleased === 'function') {
+                onReleased();
+            }
+        });
     }
 
     updateParameter(name) {
         const param = this.getParameter(name);
+        const now = this.context.currentTime;
+
         if (name === 'rate' && this.workletNode) {
-            this.workletNode.parameters.get('clickRate').setValueAtTime(param.get(), this.context.currentTime);
-        } else if (name === 'gain' && this.gainNode && this.isPlaying) {
-            this.gainNode.gain.setTargetAtTime(param.get(), this.context.currentTime, param.attackTime);
+            this.workletNode.parameters.get('clickRate').setValueAtTime(param.get(), now);
+        } else if (name === 'gain') {
+            if (this.inDecaySegment) {
+                console.log("Ignoring gain update during decay.");
+                return;
+            }
+            if (this.inAttackSegment) {
+                this.updateGainDuringAttack(this.gainNode, param.get(), this.startTime, param.attackTime);
+            } else {
+                this.gainNode.gain.setTargetAtTime(param.get(), now, 0.05);
+            }
         }
     }
 
