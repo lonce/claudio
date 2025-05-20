@@ -130,7 +130,35 @@ function checkOrientationSupport() {
             
             // Step c: Set up XY div for permission request
             xyDiv.textContent = 'Push to grant motion permission';
-            xyDiv.addEventListener('click', requestPermission);
+            
+
+            ['click', 'touchstart'].forEach(eventType => {
+                xyDiv.addEventListener(eventType, () => {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(state => {
+                            if (state === 'granted') {
+                                hasOrientationPermission = true;
+                                window.addEventListener('deviceorientation', handleOrientation);
+                                log('Orientation permission granted');
+                            } else {
+                                log('Orientation permission denied');
+                            }
+                        })
+                        .catch(err => {
+                            log(`Permission error: ${err}`);
+                        })
+                        .finally(() => {
+                            xyDiv.textContent = '';
+                        });
+                }, { once: true });
+            });
+
+
+
+
+
+
+
         } else {
             // No permission needed, enable orientation features
             hasOrientationPermission = true;
