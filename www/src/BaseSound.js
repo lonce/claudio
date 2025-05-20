@@ -64,6 +64,7 @@ export class BaseSound {
     }
 
     scheduleAttack(gainNode, resumeFromDecay = false) {
+        console.log("schedule attack")
         const now = this.context.currentTime;
         const gainParam = this.getParameter('gain');
         const gain = gainNode.gain;
@@ -95,6 +96,7 @@ export class BaseSound {
     }
 
     scheduleDecay(gainNode, onReleased) {
+        console.log("schedule decay")
         const now = this.context.currentTime;
         const gainParam = this.getParameter('gain');
         const gain = gainNode.gain;
@@ -122,6 +124,7 @@ export class BaseSound {
     }
 
     updateGainDuringAttack(gainNode, newTarget, startTime, attackTime) {
+        console.log("update during attack")
         const now = this.context.currentTime;
         const gain = gainNode.gain;
         const timeSinceStart = now - (startTime ?? 0);
@@ -139,6 +142,7 @@ export class BaseSound {
     }
 
     play() {
+        console.log("play")
         if (this.isPlaying) {
             if (this.inDecaySegment) {
                 console.log(`${this.name}: interrupting decay, resuming attack`);
@@ -153,6 +157,7 @@ export class BaseSound {
     }
 
     stop(cb) {
+        console.log("stop")
         if (this.isPlaying) {
             this.stopSound(() => {
                 this.isPlaying = false;

@@ -17,6 +17,7 @@ export class DroneModel extends BaseSound {
     }
 
     startSound() {
+        console.log("DRONE startSound")
         if (this.oscillator) {
             this.oscillator.disconnect();
         }
@@ -50,6 +51,7 @@ export class DroneModel extends BaseSound {
     }
 
     updateParameter(name) {
+        console.log("DRONE updateParameter")
         const param = this.getParameter(name);
         const now = this.context.currentTime;
 
