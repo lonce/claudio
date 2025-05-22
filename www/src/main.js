@@ -132,6 +132,10 @@ function checkOrientationSupport() {
         log('✅ Device orientation support detected');
 
 enableButton.addEventListener('click', () => {
+    if (audioSystem?.resume) {
+        audioSystem.resume();
+    }
+
     if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
         // iOS: request permission
         const motionPermission = DeviceMotionEvent?.requestPermission?.();
