@@ -116,65 +116,53 @@ function initializeParameterControls() {
 
 
 function checkOrientationSupport() {
-     const xyDiv = document.getElementById('xyPad');
+    const xyDiv = document.getElementById('xyPad');
 
-    // Step a: Check if the device supports deviceOrientation
     if ('DeviceOrientationEvent' in window) {
         hasOrientationSupport = true;
-        log('Device orientation support detected');
+        log('✅ Device orientation support detected');
 
-        // Step b: Check if permissions are necessary
+        // iOS case
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-            needsPermissionRequest = true;
-            log('requesting Device orientation');
-            
-            // Step c: Set up XY div for permission request
-            xyDiv.textContent = 'Push to grant motion permission';
-            
+            xyDiv.textContent = 'Tap here to enable motion sensors';
 
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-            xyDiv.textContent = 'Push to grant motion permission';
+            const enableSensors = () => {
+                // Fire the prompt — no await, just trigger the iOS dialog
+                DeviceOrientationEvent.requestPermission()
+                    .then(permission => {
+                        if (permission === 'granted') {
+                            hasOrientationPermission = true;
+                            log('✅ Permission granted on iOS');
+                        } else {
+                            log('❌ Permission denied on iOS');
+                        }
+                    })
+                    .catch(err => {
+                        log(`❌ Permission error: ${err.name || err.message}`);
+                    });
 
+                // Attach listeners regardless — they'll only work if permission is granted
+                window.addEventListener('deviceorientation', handleOrientation);
+                xyDiv.textContent = '';
+            };
+
+            // Attach the inline gesture listener
             ['click', 'touchstart'].forEach(eventType => {
-                xyDiv.addEventListener(eventType, () => {
-                    const p = DeviceOrientationEvent.requestPermission();
-                    if (p && typeof p.then === 'function') {
-                        p.then(result => {
-                            if (result === 'granted') {
-                                hasOrientationPermission = true;
-                                window.addEventListener('deviceorientation', handleOrientation);
-                                log('✅ Orientation permission granted');
-                            } else {
-                                log('❌ Orientation permission denied');
-                            }
-                        }).catch(err => {
-                            log(`Permission error: ${err.name || err.message}`);
-                        }).finally(() => {
-                            xyDiv.textContent = '';
-                        });
-                    } else {
-                        log('Permission request did not return a Promise');
-                    }
-                }, { once: true });
-            }); 
-
-        } else {
-            // No permission needed, enable orientation features
-            hasOrientationPermission = true;
-            log('Device orientation granted with no permission necessary');
-            // Wait for user gesture before attaching
-            ['click', 'touchstart'].forEach(eventType => {
-                document.body.addEventListener(eventType, () => {
-                    window.addEventListener('deviceorientation', handleOrientation);
-                    log(`Orientation event listener attached after user ${eventType}`);
-                }, { once: true });
+                xyDiv.addEventListener(eventType, enableSensors, { once: true });
             });
-        }
+
         } else {
-            log('Device orientation not supported');
+            // Android / desktop: no permission needed
+            hasOrientationPermission = true;
+            window.addEventListener('deviceorientation', handleOrientation);
+            log('✅ No permission required, orientation events enabled');
         }
+
+    } else {
+        log('❌ Device orientation not supported');
     }
 }
+
 
 
 function requestPermission() {
