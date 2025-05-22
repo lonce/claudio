@@ -156,7 +156,8 @@ function checkOrientationSupport() {
                         log('Permission request did not return a Promise');
                     }
                 }, { once: true });
-            });
+            }); 
+
         } else {
             // No permission needed, enable orientation features
             hasOrientationPermission = true;
@@ -169,11 +170,11 @@ function checkOrientationSupport() {
                 }, { once: true });
             });
         }
-    } else {
-        log('Device orientation not supported');
+        } else {
+            log('Device orientation not supported');
+        }
     }
 }
-
 
 
 function requestPermission() {
