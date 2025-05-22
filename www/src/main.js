@@ -132,13 +132,14 @@ function checkOrientationSupport() {
             xyDiv.textContent = 'Push to grant motion permission';
             
 
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                xyDiv.textContent = 'Push to grant motion permission';
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            xyDiv.textContent = 'Push to grant motion permission';
 
-                ['click', 'touchstart'].forEach(eventType => {
-                    xyDiv.addEventListener(eventType, async () => {
-                        try {
-                            const result = await DeviceOrientationEvent.requestPermission();
+            ['click', 'touchstart'].forEach(eventType => {
+                xyDiv.addEventListener(eventType, () => {
+                    const p = DeviceOrientationEvent.requestPermission();
+                    if (p && typeof p.then === 'function') {
+                        p.then(result => {
                             if (result === 'granted') {
                                 hasOrientationPermission = true;
                                 window.addEventListener('deviceorientation', handleOrientation);
@@ -146,20 +147,16 @@ function checkOrientationSupport() {
                             } else {
                                 log('❌ Orientation permission denied');
                             }
-                        } catch (err) {
+                        }).catch(err => {
                             log(`Permission error: ${err.name || err.message}`);
-                        } finally {
+                        }).finally(() => {
                             xyDiv.textContent = '';
-                        }
-                    }, { once: true });
-                });
-            }
-
-
-
-
-
-
+                        });
+                    } else {
+                        log('Permission request did not return a Promise');
+                    }
+                }, { once: true });
+            });
         } else {
             // No permission needed, enable orientation features
             hasOrientationPermission = true;
