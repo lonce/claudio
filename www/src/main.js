@@ -116,52 +116,48 @@ function initializeParameterControls() {
 
 
 function checkOrientationSupport() {
-    const xyDiv = document.getElementById('xyPad');
+    const enableButton = document.createElement('button');
+    enableButton.textContent = 'Enable Motion Sensors';
+    enableButton.style.position = 'absolute';
+    enableButton.style.top = '20px';
+    enableButton.style.left = '20px';
+    enableButton.style.zIndex = 1000;
+    enableButton.style.fontSize = '16px';
+    enableButton.style.padding = '10px';
+
+    document.body.appendChild(enableButton);
 
     if ('DeviceOrientationEvent' in window) {
         hasOrientationSupport = true;
         log('✅ Device orientation support detected');
 
-        // iOS case
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-            xyDiv.textContent = 'Tap here to enable motion sensors';
+        enableButton.addEventListener('click', () => {
+            const motionPermission = DeviceMotionEvent?.requestPermission?.();
+            const orientationPermission = DeviceOrientationEvent?.requestPermission?.();
 
-            const enableSensors = () => {
-                // Fire the prompt — no await, just trigger the iOS dialog
-                DeviceOrientationEvent.requestPermission()
-                    .then(permission => {
-                        if (permission === 'granted') {
-                            hasOrientationPermission = true;
-                            log('✅ Permission granted on iOS');
-                        } else {
-                            log('❌ Permission denied on iOS');
-                        }
-                    })
-                    .catch(err => {
-                        log(`❌ Permission error: ${err.name || err.message}`);
-                    });
-
-                // Attach listeners regardless — they'll only work if permission is granted
-                window.addEventListener('deviceorientation', handleOrientation);
-                xyDiv.textContent = '';
-            };
-
-            // Attach the inline gesture listener
-            ['click', 'touchstart'].forEach(eventType => {
-                xyDiv.addEventListener(eventType, enableSensors, { once: true });
-            });
-
-        } else {
-            // Android / desktop: no permission needed
-            hasOrientationPermission = true;
-            window.addEventListener('deviceorientation', handleOrientation);
-            log('✅ No permission required, orientation events enabled');
-        }
+            Promise.all([motionPermission, orientationPermission].filter(Boolean))
+                .then(results => {
+                    if (results.includes('granted')) {
+                        hasOrientationPermission = true;
+                        window.addEventListener('deviceorientation', handleOrientation);
+                        log('✅ Orientation permission granted');
+                    } else {
+                        log('❌ Orientation permission denied');
+                    }
+                })
+                .catch(err => {
+                    log(`❌ Permission error: ${err.name || err.message}`);
+                })
+                .finally(() => {
+                    enableButton.remove();
+                });
+        }, { once: true });
 
     } else {
         log('❌ Device orientation not supported');
     }
 }
+
 
 
 
