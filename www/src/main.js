@@ -131,28 +131,37 @@ function checkOrientationSupport() {
         hasOrientationSupport = true;
         log('✅ Device orientation support detected');
 
-        enableButton.addEventListener('click', () => {
-            const motionPermission = DeviceMotionEvent?.requestPermission?.();
-            const orientationPermission = DeviceOrientationEvent?.requestPermission?.();
+enableButton.addEventListener('click', () => {
+    if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
+        // iOS: request permission
+        const motionPermission = DeviceMotionEvent?.requestPermission?.();
+        const orientationPermission = DeviceOrientationEvent?.requestPermission?.();
 
-            Promise.all([motionPermission, orientationPermission].filter(Boolean))
-                .then(results => {
-                    if (results.includes('granted')) {
-                        hasOrientationPermission = true;
-                        window.addEventListener('deviceorientation', handleOrientation);
-                        log('✅ Orientation permission granted');
-                    } else {
-                        log('❌ Orientation permission denied');
-                    }
-                })
-                .catch(err => {
-                    log(`❌ Permission error: ${err.name || err.message}`);
-                })
-                .finally(() => {
-                    enableButton.remove();
-                });
-        }, { once: true });
+        Promise.all([motionPermission, orientationPermission].filter(Boolean))
+            .then(results => {
+                if (results.includes('granted')) {
+                    hasOrientationPermission = true;
+                    window.addEventListener('deviceorientation', handleOrientation);
+                    log('✅ Orientation permission granted');
+                } else {
+                    log('❌ Orientation permission denied');
+                }
+            })
+            .catch(err => {
+                log(`❌ Permission error: ${err.name || err.message}`);
+            })
+            .finally(() => {
+                enableButton.remove();
+            });
 
+    } else {
+        // Android / desktop — no permission API; just start
+        hasOrientationPermission = true;
+        window.addEventListener('deviceorientation', handleOrientation);
+        log('✅ Orientation event listener attached (no permission needed)');
+        enableButton.remove();
+    }
+}, { once: true });
     } else {
         log('❌ Device orientation not supported');
     }
