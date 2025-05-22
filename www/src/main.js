@@ -132,27 +132,28 @@ function checkOrientationSupport() {
             xyDiv.textContent = 'Push to grant motion permission';
             
 
-            ['click', 'touchstart'].forEach(eventType => {
-                xyDiv.addEventListener(eventType, () => {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(state => {
-                            if (state === 'granted') {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                xyDiv.textContent = 'Push to grant motion permission';
+
+                ['click', 'touchstart'].forEach(eventType => {
+                    xyDiv.addEventListener(eventType, async () => {
+                        try {
+                            const result = await DeviceOrientationEvent.requestPermission();
+                            if (result === 'granted') {
                                 hasOrientationPermission = true;
                                 window.addEventListener('deviceorientation', handleOrientation);
-                                log('Orientation permission granted');
+                                log('✅ Orientation permission granted');
                             } else {
-                                log('Orientation permission denied');
+                                log('❌ Orientation permission denied');
                             }
-                        })
-                        .catch(err => {
-                            log(`Permission error: ${err}`);
-                        })
-                        .finally(() => {
+                        } catch (err) {
+                            log(`Permission error: ${err.name || err.message}`);
+                        } finally {
                             xyDiv.textContent = '';
-                        });
-                }, { once: true });
-            });
-
+                        }
+                    }, { once: true });
+                });
+            }
 
 
 
