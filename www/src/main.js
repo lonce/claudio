@@ -231,7 +231,8 @@ function requestPermission() {
 
 function handleOrientation(event) {
     //console.log('orientation event...' + ocount++);
-    if (!currentSound || !currentSound.isPlaying) return;
+    //if (!currentSound || !currentSound.isPlaying) return;
+    if (!currentSound ) return;
 
     // Helper function to map and clamp values
     function mapAndClamp(value, inMin, inMax, outMin, outMax) {
