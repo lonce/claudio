@@ -49,7 +49,9 @@ export class AnotherGranny extends BaseSound {
 
         this.gainNode = this.context.createGain();
         this.outputNode = this.gainNode;
-        this.gainNode.gain.setValueAtTime(this.getParameter('gain').get(), this.context.currentTime);
+        //this.gainNode.gain.setValueAtTime(this.getParameter('gain').get(), this.context.currentTime);
+
+
     }
 
     setAudioBuffer(buffer) {
@@ -89,11 +91,20 @@ export class AnotherGranny extends BaseSound {
         this.continuePlaying = true;
         this.isGrainSchedulerRunning = false;
         this.schedule();
-        this.gainNode.gain.setValueAtTime(this.getParameter('gain').get(), this.context.currentTime);
+
+
+        //this.gainNode.gain.setValueAtTime(this.getParameter('gain').get(), this.context.currentTime);
+        this.scheduleAttack(this.gainNode);
+        this.startTime = this.context.currentTime;
     }
 
     stopSound(onReleased) {
-        this.stopGrains();
+        this.scheduleDecay(this.gainNode, () => {
+            this.stopGrains();
+            if (typeof onReleased === 'function') {
+                onReleased();
+            }
+        });
         if (typeof onReleased === 'function') onReleased();
     }
 
@@ -143,6 +154,8 @@ export class AnotherGranny extends BaseSound {
 
     updateParameter(name) {
         const param = this.getParameter(name);
+        const now = this.context.currentTime;
+        
         switch(name) {
             case 'pitch':
                 this.m_pitch = param.get();
@@ -176,7 +189,18 @@ export class AnotherGranny extends BaseSound {
                 });
                 break;
             case 'gain':
-                this.gainNode.gain.setTargetAtTime(param.get(), this.context.currentTime, param.attackTime);
+
+                if (this.inDecaySegment) {
+                    console.log("Ignoring gain update during decay.");
+                    return;
+                }
+                if (this.inAttackSegment) {
+                    this.updateGainDuringAttack(this.gainNode, param.get(), this.startTime, param.attackTime);
+                } else {
+                    const gain = this.gainNode.gain;
+                    gain.setTargetAtTime(param.get(), now, 0.05);
+                }
+                //this.gainNode.gain.setTargetAtTime(param.get(), this.context.currentTime, param.attackTime);
                 break;
         }
     }

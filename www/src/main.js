@@ -50,7 +50,7 @@ async function initApp() {
         const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet_Clicker', 0);
         //const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 'https://claudio.sonicthings.org/audioResources/BeingRural22k.mp3');
         //const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 'https://hugofloresgarcia.art/sketch2sound/audio/car-racing/in.wav');
-        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 808191);
+        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 200995); //808191);
         const faustClarinet = await audioSystem.createSound(FaustClarinet, 'FaustClarinet', 0);
 
         const sounds = [drone, workletClicker, granny, faustClarinet];
