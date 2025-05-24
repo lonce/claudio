@@ -169,7 +169,7 @@ export class AnotherGranny extends BaseSound {
                 this.m_fileLoopLength = param.get() * this.bufferDuration;
                 this.m_fileLoopEnd = Math.min(this.bufferDuration, this.bufferDuration * (this.p_fileLoopStartRel + this.p_fileLoopLengthRel));
                 break;
-            case 'fileURL':
+            case 'fileURL_or_Freesound_soundID':
                 const newURL = param.get();
                 this.loadAudioFile(newURL).then(buffer => this.setAudioBuffer(buffer)).catch(error => {
                     console.error(`Failed to load audio for ${this.name}:`, error);
