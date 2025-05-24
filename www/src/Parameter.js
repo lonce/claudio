@@ -2,7 +2,8 @@ export class Parameter {
     constructor(soundModel, name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01) {
         this.soundModel=soundModel;
         this.name = name;
-        this.value = defaultValue;
+        this.value = defaultValue; // subject to continuous updates
+        this.defaultValue = defaultValue; // used to reseet
         this.min = min;
         this.max = max;
         this.attackTime = attackTime;

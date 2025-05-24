@@ -1,5 +1,7 @@
 import { FloatParameter, StringParameter, IntegerParameter } from './Parameter.js';
 
+const FREESOUND_TOKEN = '563bc5df64f8d4d9cc83f2b0409501ae4b441b01';
+
 export class BaseSound {
     constructor(context, name) {
         this.context = context;
@@ -188,8 +190,32 @@ export class BaseSound {
         this.disconnect();
     }
 
-    async loadAudioFile(url) {
+    // async loadAudioFile(url) {
+    //     try {
+    //         const response = await fetch(url);
+    //         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    //         const arrayBuffer = await response.arrayBuffer();
+    //         const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+    //         return audioBuffer;
+    //     } catch (error) {
+    //         console.error(`Error loading audio file for ${this.name}:`, error);
+    //         throw error;
+    //     }
+    // }
+
+
+    async loadAudioFile(urlOrId) {
         try {
+            let url = urlOrId;
+
+            if (!isNaN(urlOrId) && typeof urlOrId !== 'string' || /^\d+$/.test(urlOrId)) {
+                const soundId = parseInt(urlOrId, 10);
+                const soundDetailsResponse = await fetch(`https://freesound.org/apiv2/sounds/${soundId}/?token=${FREESOUND_TOKEN}`);
+                if (!soundDetailsResponse.ok) throw new Error(`Failed to fetch Freesound metadata for ID ${soundId}`);
+                const data = await soundDetailsResponse.json();
+                url = data.previews['preview-hq-mp3'];
+            }
+
             const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const arrayBuffer = await response.arrayBuffer();

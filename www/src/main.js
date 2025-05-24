@@ -18,6 +18,7 @@ let needsPermissionRequest = false;
 
 let ocount=0; // orientation event counter
 let mouseDownP=false;
+let requestedSoundName = new URLSearchParams(window.location.search).get('sound');
 
 // Initialized in initApp, used by other functions
 let logElement = null;
@@ -46,8 +47,10 @@ async function initApp() {
         console.log('Loading sounds...');
         // The third argument can be greater than 0 in which case you get a pool of sounds that can sound simultaneously
         const drone = await audioSystem.createSound(DroneModel, 'Drone', 0);
-        const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet Clicker', 0);
-        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 'audioResources/BeingRural22k.mp3');
+        const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet_Clicker', 0);
+        //const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 'https://claudio.sonicthings.org/audioResources/BeingRural22k.mp3');
+        //const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 'https://hugofloresgarcia.art/sketch2sound/audio/car-racing/in.wav');
+        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 808191);
         const faustClarinet = await audioSystem.createSound(FaustClarinet, 'FaustClarinet', 0);
 
         const sounds = [drone, workletClicker, granny, faustClarinet];
@@ -70,6 +73,34 @@ async function initApp() {
             initializeParameterControls();
             updateSliderBox();
         });
+
+
+
+
+
+       // Auto-select from URL if provided
+        let autoSelected = false;
+        if (requestedSoundName) {
+            const match = sounds.find(s => s.name.toLowerCase() === requestedSoundName.toLowerCase());
+            if (match) {
+                soundSelector.value = match.name;
+                currentSound = match;
+                autoSelected = true;
+            }
+        }
+
+        if (!autoSelected) {
+            currentSound = sounds[0];
+            soundSelector.value = currentSound.name;
+        }
+
+        initializeParameterControls();
+        updateSliderBox();
+
+
+
+
+
 
         console.log('Sound selector event listener added, now initializing xyPad event listeners');
         xyPad.addEventListener('mousedown', function(event) {
@@ -94,7 +125,7 @@ async function initApp() {
         });
         xyPad.addEventListener('touchcancel', stopSound);
 
-        currentSound = sounds[0];
+
         console.log(`now initialize parameter controls`);
         initializeParameterControls();
         updateSliderBox();
