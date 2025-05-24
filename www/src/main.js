@@ -179,6 +179,18 @@ function checkOrientationSupport() {
                             window.addEventListener('deviceorientation', handleOrientation);
                             log('✅ Orientation permission granted');
 
+                            // 🔒 Attempt fullscreen mode (required for locking orientation)
+                            const docEl = document.documentElement;
+                            try {
+                                if (docEl.requestFullscreen) {
+                                    await docEl.requestFullscreen();
+                                } else if (docEl.webkitRequestFullscreen) {
+                                    await docEl.webkitRequestFullscreen();
+                                }
+                            } catch (fsErr) {
+                                log('⚠️ Fullscreen request failed: ' + (fsErr.name || fsErr.message));
+                            }
+
                             // 🔒 Attempt to lock screen orientation
                             if (screen.orientation?.lock) {
                                 try {
@@ -207,7 +219,20 @@ function checkOrientationSupport() {
                 window.addEventListener('deviceorientation', handleOrientation);
                 log('✅ Orientation event listener attached (no permission needed)');
 
-                // 🔒 Try to lock orientation
+                // 🔒 Try to lock orientation (with fullscreen)
+                const docEl = document.documentElement;
+                if (docEl.requestFullscreen || docEl.webkitRequestFullscreen) {
+                    try {
+                        if (docEl.requestFullscreen) {
+                            docEl.requestFullscreen();
+                        } else {
+                            docEl.webkitRequestFullscreen();
+                        }
+                    } catch (fsErr) {
+                        log('⚠️ Fullscreen request failed: ' + (fsErr.name || fsErr.message));
+                    }
+                }
+
                 if (screen.orientation?.lock) {
                     screen.orientation.lock('portrait')
                         .then(() => log('🔒 Screen orientation locked to portrait'))
