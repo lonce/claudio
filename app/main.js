@@ -1,12 +1,12 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
 import { DroneModel, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet } from '/soundlib/models/index.js';
-
+import { requestMotionPermissions } from './MotionPermission.js';
 
 const audioSystem = new AudioSystem();
 let currentSound = null;
 let parameterControls = new Map();
-let hasOrientationSupport = false;
-let hasOrientationPermission = false;
+//let hasOrientationSupport = false;
+//let hasOrientationPermission = false;
 
 let needsPermissionRequest = false;
 
@@ -21,7 +21,6 @@ function log(message) {
     console.log(message);  // Still log to console for desktop debugging
 }
 
-
 async function initApp() {
     const appContainer = document.getElementById('app');
 
@@ -31,26 +30,21 @@ async function initApp() {
     logElement.style.marginBottom = '20px';
     appContainer.appendChild(logElement);
 
-
-
     const soundSelector = document.getElementById('soundSelector');
     const xyPad = document.getElementById('xyPad');
     const sliderBox = document.getElementById('sliderBox');
 
     try {
         console.log('Loading sounds...');
-        // The third argument can be greater than 0 in which case you get a pool of sounds that can sound simultaneously
         const drone = await audioSystem.createSound(DroneModel, 'Drone', 0);
         const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet_Clicker', 0);
-        //const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 'https://claudio.sonicthings.org/audioResources/BeingRural22k.mp3');
-        //const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 'https://hugofloresgarcia.art/sketch2sound/audio/car-racing/in.wav');
-        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 200995); //808191);
+        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 200995);
         const faustClarinet = await audioSystem.createSound(FaustClarinet, 'FaustClarinet', 0);
 
         const sounds = [drone, workletClicker, granny, faustClarinet];
 
         console.log('Sounds loaded');
-        checkOrientationSupport();
+        await requestMotionPermissions(audioSystem, handleOrientation, log);
         console.log ('Orientation support checked');
 
         sounds.forEach(sound => {
@@ -65,14 +59,9 @@ async function initApp() {
             audioSystem.resume();
             currentSound = sounds.find(s => s.name === e.target.value);
             initializeParameterControls();
-            updateSliderBox();
+            updateSliderBox(); 
         });
 
-
-
-
-
-       // Auto-select from URL if provided
         let autoSelected = false;
         if (requestedSoundName) {
             const match = sounds.find(s => s.name.toLowerCase() === requestedSoundName.toLowerCase());
@@ -91,34 +80,20 @@ async function initApp() {
         initializeParameterControls();
         updateSliderBox();
 
-
-
-
-
-
         console.log('Sound selector event listener added, now initializing xyPad event listeners');
-        xyPad.addEventListener('mousedown', function(event) {
-            mouseDownP=true
-        });
+        xyPad.addEventListener('mousedown', function(event) { mouseDownP=true });
         xyPad.addEventListener('mousedown', startSound);
         xyPad.addEventListener('mousemove', updateSound);
         xyPad.addEventListener('mouseup', stopSound);
-        xyPad.addEventListener('mouseup', function(event) {
-            mouseDownP=false
-        });
+        xyPad.addEventListener('mouseup', function(event) { mouseDownP=false });
         xyPad.addEventListener('mouseleave', stopSound);
 
-        xyPad.addEventListener('touchstart', function(event) {
-            mouseDownP=true
-        });
+        xyPad.addEventListener('touchstart', function(event) { mouseDownP=true });
         xyPad.addEventListener('touchstart', startSound);
         xyPad.addEventListener('touchmove', updateSound);
         xyPad.addEventListener('touchend', stopSound);
-        xyPad.addEventListener('touchend', function(event) {
-            mouseDownP=false
-        });
+        xyPad.addEventListener('touchend', function(event) { mouseDownP=false });
         xyPad.addEventListener('touchcancel', stopSound);
-
 
         console.log(`now initialize parameter controls`);
         initializeParameterControls();
@@ -131,6 +106,7 @@ async function initApp() {
     }
 }
 
+
 function initializeParameterControls() {
     parameterControls.clear();
     currentSound.getParameters().forEach(param => {
@@ -139,130 +115,6 @@ function initializeParameterControls() {
 }
 
 
-
-function checkOrientationSupport() {
-    const enableButton = document.createElement('button');
-    enableButton.textContent = 'Enable Motion Sensors';
-    enableButton.style.position = 'absolute';
-    enableButton.style.top = '20px';
-    enableButton.style.left = '20px';
-    enableButton.style.zIndex = 1000;
-    enableButton.style.fontSize = '16px';
-    enableButton.style.padding = '10px';
-
-    document.body.appendChild(enableButton);
-
-    if ('DeviceOrientationEvent' in window) {
-        hasOrientationSupport = true;
-        log('✅ Device orientation support detected');
-
-        enableButton.addEventListener('click', () => {
-            if (audioSystem?.resume) {
-                audioSystem.resume();
-            }
-
-            if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-                // iOS: request permission
-                const motionPermission = DeviceMotionEvent?.requestPermission?.();
-                const orientationPermission = DeviceOrientationEvent?.requestPermission?.();
-
-                Promise.all([motionPermission, orientationPermission].filter(Boolean))
-                    .then(async results => {
-                        if (results.includes('granted')) {
-                            hasOrientationPermission = true;
-                            window.addEventListener('deviceorientation', handleOrientation);
-                            log('✅ Orientation permission granted');
-
-                            // 🔒 Attempt fullscreen mode (required for locking orientation)
-                            const docEl = document.documentElement;
-                            try {
-                                if (docEl.requestFullscreen) {
-                                    await docEl.requestFullscreen();
-                                } else if (docEl.webkitRequestFullscreen) {
-                                    await docEl.webkitRequestFullscreen();
-                                }
-                            } catch (fsErr) {
-                                log('⚠️ Fullscreen request failed: ' + (fsErr.name || fsErr.message));
-                            }
-
-                            // 🔒 Attempt to lock screen orientation
-                            if (screen.orientation?.lock) {
-                                try {
-                                    await screen.orientation.lock('portrait');
-                                    log('🔒 Screen orientation locked to portrait');
-                                } catch (err) {
-                                    log('⚠️ Screen orientation lock failed: ' + (err.name || err.message));
-                                }
-                            } else {
-                                log('⚠️ Screen orientation lock not supported on this device/browser');
-                            }
-                        } else {
-                            log('❌ Orientation permission denied');
-                        }
-                    })
-                    .catch(err => {
-                        log(`❌ Permission error: ${err.name || err.message}`);
-                    })
-                    .finally(() => {
-                        enableButton.remove();
-                    });
-
-            } else {
-                // Android / desktop — no permission API; just start
-                hasOrientationPermission = true;
-                window.addEventListener('deviceorientation', handleOrientation);
-                log('✅ Orientation event listener attached (no permission needed)');
-
-                // 🔒 Try to lock orientation (with fullscreen)
-                const docEl = document.documentElement;
-                if (docEl.requestFullscreen || docEl.webkitRequestFullscreen) {
-                    try {
-                        if (docEl.requestFullscreen) {
-                            docEl.requestFullscreen();
-                        } else {
-                            docEl.webkitRequestFullscreen();
-                        }
-                    } catch (fsErr) {
-                        log('⚠️ Fullscreen request failed: ' + (fsErr.name || fsErr.message));
-                    }
-                }
-
-                if (screen.orientation?.lock) {
-                    screen.orientation.lock('portrait')
-                        .then(() => log('🔒 Screen orientation locked to portrait'))
-                        .catch(err => log('⚠️ Screen orientation lock failed: ' + (err.name || err.message)));
-                }
-
-                enableButton.remove();
-            }
-        }, { once: true });
-    } else {
-        log('❌ Device orientation not supported');
-    }
-}
-
-
-function requestPermission() {
-    if (needsPermissionRequest) {
-        DeviceOrientationEvent.requestPermission()
-            .then(permissionState => {
-                if (permissionState === 'granted') {
-                    hasOrientationPermission = true;
-                    window.addEventListener('deviceorientation', handleOrientation);
-                    log('Orientation permission granted');
-                } else {
-                    log('Orientation permission denied');
-                }
-            })
-            .catch(console.error)
-            .finally(() => {
-                // Reset XY div
-                const xyDiv = document.getElementById('xyPad');
-                xyDiv.textContent = '';
-                xyDiv.removeEventListener('click', requestPermission);
-            });
-    }
-}
 
 
 
@@ -320,7 +172,10 @@ function updateSliderBox() {
     sliderBox.appendChild(stopButton);
 
     const controlOptions = ['none', 'slider', 'x', 'y'];
-    if (hasOrientationSupport) {
+    // if (hasOrientationSupport) {
+    //     controlOptions.push('pitch', 'roll');
+    // }
+    if (window.hasOrientationSupport && window.hasOrientationPermission) {
         controlOptions.push('pitch', 'roll');
     }
 
