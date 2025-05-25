@@ -1,11 +1,5 @@
-import { AudioSystem } from './AudioSystem.js';
-import { DroneModel } from './models/DroneModel.js';
-//import { ClickTrainModel } from './models/ClickTrainModel.js';
-import { ClickerWorkletSoundModel } from './models/ClickerWorkletSoundModel.js';
-import { AnotherGranny } from './models/AnotherGranny.js';
-import { FaustClarinet } from './models/FaustClarinet.js';
-
-
+import { AudioSystem } from '/soundlib/AudioSystem.js';
+import { DroneModel, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet } from '/soundlib/models/index.js';
 
 
 const audioSystem = new AudioSystem();

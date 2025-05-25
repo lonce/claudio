@@ -1,7 +1,7 @@
 import { BaseSound } from '../BaseSound.js';
 
 export class ClickerWorkletSoundModel extends BaseSound {
-    static WORKLET_PATH = '/src/worklets/clickTrainProcessor.js';
+    static WORKLET_PATH = '/soundlib/worklets/clickTrainProcessor.js';
 
     constructor(context, name) {
         super(context, name);

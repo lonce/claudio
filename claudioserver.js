@@ -22,7 +22,7 @@ console.log('so far so good !!!!!!!!!!!!!!!!');
 
 //-------------------------------------------------------------
 
-var m_useRoot="/www";
+var m_useRoot="/app";
 
 const allowedOrigins = ['https://aisound.sonicthings.org', 'https://claudio.sonicthings.org', 'http://claudio.sonicthings.org:8888', 'http://sonicthings.org:8888']; // Add your allowed origins here
 app.use(function (req, res, next) {
@@ -39,6 +39,9 @@ app.use(function (req, res, next) {
 
 
 app.use(express.static(__dirname + m_useRoot));
+
+// serve sndlib statically from this server for now.
+app.use('/soundlib', express.static(__dirname + '/soundlib'));
 
 server.listen(process.argv[2] || k_portnum);
 console.log("Connected and listening on port " + k_portnum);

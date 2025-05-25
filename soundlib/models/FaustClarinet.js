@@ -1,6 +1,8 @@
 import { BaseSound } from '../BaseSound.js';
-import FaustFactory from "./faust.clarinet/exfaust87.js";
-import parse_faust_ui from '../fausthelper.js';
+//import FaustFactory from "./faust.clarinet/exfaust87.js";
+import FaustFactory from "/soundlib/models/faust.clarinet/exfaust87.js";
+//import parse_faust_ui from '../fausthelper.js';
+import parse_faust_ui from '/soundlib/fausthelper.js';
 
 
 export class FaustClarinet extends BaseSound {
@@ -9,7 +11,7 @@ export class FaustClarinet extends BaseSound {
         this.gainNode = this.context.createGain();
         this.outputNode = this.gainNode;
         //this.ffact = new FaustFactory(this.context, 'https://172.18.0.1:8221/src/models/faust.clarinet');
-        this.ffact = new FaustFactory(this.context, '/src/models/faust.clarinet');
+        this.ffact = new FaustFactory(this.context, '/soundlib/models/faust.clarinet');
         this.faustNode = null;
         this.faustParams = new Map(); // To store Faust parameter info
 

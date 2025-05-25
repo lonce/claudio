@@ -9,8 +9,11 @@ export class AudioSystem {
     }
 
     async loadWorklet(workletPath) {
+        console.log(`loadworklet with workletPath=${workletPath}`)
         if (!this.loadedWorklets.has(workletPath)) {
+            console.log(` loadWorklets does "has" ${workletPath}, so we'll addModule`)
             await this.context.audioWorklet.addModule(workletPath);
+            console.log(` got the module, no loadWorklet ${workletPath}`)
             this.loadedWorklets.add(workletPath);
         }
     }
