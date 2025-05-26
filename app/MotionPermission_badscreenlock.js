@@ -1,6 +1,24 @@
 // MotionPermission.js — handles motion/orientation permissions using a <dialog> and works on iOS/Android/Desktop
 
+function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
 async function tryLockOrientation(log) {
+    if (isIOS()) {
+        log('ℹ️ Screen orientation lock is not supported on iOS.');
+        return;
+    }
+
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        try {
+            await document.documentElement.requestFullscreen();
+            log('🔳 Entered fullscreen to enable orientation lock');
+        } catch (err) {
+            log(`⚠️ Fullscreen request failed: ${err.name || err.message}`);
+        }
+    }
+
     if (screen.orientation?.lock) {
         try {
             await screen.orientation.lock('portrait');
