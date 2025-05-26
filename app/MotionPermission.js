@@ -34,6 +34,7 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
                     }
                 } catch (err) {
                     log(`❌ Permission error: ${err.name || err.message}`);
+                    log(`Permission error details:, ${err}`);
                 }
             } else {
                 if (hasOrientationSupport) {
