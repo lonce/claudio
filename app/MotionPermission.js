@@ -11,6 +11,7 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
         document.body.appendChild(modal);
 
         const enableButton = document.getElementById('motion-allow-button');
+        
         enableButton.addEventListener('click', async () => {
             if (audioSystem?.resume) {
                 await audioSystem.resume();
@@ -20,13 +21,12 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
             let permissionGranted = false;
 
             if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
+                // ✅ Direct call from inside the gesture callback
                 try {
-                    const motionPermission = DeviceMotionEvent?.requestPermission?.();
-                    const orientationPermission = DeviceOrientationEvent?.requestPermission?.();
-                    const results = await Promise.all([motionPermission, orientationPermission].filter(Boolean));
-                    permissionGranted = results.includes('granted');
-                    if (permissionGranted) {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation);
+                        permissionGranted = true;
                         log('✅ Orientation permission granted');
                         await tryLockOrientation(log);
                     } else {
@@ -46,15 +46,58 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
                 }
             }
 
-            // Store support flags for use in UI logic
-            if (typeof window !== 'undefined') {
-                window.hasOrientationSupport = hasOrientationSupport;
-                window.hasOrientationPermission = permissionGranted;
-            }
+            window.hasOrientationSupport = hasOrientationSupport;
+            window.hasOrientationPermission = permissionGranted;
 
             modal.remove();
-            resolve(); // ✅ resolve AFTER permission decision
+            resolve(); // Only resolve after everything is done
         });
+
+
+        // enableButton.addEventListener('click', async () => {
+        //     if (audioSystem?.resume) {
+        //         await audioSystem.resume();
+        //     }
+
+        //     const hasOrientationSupport = 'DeviceOrientationEvent' in window;
+        //     let permissionGranted = false;
+
+        //     if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
+        //         try {
+        //             const motionPermission = DeviceMotionEvent?.requestPermission?.();
+        //             const orientationPermission = DeviceOrientationEvent?.requestPermission?.();
+        //             const results = await Promise.all([motionPermission, orientationPermission].filter(Boolean));
+        //             permissionGranted = results.includes('granted');
+        //             if (permissionGranted) {
+        //                 window.addEventListener('deviceorientation', handleOrientation);
+        //                 log('✅ Orientation permission granted');
+        //                 await tryLockOrientation(log);
+        //             } else {
+        //                 log('❌ Orientation permission denied');
+        //             }
+        //         } catch (err) {
+        //             log(`❌ Permission error: ${err.name || err.message}`);
+        //         }
+        //     } else {
+        //         if (hasOrientationSupport) {
+        //             permissionGranted = true;
+        //             window.addEventListener('deviceorientation', handleOrientation);
+        //             log('✅ Orientation event listener attached (no permission needed)');
+        //             await tryLockOrientation(log);
+        //         } else {
+        //             log('❌ Device orientation not supported');
+        //         }
+        //     }
+
+        //     // Store support flags for use in UI logic
+        //     if (typeof window !== 'undefined') {
+        //         window.hasOrientationSupport = hasOrientationSupport;
+        //         window.hasOrientationPermission = permissionGranted;
+        //     }
+
+        //     modal.remove();
+        //     resolve(); // ✅ resolve AFTER permission decision
+        // });
     });
 }
 
