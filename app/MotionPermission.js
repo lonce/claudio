@@ -1,27 +1,36 @@
+// MotionPermission.js — handles motion/orientation permissions using a <dialog> and works on iOS/Android/Desktop
+
+async function tryLockOrientation(log) {
+    if (screen.orientation?.lock) {
+        try {
+            await screen.orientation.lock('portrait');
+            log('🔒 Screen orientation locked to portrait');
+        } catch (err) {
+            log(`⚠️ Screen orientation lock failed: ${err.name || err.message}`);
+        }
+    } else {
+        log('ℹ️ Screen orientation locking not supported on this device.');
+    }
+}
+
 export async function requestMotionPermissions(audioSystem, handleOrientation, log) {
     return new Promise((resolve) => {
-        const modal = document.createElement('div');
-        modal.id = 'motion-permission-modal';
-        modal.innerHTML = `
-            <div class="modal-content">
+        const dialog = document.createElement('dialog');
+        dialog.innerHTML = `
+            <form method="dialog">
                 <p>This app uses motion sensors and needs permission to access them.</p>
-                <button id="motion-allow-button">Enable Motion Sensors</button>
-            </div>
+                <button id="permissionBtn">Enable Motion Sensors</button>
+            </form>
         `;
-        document.body.appendChild(modal);
+        document.body.appendChild(dialog);
 
-        const enableButton = document.getElementById('motion-allow-button');
-        
-        enableButton.addEventListener('click', async () => {
-            if (audioSystem?.resume) {
-                await audioSystem.resume();
-            }
+        dialog.showModal();
 
-            const hasOrientationSupport = 'DeviceOrientationEvent' in window;
+        document.getElementById('permissionBtn').addEventListener('click', async () => {
             let permissionGranted = false;
+            const hasOrientationSupport = 'DeviceOrientationEvent' in window;
 
             if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-                // ✅ Direct call from inside the gesture callback
                 try {
                     const permission = await DeviceOrientationEvent.requestPermission();
                     if (permission === 'granted') {
@@ -34,12 +43,11 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
                     }
                 } catch (err) {
                     log(`❌ Permission error: ${err.name || err.message}`);
-                    log(`Permission error details:, ${err}`);
                 }
             } else {
                 if (hasOrientationSupport) {
-                    permissionGranted = true;
                     window.addEventListener('deviceorientation', handleOrientation);
+                    permissionGranted = true;
                     log('✅ Orientation event listener attached (no permission needed)');
                     await tryLockOrientation(log);
                 } else {
@@ -50,77 +58,14 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
             window.hasOrientationSupport = hasOrientationSupport;
             window.hasOrientationPermission = permissionGranted;
 
-            modal.remove();
-            resolve(); // Only resolve after everything is done
-        });
+            dialog.close();
+            dialog.remove();
 
+            if (audioSystem?.resume) {
+                await audioSystem.resume();
+            }
 
-        // enableButton.addEventListener('click', async () => {
-        //     if (audioSystem?.resume) {
-        //         await audioSystem.resume();
-        //     }
-
-        //     const hasOrientationSupport = 'DeviceOrientationEvent' in window;
-        //     let permissionGranted = false;
-
-        //     if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-        //         try {
-        //             const motionPermission = DeviceMotionEvent?.requestPermission?.();
-        //             const orientationPermission = DeviceOrientationEvent?.requestPermission?.();
-        //             const results = await Promise.all([motionPermission, orientationPermission].filter(Boolean));
-        //             permissionGranted = results.includes('granted');
-        //             if (permissionGranted) {
-        //                 window.addEventListener('deviceorientation', handleOrientation);
-        //                 log('✅ Orientation permission granted');
-        //                 await tryLockOrientation(log);
-        //             } else {
-        //                 log('❌ Orientation permission denied');
-        //             }
-        //         } catch (err) {
-        //             log(`❌ Permission error: ${err.name || err.message}`);
-        //         }
-        //     } else {
-        //         if (hasOrientationSupport) {
-        //             permissionGranted = true;
-        //             window.addEventListener('deviceorientation', handleOrientation);
-        //             log('✅ Orientation event listener attached (no permission needed)');
-        //             await tryLockOrientation(log);
-        //         } else {
-        //             log('❌ Device orientation not supported');
-        //         }
-        //     }
-
-        //     // Store support flags for use in UI logic
-        //     if (typeof window !== 'undefined') {
-        //         window.hasOrientationSupport = hasOrientationSupport;
-        //         window.hasOrientationPermission = permissionGranted;
-        //     }
-
-        //     modal.remove();
-        //     resolve(); // ✅ resolve AFTER permission decision
-        // });
+            resolve();
+        }, { once: true });
     });
-}
-
-async function tryLockOrientation(log) {
-    try {
-        if (document.documentElement.requestFullscreen) {
-            await document.documentElement.requestFullscreen();
-        } else if (document.documentElement.webkitRequestFullscreen) {
-            await document.documentElement.webkitRequestFullscreen();
-        }
-    } catch (err) {
-        log('⚠️ Fullscreen request failed: ' + (err.name || err.message));
-    }
-
-    if (screen.orientation?.lock) {
-        try {
-            await screen.orientation.lock('portrait');
-            log('🔒 Screen orientation locked to portrait');
-        } catch (err) {
-            log('⚠️ Screen orientation lock failed: ' + (err.name || err.message));
-        }
-    } else {
-        log('⚠️ Screen orientation lock not supported');
-    }
 }

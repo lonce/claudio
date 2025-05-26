@@ -8,7 +8,6 @@ let parameterControls = new Map();
 //let hasOrientationSupport = false;
 //let hasOrientationPermission = false;
 
-let needsPermissionRequest = false;
 
 let ocount=0; // orientation event counter
 let mouseDownP=false;
