@@ -1,17 +1,17 @@
 // MotionPermission.js — handles motion/orientation permissions using a <dialog> and works on iOS/Android/Desktop
 
-async function tryLockOrientation(log) {
-    if (screen.orientation?.lock) {
-        try {
-            await screen.orientation.lock('portrait');
-            log('🔒 Screen orientation locked to portrait');
-        } catch (err) {
-            log(`⚠️ Screen orientation lock failed: ${err.name || err.message}`);
-        }
-    } else {
-        log('ℹ️ Screen orientation locking not supported on this device.');
-    }
-}
+// async function tryLockOrientation(log) {
+//     if (screen.orientation?.lock) {
+//         try {
+//             await screen.orientation.lock('portrait');
+//             log('🔒 Screen orientation locked to portrait');
+//         } catch (err) {
+//             log(`⚠️ Screen orientation lock failed: ${err.name || err.message}`);
+//         }
+//     } else {
+//         log('ℹ️ Screen orientation locking not supported on this device.');
+//     }
+// }
 
 export async function requestMotionPermissions(audioSystem, handleOrientation, log) {
     return new Promise((resolve) => {
@@ -37,7 +37,7 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
                         window.addEventListener('deviceorientation', handleOrientation);
                         permissionGranted = true;
                         log('✅ Orientation permission granted');
-                        await tryLockOrientation(log);
+                        //await tryLockOrientation(log);
                     } else {
                         log('❌ Orientation permission denied');
                     }
@@ -49,7 +49,7 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
                     window.addEventListener('deviceorientation', handleOrientation);
                     permissionGranted = true;
                     log('✅ Orientation event listener attached (no permission needed)');
-                    await tryLockOrientation(log);
+                    //await tryLockOrientation(log);
                 } else {
                     log('❌ Device orientation not supported');
                 }

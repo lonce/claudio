@@ -5,9 +5,6 @@ import { requestMotionPermissions } from './MotionPermission.js';
 const audioSystem = new AudioSystem();
 let currentSound = null;
 let parameterControls = new Map();
-//let hasOrientationSupport = false;
-//let hasOrientationPermission = false;
-
 
 let ocount=0; // orientation event counter
 let mouseDownP=false;
@@ -275,7 +272,7 @@ function startSound(e) {
 }
 
 function updateSound(e, force=false) {
-    if (! mouseDownP) return;
+    //if (! mouseDownP) return;
 
     e.preventDefault();
     if (!currentSound.isPlaying  && !force) return;
