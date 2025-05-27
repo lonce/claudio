@@ -6,7 +6,6 @@ This project provides a flexible system for creating and manipulating sound mode
 
 - [Using Sound Models](#using-sound-models)
 - [Developing New Sound Models](#developing-new-sound-models)
-- [Local Development Setup](#local-development-setup)
 
 ## Using Sound Models
 
@@ -55,7 +54,7 @@ npm install
 node claudioserver.js 7777 
 
 // point your browser to the machine (best to use IP address:port)
-// The current app allows you to control parameters with sliders, XY box, or pitch/roll sensors on devices that have them (most phones). Not tested on Safari on iPhones where I believe we need explicit permissions to use sensors.  
+// The current app allows you to control parameters with sliders, XY box, or pitch/roll sensors on devices that have them (most phones). It should work on Android, iPadOS, Windows, and Linux on Chrome, Safari, Edge, and Brave browser. However, not on iPhones (so close, and yet so far!).  
 ```
 
 
@@ -115,11 +114,15 @@ export class MyNewSound extends BaseSound {
 
 4. Remember to set `this.outputNode` to the final node in your audio graph.
 
+The four models included in this repository demonstrate how to use just the WebAudioAPI, or extend it to use Worklets, and how to include [Faust](https://faust.grame.fr/) models that have been compiled for the web.
+
+
+
 ## The App
 
-The sndlib is *entirely* separate from the app. You can simply copy /sndlib into your own app directory tree and load and control the sounds here, or your own (as long as they extend Basesound as described).
+**The sndlib is *entirely* separate from the app**. You can simply copy /sndlib into your own application directory tree and load and control the sounds (including your own)  from there.  
 
-This particular app provides a GUI for controlling any sndlib model. Sounds can be controlled through sliders, xy plane coordinates, or pitch and roll accelerators.  
+This particular app in this repository provides a GUI for controlling any sndlib model. Sounds can be controlled through sliders, xy plane coordinates, or pitch and roll accelerators.  
 
 ---
 
