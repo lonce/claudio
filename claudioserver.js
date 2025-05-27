@@ -2,10 +2,6 @@ console.log("hey myserver is starting with command line arguments:");
 process.argv.forEach(function (val, index, array) {
   console.log(index + ': ' + val);
 });
-// if (process.argv.length < 4){
-//     console.log("usage: node myserver portnum mode (production or dev)");
-//     process.exit(1);
-// }
 
 var k_portnum=process.argv[2] || 7776;
 

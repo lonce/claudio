@@ -15,8 +15,8 @@ To use the sound models in your application, follow these steps:
 1. Import the necessary modules:
 
 ```javascript
-import { AudioSystem } from './AudioSystem.js';
-import { DroneModel } from './models/DroneModel.js'; // any sound models you will use
+import { AudioSystem } from '/soundlib/AudioSystem.js';
+import { DroneModel, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet } from '/soundlib/models/index.js';
 ```
 
 2. Create an instance of the AudioSystem:
@@ -28,10 +28,11 @@ const audioSystem = new AudioSystem();
 3. Create sound instances:
 
 ```javascript
-const drone = await audioSystem.createSound(DroneModel, 'Drone');
+# (classname, arbitrary name, max-polyphony)
+const drone = await audioSystem.createSound(DroneModel, 'Drone', 0);
 ```
 
-4. Control the sounds:
+4. Control the sounds using the API exploxed by  `BaseSound`:
 
 ```javascript
 // Play a sound
@@ -114,31 +115,11 @@ export class MyNewSound extends BaseSound {
 
 4. Remember to set `this.outputNode` to the final node in your audio graph.
 
-## Local Development Setup
+## The App
 
-For local development, follow these steps:
+The sndlib is *entirely* separate from the app. You can simply copy /sndlib into your own app directory tree and load and control the sounds here, or your own (as long as they extend Basesound as described).
 
-1. Generate SSL certificates for HTTPS:
-
-```bash
-node generate-cert.js
-```
-
-This creates `server.key` and `server.cert` files in your project directory.
-
-2. Start the local development server:
-
-```bash
-node claudioserver.local.js [port]
-```
-
-Replace `[port]` with your desired port number (default is 3000).
-
-3. Access your application:
-   - HTTP: `http://localhost:[port]`
-   - HTTPS: `https://localhost:[port+443]`
-
-Note: When accessing via HTTPS, you may see a browser warning about the certificate. This is normal for self-signed certificates in development.
+This particular app provides a GUI for controlling any sndlib model. Sounds can be controlled through sliders, xy plane coordinates, or pitch and roll accelerators.  
 
 ---
 
