@@ -17,9 +17,19 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
     return new Promise((resolve) => {
         const dialog = document.createElement('dialog');
         dialog.innerHTML = `
-            <form method="dialog">
+            <form method="dialog" style="text-align: center;">
                 <p>This app uses motion sensors and needs permission to access them.</p>
-                <button id="permissionBtn">Enable Motion Sensors</button>
+                <p style="font-size: 0.9em; color: #666;">
+                    Best with portrait orientation locked and no muting (iphoners).
+                </p>
+                <button id="permissionBtn" style="
+                    margin-top: 1em;
+                    padding: 0.6em 1.2em;
+                    font-size: 1em;
+                    cursor: pointer;
+                ">
+                    Enable Motion Sensors
+                </button>
             </form>
         `;
         document.body.appendChild(dialog);

@@ -86,6 +86,11 @@ button {
     margin: 5px;
     cursor: pointer;
     border-radius: 5px;
+
+    user-select: none;
+    -webkit-user-select: none; /* Safari */
+    -ms-user-select: none;     /* IE10+ */
+    -webkit-tap-highlight-color: transparent; /* optional mobile polish */
 }
 
 button:hover {
