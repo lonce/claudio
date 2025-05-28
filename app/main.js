@@ -51,11 +51,16 @@ async function initApp() {
         });
 
         console.log('Sound selector populated');
-        soundSelector.addEventListener('change', (e) => {
+
+        soundSelector.addEventListener('change', () => {
+            if (currentSound && currentSound.isPlaying) {
+                currentSound.stop();
+            }
             audioSystem.resume();
-            currentSound = sounds.find(s => s.name === e.target.value);
+            const selectedName = soundSelector.value;
+            currentSound = sounds.find(s => s.name === selectedName);
             initializeParameterControls();
-            updateSliderBox(); 
+            updateSliderBox(currentSound.parameters);
         });
 
         let autoSelected = false;
@@ -159,7 +164,7 @@ function updateSliderBox() {
 
     const playButton = document.createElement('button');
     playButton.textContent = 'Play';
-    playButton.addEventListener('click', () => currentSound.play());
+    playButton.addEventListener('mousedown', () => currentSound.play());
     sliderBox.appendChild(playButton);
 
     const stopButton = document.createElement('button');
