@@ -160,7 +160,8 @@ function updateSliderBox() {
     const playButton = document.createElement('button');
     playButton.textContent = 'Play';
     playButton.addEventListener('click', () => {
-        log(`PLAY with audioSystem..state = ${audioSystem.context.state}`)
+        log(`PLAY with audioSystem..state = ${audioSystem.context.state}, but resume anyway`)
+        audioSystem.resume()
         currentSound.play();
     });
     sliderBox.appendChild(playButton);
