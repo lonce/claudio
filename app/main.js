@@ -173,9 +173,6 @@ function updateSliderBox() {
     sliderBox.appendChild(stopButton);
 
     const controlOptions = ['none', 'slider', 'x', 'y'];
-    // if (hasOrientationSupport) {
-    //     controlOptions.push('pitch', 'roll');
-    // }
     if (window.hasOrientationSupport && window.hasOrientationPermission) {
         controlOptions.push('pitch', 'roll');
     }
