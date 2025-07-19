@@ -63,9 +63,11 @@ export class DroneModel extends BaseSound {
                 return;
             }
             if (this.inAttackSegment) {
+                console.log('inAttackSegment gain to '+ param.get())
                 this.updateGainDuringAttack(this.gainNode, param.get(), this.startTime, param.attackTime);
             } else {
                 const gain = this.gainNode.gain;
+                console.log('UPDATE gain to '+ param.get())
                 gain.setTargetAtTime(param.get(), now, 0.05);
             }
         } else if (name === 'waveshape' && this.oscillator) {
