@@ -3,7 +3,7 @@ import { FloatParameter, StringParameter, IntegerParameter } from './Parameter.j
 const FREESOUND_TOKEN = '563bc5df64f8d4d9cc83f2b0409501ae4b441b01';
 
 export class BaseSound {
-    constructor(context, name) {
+    constructor(context, name, g=0.6) {
         this.context = context;
         this.name = name;
         this.parameters = new Map();
@@ -17,7 +17,8 @@ export class BaseSound {
         this.attackTimeoutID = null;
         this.decayTimeoutID = null;
 
-        this.addParameter('gain', 0.6, 0, 1, 0.15, 0.25);
+        console.log('create GAIN with default value of '+ g)
+        this.addParameter('gain', g, 0, 1, 0.15, 0.25);
     }
 
     addParameter(name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01) {
@@ -66,7 +67,7 @@ export class BaseSound {
     }
 
     scheduleAttack(gainNode, resumeFromDecay = false) {
-        console.log("schedule attack")
+
         const now = this.context.currentTime;
         const gainParam = this.getParameter('gain');
         const gain = gainNode.gain;
@@ -84,6 +85,8 @@ export class BaseSound {
             gain.setValueAtTime(gain.value, now);
         }
 
+
+
         gain.linearRampToValueAtTime(gainParam.get(), now + gainParam.attackTime);
 
         this.inAttackSegment = true;
@@ -98,7 +101,7 @@ export class BaseSound {
     }
 
     scheduleDecay(gainNode, onReleased) {
-        console.log("schedule decay")
+
         const now = this.context.currentTime;
         const gainParam = this.getParameter('gain');
         const gain = gainNode.gain;
@@ -144,7 +147,7 @@ export class BaseSound {
     }
 
     play() {
-        console.log("play")
+        //console.log("play")
         if (this.isPlaying) {
             if (this.inDecaySegment) {
                 console.log(`${this.name}: interrupting decay, resuming attack`);
@@ -159,7 +162,7 @@ export class BaseSound {
     }
 
     stop(cb) {
-        console.log("stop")
+        //console.log("stop")
         if (this.isPlaying) {
             this.stopSound(() => {
                 this.isPlaying = false;
