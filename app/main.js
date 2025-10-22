@@ -1,5 +1,5 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM } from '/soundlib/models/index.js';
+import { RissetBasic, DroneModel, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN } from '/soundlib/models/index.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 
 const audioSystem = new AudioSystem();
@@ -44,8 +44,14 @@ async function initApp() {
                 modRate: 1.5,        // Slow modulation
                 modDepth: 0.3        // Moderate frequency variation
             });
+        const waterFillRNN = await audioSystem.createSound(WaterFillRNN, 'WaterFillRNN', 0, {
+            lookaheadFrames: 12,
+            centerFreq: 220,
+            modRate: 1.5,
+            modDepth: 0.3
+        });
 
-        const sounds = [risset, drone, workletClicker, granny, faustClarinet, workerFM];
+        const sounds = [risset, drone, workletClicker, granny, faustClarinet, workerFM, waterFillRNN];
 
         console.log('Sounds loaded');
         await requestMotionPermissions(audioSystem, handleOrientation, log);

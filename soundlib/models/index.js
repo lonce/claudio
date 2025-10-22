@@ -5,3 +5,4 @@ export { AnotherGranny } from './AnotherGranny.js';
 export { ClickerWorkletSoundModel } from './ClickerWorkletSoundModel.js';
 export { FaustClarinet } from './FaustClarinet.js';
 export { WorkerFM } from './WorkerFM.js';
+export { WaterFillRNN } from './WaterFillRNN.js';
