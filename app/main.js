@@ -1,5 +1,5 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet } from '/soundlib/models/index.js';
+import { RissetBasic, DroneModel, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM } from '/soundlib/models/index.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 
 const audioSystem = new AudioSystem();
@@ -37,8 +37,15 @@ async function initApp() {
         const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet_Clicker', 0);
         const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 200995);
         const faustClarinet = await audioSystem.createSound(FaustClarinet, 'FaustClarinet', 0);
+        const workerFM = await audioSystem.createSound(WorkerFM, 'WorkerFM', 0, 
+            {
+                lookaheadFrames: 12,  // Configurable buffer size
+                centerFreq: 220,     // Start at A3
+                modRate: 1.5,        // Slow modulation
+                modDepth: 0.3        // Moderate frequency variation
+            });
 
-        const sounds = [risset, drone, workletClicker, granny, faustClarinet];
+        const sounds = [risset, drone, workletClicker, granny, faustClarinet, workerFM];
 
         console.log('Sounds loaded');
         await requestMotionPermissions(audioSystem, handleOrientation, log);

@@ -1,0 +1,132 @@
+# Threaded Generative Audio Architecture
+
+## Overview
+This architecture enables computationally heavy audio generation (like neural networks) to run without interrupting real-time audio output or UI responsiveness.
+
+## Threading Model
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
+│   Web Worker    │◄──►│   Main Thread    │◄──►│ AudioWorkletProcessor│
+│ (AudioGenerator)│    │ (Message Relay)  │    │ (Circular Buffer)   │
+│                 │    │                  │    │                     │
+│ • Heavy compute │    │ • Minimal work   │    │ • Real-time audio   │
+│ • ONNX models   │    │ • Message relay  │    │ • Buffer management │
+│ • Neural nets   │    │ • Parameter sync │    │ • 128-sample output │
+└─────────────────┘    └──────────────────┘    └─────────────────────┘
+```
+
+## File Structure
+```
+/soundlib/
+├── models/
+│   └── WorkerFM.js    # BaseSound subclass
+├── worklets/
+│   └── generativeAudioProcessor.js       # AudioWorkletProcessor
+├── workers/
+│   ├── generative-audio-worker.js        # Web Worker coordinator
+│   └── AudioGenerator.js                 # Audio generation logic
+└── examples/
+    └── usage-example.js                  # Implementation example
+```
+
+## Component Responsibilities
+
+### 1. AudioGenerator (AudioGenerator.js)
+- **Purpose**: Heavy computational audio generation
+- **Location**: Web Worker thread
+- **Key Features**:
+  - `getNextHop(numFrames)` - Generates multiple frames of audio
+  - Maintains phase continuity between calls
+  - Configurable parameters (FM synthesis for testing)
+  - State preservation for smooth audio
+
+### 2. Web Worker (generative-audio-worker.js)
+- **Purpose**: Coordination and buffer management
+- **Location**: Worker thread
+- **Key Features**:
+  - Hosts AudioGenerator instance
+  - Manages buffer level monitoring
+  - Triggers audio generation when needed
+  - Handles parameter updates
+  - Low water mark detection (`m * 128 * 0.5`)
+
+### 3. AudioWorkletProcessor (generativeAudioProcessor.js)
+- **Purpose**: Real-time audio serving and buffering
+- **Location**: Audio rendering thread
+- **Key Features**:
+  - Circular buffer (`2 * m * 128` samples)
+  - Serves exactly 128 samples per `process()` call
+  - Reports buffer status to main thread
+  - Parameter change detection
+  - Buffer underrun protection
+
+### 4. WorkerFM (WorkerFM.js)
+- **Purpose**: Integration with BaseSound framework
+- **Location**: Main thread
+- **Key Features**:
+  - Extends BaseSound class
+  - Creates and manages worker/worklet
+  - Handles initialization and cleanup
+  - Parameter synchronization
+  - Gain envelope management
+
+## Data Flow
+
+### Initialization
+1. **BaseSound** creates worker and worklet
+2. **Worklet** requests initialization from worker
+3. **Worker** creates AudioGenerator and pre-generates audio
+4. **Worker** sends initial audio to worklet's circular buffer
+
+### Runtime Audio Generation
+1. **Worklet** consumes audio from circular buffer (128 samples)
+2. **Worklet** reports buffer level to main thread
+3. **Main thread** relays status to worker
+4. **Worker** detects low buffer and generates more audio
+5. **Worker** sends new audio back to worklet
+
+### Parameter Updates
+1. **BaseSound** updates worklet parameters
+2. **Worklet** detects parameter changes
+3. **Worklet** notifies main thread of changes
+4. **Main thread** relays to worker
+5. **Worker** updates AudioGenerator parameters
+
+## Configuration Options
+
+### Buffer Size Configuration
+- `lookaheadFrames` (m): Number of frames to buffer ahead
+- Default: 4 frames (512 samples + 512 safety buffer = 1024 total)
+- Larger values = more latency but safer for heavy computation
+
+### FM Synthesis Parameters (Testing)
+- `centerFreq`: Base frequency (20-20000 Hz)
+- `modRate`: Modulation frequency (0.1-20 Hz)
+- `modDepth`: Modulation intensity (0-1)
+
+## Benefits
+
+1. **No Audio Dropouts**: Heavy computation never blocks audio rendering
+2. **Smooth UI**: Main thread only relays messages
+3. **Scalable**: Can easily swap in neural networks or other generators
+4. **Configurable**: Buffer size adapts to computational requirements
+5. **Phase Continuity**: Seamless audio across buffer boundaries
+
+## Testing with FM Synthesis
+
+The included AudioGenerator uses FM synthesis because:
+- Easy to verify phase continuity (no clicks/pops)
+- Smooth parameter changes are audible
+- Computational load is predictable
+- Good baseline for comparing heavier algorithms
+
+## Future Integration
+
+To integrate neural networks or ONNX models:
+1. Replace `AudioGenerator.js` with your model
+2. Maintain the `getNextHop(numFrames)` interface
+3. Preserve state between calls for continuity
+4. Adjust `lookaheadFrames` based on model inference time
+5. Add any additional parameters to the worklet descriptor
+
+The architecture handles the threading complexity, so you can focus on the audio generation algorithm.
