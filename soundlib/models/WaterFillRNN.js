@@ -3,7 +3,7 @@ import { BaseSound } from '../BaseSound.js';
 
 export class WaterFillRNN extends BaseSound {
     static WORKLET_PATH = '/soundlib/models/WaterFillRNN/worklets/WaterFillRNNWorklet.js';
-    static WORKER_PATH = '/soundlib/models/WaterFillRNN/workers/generative-audio-worker.js';
+    static WORKER_PATH = '/soundlib/models/WaterFillRNN/workers/manager-worker.js';
 
     constructor(context, name, config = {}) {
         super(context, name);

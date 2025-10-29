@@ -7,7 +7,7 @@ This architecture enables computationally heavy audio generation (like neural ne
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
 │   Web Worker    │◄──►│   Main Thread    │◄──►│ AudioWorkletProcessor│
-│ (AudioGenerator)│    │ (Message Relay)  │    │ (Circular Buffer)   │
+│ (RNNWorker)     │    │ (Message Relay)  │    │ (Circular Buffer)   │
 │                 │    │                  │    │                     │
 │ • Heavy compute │    │ • Minimal work   │    │ • Real-time audio   │
 │ • ONNX models   │    │ • Message relay  │    │ • Buffer management │
@@ -23,15 +23,15 @@ This architecture enables computationally heavy audio generation (like neural ne
 ├── worklets/
 │   └── generativeAudioProcessor.js       # AudioWorkletProcessor
 ├── workers/
-│   ├── generative-audio-worker.js        # Web Worker coordinator
-│   └── AudioGenerator.js                 # Audio generation logic
+│   ├── manager-worker.js        # Web Worker coordinator
+│   └── RNNWorker.js                 # Audio generation logic
 └── examples/
     └── usage-example.js                  # Implementation example
 ```
 
 ## Component Responsibilities
 
-### 1. AudioGenerator (AudioGenerator.js)
+### 1. RNNWorker (ARNNWorker.js)
 - **Purpose**: Heavy computational audio generation
 - **Location**: Web Worker thread
 - **Key Features**:
@@ -44,7 +44,7 @@ This architecture enables computationally heavy audio generation (like neural ne
 - **Purpose**: Coordination and buffer management
 - **Location**: Worker thread
 - **Key Features**:
-  - Hosts AudioGenerator instance
+  - Hosts RNNWorker instance
   - Manages buffer level monitoring
   - Triggers audio generation when needed
   - Handles parameter updates
@@ -75,7 +75,7 @@ This architecture enables computationally heavy audio generation (like neural ne
 ### Initialization
 1. **BaseSound** creates worker and worklet
 2. **Worklet** requests initialization from worker
-3. **Worker** creates AudioGenerator and pre-generates audio
+3. **Worker** creates RNNWorker and pre-generates audio
 4. **Worker** sends initial audio to worklet's circular buffer
 
 ### Runtime Audio Generation
@@ -90,7 +90,7 @@ This architecture enables computationally heavy audio generation (like neural ne
 2. **Worklet** detects parameter changes
 3. **Worklet** notifies main thread of changes
 4. **Main thread** relays to worker
-5. **Worker** updates AudioGenerator parameters
+5. **Worker** updates RNNWorker parameters
 
 ## Configuration Options
 
@@ -114,7 +114,7 @@ This architecture enables computationally heavy audio generation (like neural ne
 
 ## Testing with FM Synthesis
 
-The included AudioGenerator uses FM synthesis because:
+The included RNNWorker uses FM synthesis because:
 - Easy to verify phase continuity (no clicks/pops)
 - Smooth parameter changes are audible
 - Computational load is predictable
@@ -123,7 +123,7 @@ The included AudioGenerator uses FM synthesis because:
 ## Future Integration
 
 To integrate neural networks or ONNX models:
-1. Replace `AudioGenerator.js` with your model
+1. Replace `RNNWorker.js` with your model
 2. Maintain the `getNextHop(numFrames)` interface
 3. Preserve state between calls for continuity
 4. Adjust `lookaheadFrames` based on model inference time

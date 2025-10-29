@@ -1,10 +1,10 @@
-// generative-audio-worker.js - Web Worker for heavy audio generation
-importScripts('./AudioGenerator.js'); // Adjust path as needed
+// manager-worker.js - Web Worker for heavy audio generation
+importScripts('./RNNWorker.js'); // Adjust path as needed
 
-class GenerativeAudioWorker {
+class ManagerWorker {
     constructor() {
-        this.audioGenerator = null;
-        this.m = 4; // Default lookahead frames
+        this.rnnWorker = null;
+        this.m = 8; // Default lookahead frames
         this.bufferLevel = 0; // Track how full the worklet's buffer is
         this.isInitialized = false;
         
@@ -47,11 +47,11 @@ class GenerativeAudioWorker {
             modRate = 2,
             modDepth = 0.5,
             sampleRate = 44100,
-            lookaheadFrames = 4
+            lookaheadFrames = 8
         } = config;
         
         this.m = lookaheadFrames;
-        this.audioGenerator = new AudioGenerator(centerFreq, modRate, modDepth, sampleRate);
+        this.rnnWorker = new RNNWorker(centerFreq, modRate, modDepth, sampleRate);
         this.bufferLevel = 0;
         this.isInitialized = true;
         
@@ -65,9 +65,9 @@ class GenerativeAudioWorker {
     }
     
     updateParameters(params) {
-        if (this.audioGenerator) {
+        if (this.rnnWorker) {
             const { centerFreq, modRate, modDepth } = params;
-            this.audioGenerator.updateParameters(centerFreq, modRate, modDepth);
+            this.rnnWorker.updateParameters(centerFreq, modRate, modDepth);
         }
     }
     
@@ -87,10 +87,20 @@ class GenerativeAudioWorker {
         }
     }
     
-    generateAudio(request) {
+   generateAudio(request) {
         const { frames } = request;
-        if (this.audioGenerator) {
-            const audioData = this.audioGenerator.getNextHop(frames);
+        if (this.rnnWorker) {
+            // Create output array for all frames
+            const totalSamples = frames * 128;
+            const audioData = new Float32Array(totalSamples);
+            
+            // Loop over frames, getting one at a time
+            let offset = 0;
+            for (let i = 0; i < frames; i++) {
+                const frameData = this.rnnWorker.getNextHop(1); // Get single frame
+                audioData.set(frameData, offset); // Append to total array
+                offset += frameData.length;
+            }
             
             self.postMessage({
                 action: 'audioGenerated',
@@ -116,8 +126,8 @@ class GenerativeAudioWorker {
     }
     
     reset() {
-        if (this.audioGenerator) {
-            this.audioGenerator.reset();
+        if (this.rnnWorker) {
+            this.rnnWorker.reset();
             this.bufferLevel = 0;
             this.preGenerateAudio();
         }
@@ -125,4 +135,4 @@ class GenerativeAudioWorker {
 }
 
 // Initialize the worker
-const worker = new GenerativeAudioWorker();
+const worker = new ManagerWorker();

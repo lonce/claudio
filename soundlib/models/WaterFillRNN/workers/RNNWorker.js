@@ -1,5 +1,5 @@
-// AudioGenerator.js - FM synthesis with phase continuity
-class AudioGenerator {
+// RNNWorker.js - FM synthesis with phase continuity
+class RNNWorker {
     constructor(centerFreq = 440, modRate = 2, modDepth = 0.5, sampleRate = 44100) {
         this.centerFreq = centerFreq;      // Base frequency in Hz
         this.modRate = modRate;            // Modulation rate in Hz  
