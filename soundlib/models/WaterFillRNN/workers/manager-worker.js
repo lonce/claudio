@@ -1,4 +1,8 @@
+
 import * as ort from '/libs/ort.wasm.min.mjs';
+
+
+import { WSincResampler, upsample2xLinear } from '/utils/resampler.js';
 
 ort.env.wasm.wasmPaths = '/libs/';
 ort.env.wasm.numThreads = 1;
@@ -10,8 +14,10 @@ const NQ = 8;
 const CHUNK_FRAMES = 32;            // decoder FIFO length
 const HOP_FRAMES   = 8;             // 1 request = 8 RNN steps
 const SAMPLES_PER_FRAME_24K = 320;
-const TARGET_SR = 48000;
 
+let TARGET_SR = 48000;
+
+let resampler=null // get resampler from utils/ after we get the SR from BaseSound
 let rnnWorker = null;
 let rnnReady = false;
 let decodeSession = null;
@@ -48,20 +54,6 @@ function buildDecoderInputTensor() {
   return arr;
 }
 
-// simple 2x upsampler 24k→48k
-function upsample2xLinear(x24) {
-  const N = x24.length;
-  const out = new Float32Array(N * 2);
-  for (let i = 0; i < N - 1; i++) {
-    const a = x24[i];
-    const b = x24[i + 1];
-    out[2 * i]     = a;
-    out[2 * i + 1] = 0.5 * (a + b);
-  }
-  out[out.length - 2] = x24[N - 1];
-  out[out.length - 1] = x24[N - 1];
-  return out;
-}
 
 // decode session (shared, from root)
 async function initDecodeSession() {
@@ -131,21 +123,31 @@ function handleRnnMessage(ev) {
 
 // main/worklet → manager
 self.onmessage = async (ev) => {
+
   const msg = ev.data;
   if (!msg || !msg.type) return;
 
   // --- init: spawn RNN, start decoder init, announce manager-ready ---
   if (msg.type === 'init') {
+    console.log(`received init in manager - set target sr`)
+    if (typeof msg.targetSr === 'number') TARGET_SR = msg.targetSr|0;
+    console.log(`TARGET_SR = ${TARGET_SR}`)
+
     if (!rnnWorker) {
       rnnWorker = new Worker(RNN_WORKER_URL, { type: 'module' });
       rnnWorker.onmessage = handleRnnMessage;
     }
     self.postMessage({ type: 'manager-ready' });
 
+
     // decode init (non-blocking)
     initDecodeSession()
       .then((sess) => {
         decodeSession = sess;
+        // can halve taps and phases for speed at the expense of quality
+        console.log(`now go and get your resampler`)
+        resampler = new WSincResampler(24000, TARGET_SR, { taps: 32, phases: 1024 });
+        console.log(`**************now we have the  resampler`)
         // if a hop was requested early and RNN is ready, flush it
         tryFlushPendingHop();
       })
@@ -202,11 +204,13 @@ self.onmessage = async (ev) => {
 
     // tail = HOP_FRAMES * 320 @24k = 2560
     const tail24 = audio24.slice(audio24.length - HOP_FRAMES * SAMPLES_PER_FRAME_24K);
-    const hop48 = upsample2xLinear(tail24);
+    // resample to TARGET_SR
+    const hopDst = resampler ? resampler.process(tail24)
+                         : upsample2xLinear(tail24); // fallback
 
     self.postMessage(
-      { type: 'audioHop', sr: TARGET_SR, samples: hop48 },
-      [hop48.buffer]
+      { type: 'audioHop', sr: TARGET_SR, samples: hopDst },
+      [hopDst.buffer]
     );
     return;
   }

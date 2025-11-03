@@ -1,6 +1,7 @@
 // WaterFillRNN.js - BaseSound subclass with threaded audio generation
 import { BaseSound } from '../BaseSound.js';
 
+
 export class WaterFillRNN extends BaseSound {
     static WORKLET_PATH = '/soundlib/models/WaterFillRNN/worklets/WaterFillRNNWorklet.js';
     static WORKER_PATH = '/soundlib/models/WaterFillRNN/workers/manager-worker.js';
@@ -39,10 +40,15 @@ export class WaterFillRNN extends BaseSound {
                 // Create Web Worker for audio generation
                 let tempstr=WaterFillRNN.WORKER_PATH + '?cb=' 
                 console.log(`about to create new Worker with string = ${tempstr}`)
-                this.manager = new Worker(tempstr + Date.now(), {type: 'module',});
+
+                this.manager = new Worker(tempstr + Date.now(), {type: 'module'});
+ 
+
                 this.setupWorkerCommunication();
                 console.log(`---- send init to manager`)
-                this.manager.postMessage({ type: 'init' });
+                console.log(`context.sampleRate = ${this.context.sampleRate}`)
+                console.log(`this.manager = ${this.manager}`)
+                this.manager.postMessage({ type: 'init', targetSr: this.context.sampleRate });
 
 
                 console.log(`---- create workletNode`)
@@ -148,34 +154,6 @@ export class WaterFillRNN extends BaseSound {
       return this.readyPromise;
     }
 
-    // waitForInitialization() {
-    //     if (this.isInitialized) {
-    //         return Promise.resolve();
-    //     }
-        
-    //     if (!this.initializationPromise) {
-    //         this.initializationPromise = new Promise((resolve, reject) => {
-    //             const checkInit = () => {
-    //                 if (this.isInitialized) {
-    //                     resolve();
-    //                 } else {
-    //                     setTimeout(checkInit, 50);
-    //                 }
-    //             };
-                
-    //             checkInit();
-                
-    //             // Timeout after 5 seconds
-    //             setTimeout(() => {
-    //                 if (!this.isInitialized) {
-    //                     reject(new Error('Audio generator initialization timeout'));
-    //                 }
-    //             }, 5000);
-    //         });
-    //     }
-        
-    //     return this.initializationPromise;
-    // }
 
     async startSound() {
         console.log(`WaterFillRNN: got a startSound request`)
