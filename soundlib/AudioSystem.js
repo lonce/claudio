@@ -13,7 +13,7 @@ export class AudioSystem {
         if (!this.loadedWorklets.has(workletPath)) {
             console.log(` loadWorklets does "has" ${workletPath}, so we'll addModule`)
             await this.context.audioWorklet.addModule(workletPath);
-            console.log(` got the module, no loadWorklet ${workletPath}`)
+            console.log(` got the module, now loadWorklet ${workletPath}`)
             this.loadedWorklets.add(workletPath);
         }
     }

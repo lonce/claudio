@@ -1,0 +1,14 @@
+{
+  "shape": [
+    8,
+    1024,
+    128
+  ],
+  "dtype": "float16",
+  "order": "C",
+  "model_id": "facebook/encodec_24khz",
+  "n_q": 8,
+  "codebook_size": 1024,
+  "latent_dim": 128,
+  "baseline": "encodec24_baseline"
+}

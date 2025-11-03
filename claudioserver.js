@@ -37,6 +37,9 @@ app.use(function (req, res, next) {
 app.use(express.static(__dirname + m_useRoot));
 
 // serve sndlib statically from this server for now.
+app.use('/libs', express.static(__dirname + '/libs'));
+app.use('/artifacts', express.static(__dirname + '/artifacts'));
+app.use('/onnx', express.static(__dirname + '/onnx'));
 app.use('/soundlib', express.static(__dirname + '/soundlib'));
 
 server.listen(process.argv[2] || k_portnum);

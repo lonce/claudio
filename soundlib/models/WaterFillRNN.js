@@ -7,24 +7,29 @@ export class WaterFillRNN extends BaseSound {
 
     constructor(context, name, config = {}) {
         super(context, name);
+
+        // State
+        this.managerReady = false;
+        this.rnnReady = false;
         
         // Configuration
         this.lookaheadFrames = config.lookaheadFrames || 4;
         
         // Add parameters for FM synthesis
-        this.addParameter('centerFreq', config.centerFreq || 440, 20, 20000);
-        this.addParameter('modRate', config.modRate || 2, 0.1, 20);
-        this.addParameter('modDepth', config.modDepth || 0.5, 0, 1);
+        this.addParameter('fillLevel', config.fillLevel || 0, 0, 1);
+
         
         // Threading components
-        this.worker = null;
+        this.manager = null;
         this.workletNode = null;
         this.gainNode = null;
         
-        // State
-        this.isInitialized = false;
-        this.initializationPromise = null;
         
+        // the readiness promise we expose
+        this.readyPromise = new Promise((resolve) => {
+            this._resolveReady = resolve;
+        });
+
         this.createNodes();
     }
 
@@ -32,18 +37,23 @@ export class WaterFillRNN extends BaseSound {
         if (!this.workletNode) {
             try {
                 // Create Web Worker for audio generation
-                this.worker = new Worker(WaterFillRNN.WORKER_PATH);
+                let tempstr=WaterFillRNN.WORKER_PATH + '?cb=' 
+                console.log(`about to create new Worker with string = ${tempstr}`)
+                this.manager = new Worker(tempstr + Date.now(), {type: 'module',});
                 this.setupWorkerCommunication();
-                
+                console.log(`---- send init to manager`)
+                this.manager.postMessage({ type: 'init' });
+
+
+                console.log(`---- create workletNode`)
                 // Create AudioWorkletNode
-                this.workletNode = new AudioWorkletNode(this.context, 'generativeAudioProcessor', {
-                    processorOptions: { 
-                        sampleRate: this.context.sampleRate,
-                        lookaheadFrames: this.lookaheadFrames
-                    }
-                });
-                
+                this.workletNode = new AudioWorkletNode(this.context, 'water-fill-rnn', {
+                    processorOptions: {
+                      sampleRate: this.context.sampleRate,
+                    },
+                  });
                 this.setupWorkletCommunication();
+
                 
                 // Create gain node for volume control
                 this.gainNode = this.context.createGain();
@@ -68,101 +78,109 @@ export class WaterFillRNN extends BaseSound {
     }
     
     setupWorkerCommunication() {
-        this.worker.onmessage = (event) => {
-            const { action, data } = event.data;
-            
-            switch (action) {
-                case 'initialized':
-                    this.isInitialized = true;
-                    console.log(`${this.name}: Audio generator initialized`);
-                    break;
-                    
-                case 'audioGenerated':
-                    // Forward audio data to worklet
-                    if (this.workletNode) {
-                        this.workletNode.port.postMessage({
-                            action: 'audioData',
-                            audioData: data.audioData
-                        });
-                    }
-                    break;
-                    
-                default:
-                    console.log(`${this.name}: Worker message:`, action, data);
+        this.manager.onmessage = (ev) => {
+            const msg = ev.data;
+            if (!msg || !msg.type) return;
+
+            if (msg.type === 'manager-ready') {
+              this.managerReady = true;
+              console.log(`WaterFillRNN: Manager is READY!!!!!!!!!!!!!!!!!!!!!!!!!!!!`)
+              this._maybeResolveReady();
+              return;
             }
-        };
-        
-        this.worker.onerror = (error) => {
-            console.error(`${this.name}: Worker error:`, error);
+
+            if (msg.type === 'ready') {
+              console.log('[main] RNN (via manager) says ready, modelInfo:', msg.modelInfo);
+              this.rnnReady = true;
+              console.log(`WaterFillRNN: RNN is READY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! with modelInfo: ${msg.modelInfo}`)
+              this._maybeResolveReady();
+
+              // 👇 PRIME THE PIPELINE ONCE
+              this.manager.postMessage({
+                type: 'needHop',
+                fillLevel: 0.5,   // or whatever
+              });
+
+              return;
+            }
+
+            if (msg.type === 'audioHop') {
+              if (this.workletNode) {
+                this.workletNode.port.postMessage(
+                  { type: 'audioHop', samples: msg.samples, sr: msg.sr },
+                  [msg.samples.buffer]
+                );
+              }
+              return;
+            }
+
+            if (msg.type === 'error') {
+              console.warn('[main] worker error:', msg.error);
+            }
         };
     }
     
     setupWorkletCommunication() {
-        this.workletNode.port.onmessage = (event) => {
-            const { action, data } = event.data;
-            
-            switch (action) {
-                case 'initialize':
-                    // Forward initialization request to worker
-                    this.worker.postMessage({
-                        action: 'initialize',
-                        data: data
-                    });
-                    break;
-                    
-                case 'bufferStatus':
-                    // Forward buffer status to worker
-                    this.worker.postMessage({
-                        action: 'bufferStatus',
-                        data: data
-                    });
-                    break;
-                    
-                case 'parameterUpdate':
-                    // Forward parameter updates to worker
-                    this.worker.postMessage({
-                        action: 'updateParameters',
-                        data: data
-                    });
-                    break;
-                    
-                default:
-                    console.log(`${this.name}: Worklet message:`, action, data);
+        this.workletNode.port.onmessage = (ev) => {
+            const msg = ev.data;
+            if (!msg || !msg.type) return;
+
+            if (msg.type === 'needHop') {
+              // only forward if both ends are ready
+              if (this.managerReady && this.rnnReady) {
+                this.manager.postMessage({
+                  type: 'needHop',
+                  fillLevel: msg.fillLevel ?? 0.5,
+                });
+              }
             }
-        };
-    }
-    
-    waitForInitialization() {
-        if (this.isInitialized) {
-            return Promise.resolve();
-        }
-        
-        if (!this.initializationPromise) {
-            this.initializationPromise = new Promise((resolve, reject) => {
-                const checkInit = () => {
-                    if (this.isInitialized) {
-                        resolve();
-                    } else {
-                        setTimeout(checkInit, 50);
-                    }
-                };
-                
-                checkInit();
-                
-                // Timeout after 5 seconds
-                setTimeout(() => {
-                    if (!this.isInitialized) {
-                        reject(new Error('Audio generator initialization timeout'));
-                    }
-                }, 5000);
-            });
-        }
-        
-        return this.initializationPromise;
+          };
     }
 
+    _maybeResolveReady() {
+      if (this.managerReady && this.rnnReady && this._resolveReady) {
+        this._resolveReady();
+        this._resolveReady = null; // avoid double-resolve
+      }
+    }
+
+    waitForInitialization() {
+      return this.readyPromise;
+    }
+
+    // waitForInitialization() {
+    //     if (this.isInitialized) {
+    //         return Promise.resolve();
+    //     }
+        
+    //     if (!this.initializationPromise) {
+    //         this.initializationPromise = new Promise((resolve, reject) => {
+    //             const checkInit = () => {
+    //                 if (this.isInitialized) {
+    //                     resolve();
+    //                 } else {
+    //                     setTimeout(checkInit, 50);
+    //                 }
+    //             };
+                
+    //             checkInit();
+                
+    //             // Timeout after 5 seconds
+    //             setTimeout(() => {
+    //                 if (!this.isInitialized) {
+    //                     reject(new Error('Audio generator initialization timeout'));
+    //                 }
+    //             }, 5000);
+    //         });
+    //     }
+        
+    //     return this.initializationPromise;
+    // }
+
     async startSound() {
+        console.log(`WaterFillRNN: got a startSound request`)
         await this.waitForInitialization();
+        console.log(`WaterFillRNN: returned from this.waitForInitialization()`)
         
         if (this.workletNode && this.gainNode) {
             //console.log(`${this.name}: Starting generative sound`);
@@ -201,7 +219,7 @@ export class WaterFillRNN extends BaseSound {
         const param = this.getParameter(name);
         const now = this.context.currentTime;
 
-        if (['centerFreq', 'modRate', 'modDepth'].includes(name) && this.workletNode) {
+        if (['fillLevel'].includes(name) && this.workletNode) {
             // Update worklet parameter - it will forward to worker
             this.workletNode.parameters.get(name).setValueAtTime(param.get(), now);
             
@@ -219,7 +237,7 @@ export class WaterFillRNN extends BaseSound {
     }
     
     updateAllParameters() {
-        ['centerFreq', 'modRate', 'modDepth', 'gain'].forEach(name => {
+        ['fillLevel', 'gain'].forEach(name => {
             this.updateParameter(name);
         });
     }
@@ -242,9 +260,9 @@ export class WaterFillRNN extends BaseSound {
         super.destroy();
         
         // Clean up worker
-        if (this.worker) {
-            this.worker.terminate();
-            this.worker = null;
+        if (this.manager) {
+            this.manager.terminate();
+            this.manager = null;
         }
         
         // Clean up audio nodes

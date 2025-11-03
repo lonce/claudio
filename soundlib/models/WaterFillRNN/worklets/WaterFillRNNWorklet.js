@@ -1,180 +1,107 @@
-// WaterFillRNNWorklet.js - AudioWorkletProcessor with circular buffer
 class WaterFillRNNWorklet extends AudioWorkletProcessor {
-    static get parameterDescriptors() {
-        return [
-            {name: 'active', defaultValue: 0, minValue: 0, maxValue: 1},
-            {name: 'centerFreq', defaultValue: 440, minValue: 20, maxValue: 20000},
-            {name: 'modRate', defaultValue: 2, minValue: 0.1, maxValue: 20},
-            {name: 'modDepth', defaultValue: 0.5, minValue: 0, maxValue: 1}
-        ];
+  static get parameterDescriptors() {
+    return [
+      {
+        name: 'active',
+        defaultValue: 1,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'fillLevel',   // user / RNN conditioning param
+        defaultValue: 0.5,
+        minValue: 0.0,
+        maxValue: 1.0,
+        automationRate: 'k-rate',
+      },
+    ];
+  }
+
+  constructor(options) {
+    super();
+
+    const cfg = options.processorOptions || {};
+    this.contextSr = cfg.sampleRate || 48000;
+
+    // you wanted ~16 RNN *steps* worth in the ring buffer:
+    // 1 RNN step = 320 @24k → 640 @48k
+    // 16 steps  → 16 * 640 = 10,240
+    this.bufferSize = 10240;
+    this.buffer = new Float32Array(this.bufferSize);
+    this.writePtr = 0;
+    this.readPtr = 0;
+    this.available = 0;
+
+    this.lowWater = this.bufferSize >> 1;   // 5120
+    this.requested = false;                 // true while we’re waiting for an audioHop
+
+    // accept audio from main → manager → worker
+    this.port.onmessage = (ev) => {
+      const msg = ev.data;
+      if (!msg || !msg.type) return;
+
+      if (msg.type === 'audioHop') {
+        const samp = msg.samples;
+        // push into ring
+        for (let i = 0; i < samp.length; i++) {
+          this.buffer[this.writePtr] = samp[i];
+          this.writePtr = (this.writePtr + 1) % this.bufferSize;
+          if (this.available < this.bufferSize) {
+            this.available++;
+          } else {
+            // overwrite oldest
+            this.readPtr = (this.readPtr + 1) % this.bufferSize;
+          }
+        }
+        // we got data → we're allowed to request again later
+        this.requested = false;
+      }
+    };
+
+    // kick it once so manager can pre-fill
+    this.port.postMessage({ type: 'needHop', fillLevel: 0.5 });
+    this.requested = true;
+  }
+
+  process(inputs, outputs, parameters) {
+    const output = outputs[0];
+    const ch0 = output[0];
+
+    const activeArr = parameters.active;
+    const fillArr = parameters.fillLevel;
+
+    // We expect k-rate here, so length === 1
+    const active = activeArr[0] !== 0;
+    const fill = fillArr[0];
+
+    if (!active) {
+      ch0.fill(0);
+      return true;
     }
 
-    constructor(options) {
-        super();
-        
-        // Extract configuration from options
-        const config = options.processorOptions || {};
-        this.sampleRate = config.sampleRate || 44100;
-        this.lookaheadFrames = config.lookaheadFrames || 4;
-        
-        // Circular buffer setup - 2 * m * 128 samples
-        this.bufferSize = this.lookaheadFrames * 2 * 128;
-        this.circularBuffer = new Float32Array(this.bufferSize);
-        this.writePointer = 0;
-        this.readPointer = 0;
-        this.availableSamples = 0;
-        
-        // State tracking
-        this.active = false;
-        this.processCount = 0;
-        
-        // Parameter tracking for change detection
-        this.lastParams = {
-            centerFreq: 440,
-            modRate: 2,
-            modDepth: 0.5
-        };
-        
-        // Listen for messages from main thread (audio data)
-        this.port.onmessage = (event) => {
-            this.handleMessage(event.data);
-        };
-        
-        // Initialize by requesting audio generation
-        this.requestInitialization();
-    }
-    
-    handleMessage(data) {
-        const { action } = data;
-        
-        switch (action) {
-            case 'audioData':
-                this.addAudioToBuffer(data.audioData);
-                break;
-                
-            case 'start':
-                this.active = true;
-                break;
-                
-            case 'stop':
-                this.active = false;
-                break;
-                
-            case 'reset':
-                this.reset();
-                break;
-        }
-    }
-    
-    addAudioToBuffer(audioData) {
-        // Add new audio data to circular buffer
-        for (let i = 0; i < audioData.length; i++) {
-            this.circularBuffer[this.writePointer] = audioData[i];
-            this.writePointer = (this.writePointer + 1) % this.bufferSize;
-            
-            // Don't overflow - if buffer is full, this will overwrite old data
-            if (this.availableSamples < this.bufferSize) {
-                this.availableSamples++;
-            } else {
-                // Buffer overflow - advance read pointer
-                this.readPointer = (this.readPointer + 1) % this.bufferSize;
-            }
-        }
-    }
-    
-    requestInitialization() {
-        this.port.postMessage({
-            action: 'initialize',
-            data: {
-                sampleRate: this.sampleRate,
-                lookaheadFrames: this.lookaheadFrames,
-                centerFreq: this.lastParams.centerFreq,
-                modRate: this.lastParams.modRate,
-                modDepth: this.lastParams.modDepth
-            }
-        });
-    }
-    
-    checkParameterChanges(parameters) {
-        const currentParams = {
-            centerFreq: parameters.centerFreq[0] || this.lastParams.centerFreq,
-            modRate: parameters.modRate[0] || this.lastParams.modRate,
-            modDepth: parameters.modDepth[0] || this.lastParams.modDepth
-        };
-        
-        // Check if any parameters changed
-        let changed = false;
-        for (const key in currentParams) {
-            if (Math.abs(currentParams[key] - this.lastParams[key]) > 0.001) {
-                changed = true;
-                break;
-            }
-        }
-        
-        if (changed) {
-            this.lastParams = currentParams;
-            this.port.postMessage({
-                action: 'parameterUpdate',
-                data: currentParams
-            });
-        }
-    }
-    
-    reportBufferStatus() {
-        // Report buffer status every few process calls to ensure worker stays informed
-        if (this.processCount % 3 === 0) {  // Report every 3rd process() call
-            //console.log(`Reporting buffer status: ${this.availableSamples}/${this.bufferSize} samples (process #${this.processCount})`);
-            this.port.postMessage({
-                action: 'bufferStatus',
-                data: {
-                    availableSamples: this.availableSamples,
-                    bufferSize: this.bufferSize,
-                    fillRatio: this.availableSamples / this.bufferSize
-                }
-            });
-        }
+    // write 128 samples to output from our ring buffer
+    for (let i = 0; i < ch0.length; i++) {
+      if (this.available > 0) {
+        ch0[i] = this.buffer[this.readPtr];
+        this.readPtr = (this.readPtr + 1) % this.bufferSize;
+        this.available--;
+      } else {
+        ch0[i] = 0;
+      }
     }
 
-    process(inputs, outputs, parameters) {
-        const output = outputs[0];
-        const channel = output[0];
-        
-        // Check if active
-        const isActive = parameters.active[0] === 1;
-        if (!isActive) {
-            channel.fill(0);
-            return true;
-        }
-        
-        // Check for parameter changes
-        this.checkParameterChanges(parameters);
-        
-        // Fill output buffer from circular buffer
-        for (let i = 0; i < channel.length; i++) {
-            if (this.availableSamples > 0) {
-                channel[i] = this.circularBuffer[this.readPointer];
-                this.readPointer = (this.readPointer + 1) % this.bufferSize;
-                this.availableSamples--;
-            } else {
-                // Buffer underrun - fill with silence
-                //console.log(`Buffer underrun at sample ${i}, filling with silence`);
-                channel[i] = 0;
-            }
-        }
-        
-        // Report buffer status regularly and increment counter
-        this.processCount++;
-        this.reportBufferStatus();
-        
-        return true; // Keep processor alive
+    // if we’re running low, ask main → manager for exactly one hop
+    if (!this.requested && this.available < this.lowWater) {
+      this.requested = true;
+      this.port.postMessage({
+        type: 'needHop',
+        fillLevel: fill,   // pass current param through
+      });
     }
-    
-    reset() {
-        this.circularBuffer.fill(0);
-        this.writePointer = 0;
-        this.readPointer = 0;
-        this.availableSamples = 0;
-    }
+
+    return true;
+  }
 }
 
-registerProcessor('waterFillRNNWorklet', WaterFillRNNWorklet);
+registerProcessor('water-fill-rnn', WaterFillRNNWorklet);
