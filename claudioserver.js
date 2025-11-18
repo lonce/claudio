@@ -20,7 +20,13 @@ console.log('so far so good !!!!!!!!!!!!!!!!');
 
 var m_useRoot="/app";
 
-const allowedOrigins = ['https://aisound.sonicthings.org', 'https://claudio.sonicthings.org', 'http://claudio.sonicthings.org:8888', 'http://sonicthings.org:8888']; // Add your allowed origins here
+const allowedOrigins = ['https://aisound.sonicthings.org', 
+  'https://claudio.sonicthings.org', 
+  'http://claudio.sonicthings.org:8888', 
+  'http://10.120.140.125:8888',
+  'http://sonicthings.org:8888']; 
+
+  // Add your allowed origins here
 app.use(function (req, res, next) {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
