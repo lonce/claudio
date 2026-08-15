@@ -178,7 +178,7 @@ function sampleFromLogits(logits, mode, temperature, top_k) {
 // ----------------------------------------------------
 async function initRnnSession() {
   console.log(`[RNNWorker] - initRnnSession()`)
-  const sess = await ort.InferenceSession.create('/soundlib/models/WaterFillRNN/onnx/rnn_step.onnx', {
+  const sess = await ort.InferenceSession.create(new URL('../onnx/rnn_step.onnx', import.meta.url).href, {
     executionProviders: ['wasm'],
   });
   return sess;

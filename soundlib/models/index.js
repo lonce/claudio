@@ -7,3 +7,5 @@ export { FaustClarinet } from './FaustClarinet.js';
 export { WorkerFM } from './WorkerFM.js';
 export { WaterFillRNN } from './WaterFillRNN.js';
 export { WaveTrigger } from './WaveTrigger.js';
+export { CluadesFirst } from './CluadesFirst.js';
+export { ChuaOscillator } from './ChuaOscillator.js';

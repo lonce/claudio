@@ -7,7 +7,7 @@ import { WSincResampler, upsample2xLinear } from '/utils/resampler.js';
 ort.env.wasm.wasmPaths = '/libs/';
 ort.env.wasm.numThreads = 1;
 
-const RNN_WORKER_URL = '/soundlib/models/WaterFillRNN/workers/RNNWorker.js?cb=' + Date.now();
+const RNN_WORKER_URL = new URL('./RNNWorker.js', import.meta.url).href + '?cb=' + Date.now();
 
 // mirrors RNN worker settings
 const NQ = 8;

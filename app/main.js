@@ -1,6 +1,15 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN } from '/soundlib/models/index.js';
+import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, CluadesFirst, ChuaOscillator } from '/soundlib/models/index.js';
+import { HamburgerLadyChua13 } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
+import { createNudgeSliderControl } from './NudgeSlider.js';
+import { openSavePresetDialog } from './SavePresetDialog.js';
+import { formatFixedDigits } from './formatNumber.js';
+
+// Designer mode (?mode=designer): NudgeSliders + Save Preset button.
+// Normal mode (default): plain sliders, no Save button.
+const isDesignerMode = new URLSearchParams(window.location.search).get('mode') === 'designer';
+const USE_NUDGE_SLIDER = isDesignerMode;
 
 const audioSystem = new AudioSystem();
 let currentSound = null;
@@ -51,8 +60,11 @@ async function initApp() {
             modRate: 1.5,
             modDepth: 0.3
         });
+        const cluadesFirst = await audioSystem.createSound(CluadesFirst, 'CluadesFirst', 0);
+        const chuaOscillator = await audioSystem.createSound(ChuaOscillator, 'ChuaOscillator', 0);
+        const hamburgerLadyChua13 = await audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, cluadesFirst, chuaOscillator, hamburgerLadyChua13];
 
         console.log('Sounds loaded');
         await requestMotionPermissions(audioSystem, handleOrientation, log);
@@ -125,8 +137,27 @@ async function initApp() {
 
 function initializeParameterControls() {
     parameterControls.clear();
+    const claimed = new Set();
+    const hasAccelerometers = window.hasOrientationSupport && window.hasOrientationPermission;
+
     currentSound.getParameters().forEach(param => {
-        parameterControls.set(param.name, { type: 'slider', param: param });
+        let type = 'slider';
+        const pref = param.preference;
+
+        if (pref === 'pitch' || pref === 'roll') {
+            type = hasAccelerometers ? pref : (pref === 'pitch' ? 'y' : 'x');
+        } else if (pref === 'x' || pref === 'y') {
+            type = pref;
+        }
+
+        if (type !== 'slider' && claimed.has(type)) {
+            type = 'slider';
+        }
+        if (type !== 'slider') {
+            claimed.add(type);
+        }
+
+        parameterControls.set(param.name, { type, param });
     });
 }
 
@@ -171,9 +202,23 @@ function updateSoundFromOrientation(pitch, roll) {
     updateSliderValues();
 }
 
+function updateXyPadDoc() {
+    const xyPad = document.getElementById('xyPad');
+    let docEl = xyPad.querySelector('.xy-doc');
+    if (!docEl) {
+        docEl = document.createElement('div');
+        docEl.className = 'xy-doc';
+        xyPad.appendChild(docEl);
+    }
+    docEl.textContent = currentSound.docstringPub || '';
+    docEl.style.display = currentSound.docstringPub ? 'block' : 'none';
+}
+
 ///////////////////////////////////////////////////////////////
 function updateSliderBox() {
     //log("updateSliderBox")
+    updateXyPadDoc();
+
     const sliderBox = document.getElementById('sliderBox');
     sliderBox.innerHTML = '';
 
@@ -187,9 +232,37 @@ function updateSliderBox() {
     stopButton.addEventListener('click', () => currentSound.stop());
     sliderBox.appendChild(stopButton);
 
+    if (isDesignerMode) {
+        const saveButton = document.createElement('button');
+        saveButton.textContent = 'Save Preset';
+        saveButton.addEventListener('click', () => {
+            openSavePresetDialog(sliderBox, currentSound, parameterControls);
+        });
+        sliderBox.appendChild(saveButton);
+    }
+
     const controlOptions = ['none', 'slider', 'x', 'y'];
     if (window.hasOrientationSupport && window.hasOrientationPermission) {
         controlOptions.push('pitch', 'roll');
+    }
+
+    function addControlSelect(param, paramControl) {
+        const controlSelect = document.createElement('select');
+        controlOptions.forEach(option => {
+            const optionElement = document.createElement('option');
+            optionElement.value = option;
+            optionElement.textContent = option;
+            controlSelect.appendChild(optionElement);
+        });
+        controlSelect.value = parameterControls.get(param.name).type;
+        controlSelect.addEventListener('change', (e) => {
+            parameterControls.get(param.name).type = e.target.value;
+            const isSlider = e.target.value === 'slider';
+            const rangeInput = paramControl.querySelector('input[type="range"]');
+            if (rangeInput) rangeInput.disabled = !isSlider;
+            paramControl.querySelectorAll('.nudge-slider button').forEach(btn => btn.disabled = !isSlider);
+        });
+        paramControl.appendChild(controlSelect);
     }
 
     currentSound.getParameters().forEach(param => {
@@ -209,6 +282,7 @@ function updateSliderBox() {
                 if (event.key === 'Enter') {
                     event.preventDefault();
                     currentSound.setParameter(param.name, input.value);
+                    updateSliderValues();
                 }
             });
             input.addEventListener('focus', () => {
@@ -217,6 +291,7 @@ function updateSliderBox() {
             input.addEventListener('blur', () => {
                 input.dataset.editing = 'false';
                 currentSound.setParameter(param.name, input.value);
+                updateSliderValues();
             });
             paramControl.appendChild(input);
         } else if (param.isIntegerParameter()) {
@@ -231,46 +306,51 @@ function updateSliderBox() {
                 // -- currentSound.updateParameter(param.name);
                 currentSound.setParameter(param.name, slider.value);
                 valueDisplay.textContent = param.get();
+                updateSliderValues();
             });
             paramControl.appendChild(slider);
 
             const valueDisplay = document.createElement('span');
             valueDisplay.textContent = param.get();
             paramControl.appendChild(valueDisplay);
+
+            addControlSelect(param, paramControl);
         } else {
             // Float parameter
-            const slider = document.createElement('input');
-            slider.type = 'range';
-            slider.min = 0;
-            slider.max = 1;
-            slider.step = 0.01;
-            slider.value = param.getNormalized();
-            slider.addEventListener('input', () => {
-                //-- param.setNormalized(parseFloat(slider.value));
-                //-- currentSound.updateParameter(param.name);
-                currentSound.setParameterNormalized(param.name, slider.value);
-                valueDisplay.textContent = param.get().toFixed(2);
-            });
-            paramControl.appendChild(slider);
+            if (USE_NUDGE_SLIDER) {
+                const nudgeSlider = createNudgeSliderControl(param, (value) => {
+                    currentSound.setParameter(param.name, value);
+                    updateSliderValues();
+                });
+                paramControl.appendChild(nudgeSlider.element);
+                parameterControls.get(param.name).getScale = nudgeSlider.getScale;
+            } else {
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.min = 0;
+                slider.max = 1;
+                slider.step = 0.01;
+                slider.value = param.getNormalized();
+                slider.addEventListener('input', () => {
+                    //-- param.setNormalized(parseFloat(slider.value));
+                    //-- currentSound.updateParameter(param.name);
+                    currentSound.setParameterNormalized(param.name, slider.value);
+                    valueDisplay.textContent = formatFixedDigits(param.get());
+                    updateSliderValues();
+                });
+                paramControl.appendChild(slider);
 
-            const valueDisplay = document.createElement('span');
-            valueDisplay.className = 'parameter-value';
-            valueDisplay.textContent = param.get().toFixed(2);
-            paramControl.appendChild(valueDisplay);
+                const valueDisplay = document.createElement('span');
+                valueDisplay.className = 'parameter-value';
+                valueDisplay.style.display = 'inline-block';
+                valueDisplay.style.minWidth = '5.5em';
+                valueDisplay.style.textAlign = 'right';
+                valueDisplay.style.fontFamily = 'monospace';
+                valueDisplay.textContent = formatFixedDigits(param.get());
+                paramControl.appendChild(valueDisplay);
+            }
 
-            const controlSelect = document.createElement('select');
-            controlOptions.forEach(option => {
-                const optionElement = document.createElement('option');
-                optionElement.value = option;
-                optionElement.textContent = option;
-                controlSelect.appendChild(optionElement);
-            });
-            controlSelect.value = parameterControls.get(param.name).type;
-            controlSelect.addEventListener('change', (e) => {
-                parameterControls.get(param.name).type = e.target.value;
-                slider.disabled = e.target.value !== 'slider';
-            });
-            paramControl.appendChild(controlSelect);
+            addControlSelect(param, paramControl);
         }
 
         sliderBox.appendChild(paramControl);
@@ -340,7 +420,7 @@ function updateSliderValues() {
                 const slider = paramControl.querySelector('input[type="range"]');
                 const valueDisplay = paramControl.querySelector('.parameter-value');
                 if (slider) slider.value = param.getNormalized();
-                if (valueDisplay) valueDisplay.textContent = param.get().toFixed(2);
+                if (valueDisplay) valueDisplay.textContent = formatFixedDigits(param.get());
             }
         }
     });

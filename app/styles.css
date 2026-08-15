@@ -48,6 +48,20 @@ h1 {
     cursor: pointer;
 }
 
+#xyPad .xy-doc {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 8px;
+    box-sizing: border-box;
+    font-size: 0.85em;
+    color: #333;
+    text-align: center;
+    overflow-wrap: break-word;
+    pointer-events: none; /* never let this become e.target during x/y drag */
+}
+
 #sliderBox {
     background-color: #f9f9f9;
     padding: 20px;

@@ -2,8 +2,8 @@
 import { BaseSound } from '../BaseSound.js';
 
 export class WorkerFM extends BaseSound {
-    static WORKLET_PATH = '/soundlib/models/WorkerFM/worklets/generativeAudioProcessor.js';
-    static WORKER_PATH = '/soundlib/models/WorkerFM/workers/generative-audio-worker.js';
+    static WORKLET_PATH = new URL('./WorkerFM/worklets/generativeAudioProcessor.js', import.meta.url).href;
+    static WORKER_PATH = new URL('./WorkerFM/workers/generative-audio-worker.js', import.meta.url).href;
 
     constructor(context, name, config = {}) {
         super(context, name);

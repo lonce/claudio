@@ -1,0 +1,53 @@
+{
+  "soundName": "Hamburger Lady (Chua13)",
+  "soundClass": "ChuaOscillator",
+  "savedAt": "2026-08-15T14:49:52.270Z",
+  "docstring_pub": "From clean tone to grovely with pitch drop. Remnicent of the Throbbing Gristle Hamburger Lady drone.",
+  "docstring_private": "ChuaOsciallator, with baseAttractor 13",
+  "parameters": {
+    "gain": {
+      "mapping": "pitch",
+      "min": 0,
+      "max": 2,
+      "default": 1
+    },
+    "alpha": {
+      "mapping": "roll",
+      "min": 12.760000000000034,
+      "max": 10.960000000000033,
+      "default": 10.960000000000033
+    },
+    "beta": {
+      "mapping": "slider",
+      "min": 25,
+      "max": 19,
+      "default": 23.98
+    },
+    "gamma": {
+      "mapping": "none",
+      "value": 0.07759999999999997
+    },
+    "m0": {
+      "mapping": "none",
+      "value": -1.1278569999999994
+    },
+    "m1": {
+      "mapping": "none",
+      "value": -0.5127857000000006
+    },
+    "mk": {
+      "mapping": "none",
+      "value": 0.42000000000000437
+    },
+    "tscale": {
+      "mapping": "slider",
+      "min": 400,
+      "max": 500,
+      "default": 460
+    },
+    "baseAttractor": {
+      "mapping": "none",
+      "value": 13
+    }
+  }
+}

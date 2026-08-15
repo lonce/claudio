@@ -1,5 +1,5 @@
 export class Parameter {
-    constructor(soundModel, name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01) {
+    constructor(soundModel, name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01, preference = null) {
         this.soundModel=soundModel;
         this.name = name;
         this.value = defaultValue; // subject to continuous updates
@@ -8,6 +8,11 @@ export class Parameter {
         this.max = max;
         this.attackTime = attackTime;
         this.decayTime = decayTime;
+
+        // Optional, inert hint for a preferred control mapping (e.g. 'pitch',
+        // 'roll', 'x', 'y'). soundlib itself never reads this -- it's up to
+        // whatever's driving the sound (a GUI app, a game) to honor it or not.
+        this.preference = preference;
     }
 
     get() {
@@ -38,19 +43,28 @@ export class Parameter {
 
 ////////////////////////////////////////////////////////////////////////
 export class FloatParameter extends Parameter {
-    constructor(soundModel, name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01) {
-        super(soundModel, name, defaultValue, min, max, attackTime, decayTime);
+    constructor(soundModel, name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01, preference = null) {
+        super(soundModel, name, defaultValue, min, max, attackTime, decayTime, preference);
     }
 }
 ////////////////////////////////////////////////////////////////////////
 export class IntegerParameter extends Parameter {
-    constructor(soundModel, name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01) {
-        super(soundModel, name, Math.floor(defaultValue), Math.floor(min), Math.floor(max), attackTime, decayTime);
+    constructor(soundModel, name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01, preference = null) {
+        super(soundModel, name, Math.floor(defaultValue), Math.floor(min), Math.floor(max), attackTime, decayTime, preference);
     }
 
     set(value) {
-        this.value = Math.floor(Math.max(this.min, Math.min(this.max, value)));  
-        this.soundModel.updateParameter(this.name); 
+        this.value = Math.floor(Math.max(this.min, Math.min(this.max, value)));
+        this.soundModel.updateParameter(this.name);
+    }
+
+    // Give each integer value an equal-width bucket: normalizedValue in
+    // [0,1] maps onto (max - min + 1) equal slices, each flooring down to
+    // its integer (e.g. x for raw values in [x, x+1)). The base class's
+    // formula instead divides into (max - min) slices, which makes the top
+    // value (max) reachable only at the single point normalizedValue === 1.
+    setNormalized(normalizedValue) {
+        this.set(this.min + normalizedValue * (this.max - this.min + 1));
     }
 
     isIntegerParameter() {

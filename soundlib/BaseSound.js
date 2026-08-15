@@ -17,20 +17,24 @@ export class BaseSound {
         this.attackTimeoutID = null;
         this.decayTimeoutID = null;
 
+        // Optional public-facing description a model can set for itself;
+        // apps may choose to display it (or not).
+        this.docstringPub = null;
+
         console.log('create GAIN with default value of '+ g)
         this.addParameter('gain', g, 0, 1, 0.15, 0.25);
     }
 
-    addParameter(name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01) {
-        this.parameters.set(name, new FloatParameter(this, name, defaultValue, min, max, attackTime, decayTime));
+    addParameter(name, defaultValue, min, max, attackTime = 0.01, decayTime = 0.01, preference = null) {
+        this.parameters.set(name, new FloatParameter(this, name, defaultValue, min, max, attackTime, decayTime, preference));
     }
 
     addStringParameter(name, defaultValue) {
         this.parameters.set(name, new StringParameter(this, name, defaultValue));
     }
 
-    addIntegerParameter(name, defaultValue, min, max) {
-        this.parameters.set(name, new IntegerParameter(this, name, defaultValue, min, max));
+    addIntegerParameter(name, defaultValue, min, max, preference = null) {
+        this.parameters.set(name, new IntegerParameter(this, name, defaultValue, min, max, 0.01, 0.01, preference));
     }
 
     getParameter(name) {
