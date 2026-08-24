@@ -83,6 +83,15 @@ export class FaustClarinet extends BaseSound {
             if (tubeLengthParam) {
                 this.faustNode.setParamValue(tubeLengthParam.address, tubeLength);
             }
+        } else if (name === 'pressure') {
+            if (this.isPlaying) {
+                const faustParam = this.faustParams.get('pressure');
+                if (faustParam) {
+                    this.faustNode.setParamValue(faustParam.address, param.get());
+                }
+            }
+            // else: leave the Faust node alone while stopped — startSound() applies
+            // whatever pressure is currently set the moment play is pushed.
         } else {
             const faustParam = this.faustParams.get(name);
             if (faustParam) {
