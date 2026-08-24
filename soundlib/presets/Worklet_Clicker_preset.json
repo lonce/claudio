@@ -1,0 +1,21 @@
+{
+  "soundName": "Worklet_Clicker preset",
+  "soundClass": "ClickerWorkletSoundModel",
+  "savedAt": "2026-08-24T17:50:44.349Z",
+  "docstring_pub": "A little exercize using worklets - a phasor is built in the worklet with a rate that can change continuously (between clicks)",
+  "docstring_private": "Base on Worklet_Clicker fundamental model",
+  "parameters": {
+    "gain": {
+      "mapping": "pitch",
+      "min": 0.5499999999999999,
+      "max": 0.65,
+      "default": 0.6
+    },
+    "rate": {
+      "mapping": "roll",
+      "min": 9.05,
+      "max": 10.95,
+      "default": 10
+    }
+  }
+}

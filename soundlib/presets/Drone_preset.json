@@ -1,0 +1,27 @@
+{
+  "soundName": "Drone preset",
+  "soundClass": "DroneModel",
+  "savedAt": "2026-08-24T17:44:19.590Z",
+  "docstring_pub": "Just the most basic wavetable oscillator in straight-up WebAudio API. Here when you need it. ",
+  "docstring_private": "Based on Drone fundamental",
+  "parameters": {
+    "gain": {
+      "mapping": "pitch",
+      "min": 0.5499999999999999,
+      "max": 0.65,
+      "default": 0.6
+    },
+    "frequency": {
+      "mapping": "roll",
+      "min": 341,
+      "max": 539,
+      "default": 440
+    },
+    "waveshape": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 3,
+      "default": 0
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "soundName": "WaveTrigger preset",
+  "soundClass": "WaveTrigger",
+  "savedAt": "2026-08-24T17:57:28.823Z",
+  "docstring_pub": "Select between different preset wavefiles to play. Another exercise using simple WabAudio API",
+  "docstring_private": "Base on Wave Trigger fundamental.",
+  "parameters": {
+    "gain": {
+      "mapping": "pitch",
+      "min": 0.5499999999999999,
+      "max": 0.65,
+      "default": 0.6
+    },
+    "select": {
+      "mapping": "roll",
+      "min": 0,
+      "max": 0.05,
+      "default": 0
+    }
+  }
+}

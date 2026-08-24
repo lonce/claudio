@@ -1,0 +1,33 @@
+{
+  "soundName": "Risset preset",
+  "soundClass": "RissetBasic",
+  "savedAt": "2026-08-24T17:40:15.680Z",
+  "docstring_pub": "Risset's Arpeggio is based on set of rich harmonic tones that are ever so slightly mistuned. Here the main frequency as well as the spacing are playable.",
+  "docstring_private": "Based on Risset fundamental model",
+  "parameters": {
+    "gain": {
+      "mapping": "slider",
+      "min": 0.25,
+      "max": 0.35,
+      "default": 0.3
+    },
+    "frequency": {
+      "mapping": "pitch",
+      "min": 56,
+      "max": 64,
+      "default": 60
+    },
+    "spacing": {
+      "mapping": "roll",
+      "min": 0.037500000000000006,
+      "max": 0.0625,
+      "default": 0.05
+    },
+    "waveshape": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 2,
+      "default": 1
+    }
+  }
+}

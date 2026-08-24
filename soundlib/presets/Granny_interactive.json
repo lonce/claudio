@@ -1,0 +1,61 @@
+{
+  "soundName": "Granny interactive",
+  "soundClass": "AnotherGranny",
+  "savedAt": "2026-08-24T17:32:50.800Z",
+  "docstring_pub": "Granularize sounds at URLs or with Freesound ID number.",
+  "docstring_private": "Uses Another Granny fundamental model",
+  "parameters": {
+    "gain": {
+      "mapping": "slider",
+      "min": 0.75,
+      "max": 0.8500000000000001,
+      "default": 0.8
+    },
+    "pitch": {
+      "mapping": "x",
+      "min": -0.2,
+      "max": 0.2,
+      "default": 0
+    },
+    "randomizePitch": {
+      "mapping": "y",
+      "min": 0,
+      "max": 0.05,
+      "default": 0
+    },
+    "grainSize": {
+      "mapping": "slider",
+      "min": 0.5,
+      "max": 0.5,
+      "default": 0.9
+    },
+    "stepSize": {
+      "mapping": "pitch",
+      "min": 0.15,
+      "max": 0.35,
+      "default": 0.25
+    },
+    "grainPlayInterval": {
+      "mapping": "roll",
+      "min": 0.2025,
+      "max": 0.2975,
+      "default": 0.25
+    },
+    "fileLoopStart": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 0.05,
+      "default": 0
+    },
+    "fileLoopLength": {
+      "mapping": "slider",
+      "min": 0.95,
+      "max": 1,
+      "default": 1
+    },
+    "fileURL_or_Freesound_soundID": {
+      "mapping": "slider",
+      "value": "BeingRural22k.mp3"
+    }
+  }
+}
