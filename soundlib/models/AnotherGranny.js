@@ -1,6 +1,22 @@
 import { BaseSound } from '../BaseSound.js';
 
 export class AnotherGranny extends BaseSound {
+    // Local audio resources bundled with this model. A bare filename (no
+    // scheme, no leading slash) typed into the fileURL_or_Freesound_soundID
+    // parameter is resolved against this directory, so the app's UI never
+    // needs to show/know the actual server path.
+    static AUDIO_RESOURCES_BASE_URL = new URL('./audioResources/', import.meta.url).href;
+
+    // Freesound IDs and absolute URLs/paths are passed through untouched;
+    // anything else is treated as a filename to look up in AUDIO_RESOURCES_BASE_URL.
+    static resolveAudioSource(nameOrUrl) {
+        if (/^\d+$/.test(nameOrUrl)) return nameOrUrl;
+        if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(nameOrUrl) || nameOrUrl.startsWith('/')) {
+            return nameOrUrl;
+        }
+        return new URL(nameOrUrl, AnotherGranny.AUDIO_RESOURCES_BASE_URL).href;
+    }
+
     constructor(context, name, audioFileURL) {
         super(context, name);
 
@@ -34,7 +50,7 @@ export class AnotherGranny extends BaseSound {
         this.continuePlaying = false;
         this.isGrainSchedulerRunning = false;
 
-        this.loadAudioFile(audioFileURL).then(buffer => {
+        this.loadAudioFile(AnotherGranny.resolveAudioSource(audioFileURL)).then(buffer => {
             this.setAudioBuffer(buffer);
         });
 
@@ -184,7 +200,7 @@ export class AnotherGranny extends BaseSound {
                 break;
             case 'fileURL_or_Freesound_soundID':
                 const newURL = param.get();
-                this.loadAudioFile(newURL).then(buffer => this.setAudioBuffer(buffer)).catch(error => {
+                this.loadAudioFile(AnotherGranny.resolveAudioSource(newURL)).then(buffer => this.setAudioBuffer(buffer)).catch(error => {
                     console.error(`Failed to load audio for ${this.name}:`, error);
                 });
                 break;

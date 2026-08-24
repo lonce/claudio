@@ -38,10 +38,14 @@ additions on top of that, not a replacement for it.
    body (see the standard commit-message format/`Co-Authored-By` trailer
    already in use).
 
-4. **Commit.** One new commit for the currently staged changes (don't fold
+4. **Show the user that paragraph before committing anything.** Wait for
+   their go-ahead (or an edit) rather than committing straight away — same
+   spirit as step 6's tag-name check, just one step earlier.
+
+5. **Commit.** One new commit for the currently staged changes (don't fold
    it into or amend any prior unpushed commit).
 
-5. **Ask for a tag name before tagging anything.** Offer one suggested
+6. **Ask for a tag name before tagging anything.** Offer one suggested
    name — short, lowercase, hyphenated, reflecting the main theme of the
    work (e.g. `chua-presets`, not a formal semver number; this project
    isn't semantically versioned) — and wait for the user's answer or
@@ -50,7 +54,7 @@ additions on top of that, not a replacement for it.
    git tag -a <name> -m "<the same one-paragraph summary>"
    ```
 
-6. **Push the branch and the tag:**
+7. **Push the branch and the tag:**
    ```
    git push origin main
    git push origin <tag>
@@ -60,7 +64,7 @@ additions on top of that, not a replacement for it.
    remote is `git@github.com:lonce/claudio.git`. If either looks
    unexpected, stop and check with the user instead of pushing.
 
-7. **Report back**: what got committed (and what, if anything, was
+8. **Report back**: what got committed (and what, if anything, was
    deliberately left out and why), the tag name and message, and
    confirmation that both the commit and the tag landed on GitHub.
 

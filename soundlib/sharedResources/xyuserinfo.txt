@@ -1,0 +1,5 @@
+Play: with button or Touch XY plane
+Interact: Assign parameters to 
+	slider, 
+	x or y to use mouse/touch on XY plane
+	pitch or roll for device motion

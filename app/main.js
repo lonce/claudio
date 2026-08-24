@@ -39,13 +39,15 @@ async function initApp() {
     const xyPad = document.getElementById('xyPad');
     const sliderBox = document.getElementById('sliderBox');
 
+    loadXyPadInfo(xyPad);
+
     try {
         console.log('Loading sounds...');
         const risset = await audioSystem.createSound(RissetBasic, 'Risset', 0);
         const drone = await audioSystem.createSound(DroneModel, 'Drone', 0);
         const waveTrigger = await audioSystem.createSound(WaveTrigger, 'WaveTrigger', 0);
         const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet_Clicker', 0);
-        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 200995);
+        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 'BeingRural22k.mp3');
         const faustClarinet = await audioSystem.createSound(FaustClarinet, 'FaustClarinet', 0);
         const workerFM = await audioSystem.createSound(WorkerFM, 'WorkerFM', 0, 
             {
@@ -200,6 +202,23 @@ function updateSoundFromOrientation(pitch, roll) {
     });
 
     updateSliderValues();
+}
+
+// Static text describing how to use the XY plane, same for every sound.
+// A property of the XY plane itself, not of any sound model, so it's loaded
+// once here rather than through a per-sound field like docstringPub.
+async function loadXyPadInfo(xyPad) {
+    try {
+        const response = await fetch('/soundlib/sharedResources/xyuserinfo.txt');
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const text = await response.text();
+        const infoEl = document.createElement('div');
+        infoEl.className = 'xy-info';
+        infoEl.textContent = text;
+        xyPad.appendChild(infoEl);
+    } catch (error) {
+        console.error('Failed to load xyPad info text:', error);
+    }
 }
 
 function updateXyPadDoc() {
