@@ -8,3 +8,4 @@ export { RissetPreset } from './RissetPreset.js';
 export { WaveTriggerPreset } from './WaveTriggerPreset.js';
 export { WorkletClickerPreset } from './WorkletClickerPreset.js';
 export { GrannyInteractive } from './GrannyInteractive.js';
+export { FaustClarinetPreset } from './FaustClarinetPreset.js';

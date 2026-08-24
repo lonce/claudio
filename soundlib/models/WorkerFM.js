@@ -12,7 +12,7 @@ export class WorkerFM extends BaseSound {
         this.lookaheadFrames = config.lookaheadFrames || 4;
         
         // Add parameters for FM synthesis
-        this.addParameter('centerFreq', config.centerFreq || 440, 20, 20000);
+        this.addParameter('centerFreq', config.centerFreq || 440, 20, 2000);
         this.addParameter('modRate', config.modRate || 2, 0.1, 20);
         this.addParameter('modDepth', config.modDepth || 0.5, 0, 1);
         

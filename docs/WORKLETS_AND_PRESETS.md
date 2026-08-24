@@ -105,8 +105,10 @@ precision there. `NudgeSlider` adds, alongside the normal drag slider: a
 scroll/drag-adjustable "nudge scale" (log range `[0.0001, 1]` of the
 parameter's span) and ▲/▼ buttons (hold to repeat) that step by
 `scale * (max - min)`. `createNudgeSliderControl()` returns
-`{ element, getScale }` — `getScale()` is how the Save dialog derives a
-sensible default range around wherever you've been exploring.
+`{ element, getScale }` — `getScale()` exposes the current nudge scale for
+any consumer that wants it; the Save dialog does not use it for `min`/`max`
+(those come from the parameter's own base-model range, see "Saving a
+preset" below).
 
 ### Digit formatting
 
@@ -127,8 +129,11 @@ camelCase used in JS code), and one row per parameter. A parameter counts
 as *live* whenever its current control mapping isn't `'none'` (everything
 starts as `'slider'` by default, so most parameters are "live" unless
 explicitly set to `'none'`). Live parameters get editable `min`/`max`/
-`default` fields, prefilled from the current `NudgeSlider` scale; `'none'`
-(frozen) and string parameters just get their current value.
+`default` fields: `min`/`max` are prefilled from the parameter's own
+base-model range (`param.min`/`param.max`, as declared by the sound
+model's `addParameter()` call), and `default` is prefilled from the
+parameter's current (tuned) value; `'none'` (frozen) and string parameters
+just get their current value.
 
 Preset JSON shape (generic — same shape regardless of which model it came
 from):

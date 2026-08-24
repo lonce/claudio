@@ -7,8 +7,9 @@
 // input[type="range"] (same shape/behavior as the plain slider) and a
 // .parameter-value span, so the existing updateSliderValues() in main.js
 // keeps driving it with no changes. `getScale()` exposes the current nudge
-// scale so callers (e.g. the Save Preset dialog) can derive a sensible local
-// range around the parameter's current value.
+// scale to any external caller that wants it; nothing in this codebase
+// currently does (the nudge buttons themselves read the scale directly via
+// closure, not through this accessor).
 import { formatFixedDigits } from './formatNumber.js';
 
 function formatValue(value) {

@@ -1,6 +1,6 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
 import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, CluadesFirst, ChuaOscillator } from '/soundlib/models/index.js';
-import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive } from '/soundlib/models/index_presets.js';
+import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
 import { openSavePresetDialog } from './SavePresetDialog.js';
@@ -70,8 +70,9 @@ async function initApp() {
         const waveTriggerPreset = await audioSystem.createSound(WaveTriggerPreset, 'WaveTrigger preset', 0);
         const workletClickerPreset = await audioSystem.createSound(WorkletClickerPreset, 'Worklet_Clicker preset', 0);
         const grannyInteractive = await audioSystem.createSound(GrannyInteractive, 'Granny interactive', 0, 'BeingRural22k.mp3');
+        const faustClarinetPreset = await audioSystem.createSound(FaustClarinetPreset, 'FaustClarinet preset', 0);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, cluadesFirst, chuaOscillator, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, cluadesFirst, chuaOscillator, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset];
 
         console.log('Sounds loaded');
         await requestMotionPermissions(audioSystem, handleOrientation, log);
@@ -351,7 +352,6 @@ function updateSliderBox() {
                     updateSliderValues();
                 });
                 controlRow.appendChild(nudgeSlider.element);
-                parameterControls.get(param.name).getScale = nudgeSlider.getScale;
             } else {
                 const slider = document.createElement('input');
                 slider.type = 'range';

@@ -8,24 +8,12 @@
 // value only. Everything else gets { mapping, min, max, default } -- the
 // same shape BaseSound.addParameter(name, defaultValue, min, max) expects,
 // so turning a saved preset into a new model's exposed parameters is
-// mechanical. min/max are pre-filled from that parameter's current
-// NudgeSlider scale when available (a window around the current value
-// reflecting the neighborhood being explored, not the full original range).
+// mechanical. min/max are pre-filled from that parameter's own base-model
+// range (param.min/param.max, as declared by the sound model's
+// addParameter() call) -- not guessed from wherever the NudgeSlider scale
+// happens to be sitting, which is just a view into the current neighborhood
+// being explored, not a deliberate range choice.
 import { formatFixedDigits } from './formatNumber.js';
-
-const NUDGE_STEPS_FOR_DEFAULT_RANGE = 5;
-
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-}
-
-function defaultRangeFor(param, control) {
-    if (control.getScale) {
-        const halfWindow = control.getScale() * (param.max - param.min) * NUDGE_STEPS_FOR_DEFAULT_RANGE;
-        return [clamp(param.get() - halfWindow, param.min, param.max), clamp(param.get() + halfWindow, param.min, param.max)];
-    }
-    return [param.min, param.max];
-}
 
 export function openSavePresetDialog(mountPoint, sound, parameterControls) {
     const existing = mountPoint.querySelector('.save-preset-panel');
@@ -105,11 +93,9 @@ export function openSavePresetDialog(mountPoint, sound, parameterControls) {
                 : formatFixedDigits(param.get());
             row.appendChild(value);
         } else {
-            const [defaultMin, defaultMax] = defaultRangeFor(param, control);
-
             const minInput = document.createElement('input');
             minInput.type = 'number';
-            minInput.value = defaultMin;
+            minInput.value = param.min;
             minInput.style.width = '6em';
 
             const toLabel = document.createElement('span');
@@ -117,7 +103,7 @@ export function openSavePresetDialog(mountPoint, sound, parameterControls) {
 
             const maxInput = document.createElement('input');
             maxInput.type = 'number';
-            maxInput.value = defaultMax;
+            maxInput.value = param.max;
             maxInput.style.width = '6em';
 
             const defaultLabel = document.createElement('span');
