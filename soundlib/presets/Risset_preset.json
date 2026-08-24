@@ -7,20 +7,20 @@
   "parameters": {
     "gain": {
       "mapping": "slider",
-      "min": 0.25,
-      "max": 0.35,
+      "min": 0,
+      "max": 1,
       "default": 0.3
     },
     "frequency": {
       "mapping": "pitch",
-      "min": 56,
-      "max": 64,
+      "min": 20,
+      "max": 100,
       "default": 60
     },
     "spacing": {
       "mapping": "roll",
-      "min": 0.037500000000000006,
-      "max": 0.0625,
+      "min": 0,
+      "max": 0.25,
       "default": 0.05
     },
     "waveshape": {
