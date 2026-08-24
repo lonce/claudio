@@ -293,6 +293,10 @@ function updateSliderBox() {
         label.textContent = param.name;
         paramControl.appendChild(label);
 
+        const controlRow = document.createElement('div');
+        controlRow.className = 'parameter-control-row';
+        paramControl.appendChild(controlRow);
+
         if (param.isStringParameter()) {
             const input = document.createElement('input');
             input.type = 'text';
@@ -312,7 +316,7 @@ function updateSliderBox() {
                 currentSound.setParameter(param.name, input.value);
                 updateSliderValues();
             });
-            paramControl.appendChild(input);
+            controlRow.appendChild(input);
         } else if (param.isIntegerParameter()) {
             const slider = document.createElement('input');
             slider.type = 'range';
@@ -327,13 +331,13 @@ function updateSliderBox() {
                 valueDisplay.textContent = param.get();
                 updateSliderValues();
             });
-            paramControl.appendChild(slider);
+            controlRow.appendChild(slider);
 
             const valueDisplay = document.createElement('span');
             valueDisplay.textContent = param.get();
-            paramControl.appendChild(valueDisplay);
+            controlRow.appendChild(valueDisplay);
 
-            addControlSelect(param, paramControl);
+            addControlSelect(param, controlRow);
         } else {
             // Float parameter
             if (USE_NUDGE_SLIDER) {
@@ -341,7 +345,7 @@ function updateSliderBox() {
                     currentSound.setParameter(param.name, value);
                     updateSliderValues();
                 });
-                paramControl.appendChild(nudgeSlider.element);
+                controlRow.appendChild(nudgeSlider.element);
                 parameterControls.get(param.name).getScale = nudgeSlider.getScale;
             } else {
                 const slider = document.createElement('input');
@@ -357,7 +361,7 @@ function updateSliderBox() {
                     valueDisplay.textContent = formatFixedDigits(param.get());
                     updateSliderValues();
                 });
-                paramControl.appendChild(slider);
+                controlRow.appendChild(slider);
 
                 const valueDisplay = document.createElement('span');
                 valueDisplay.className = 'parameter-value';
@@ -366,10 +370,10 @@ function updateSliderBox() {
                 valueDisplay.style.textAlign = 'right';
                 valueDisplay.style.fontFamily = 'monospace';
                 valueDisplay.textContent = formatFixedDigits(param.get());
-                paramControl.appendChild(valueDisplay);
+                controlRow.appendChild(valueDisplay);
             }
 
-            addControlSelect(param, paramControl);
+            addControlSelect(param, controlRow);
         }
 
         sliderBox.appendChild(paramControl);

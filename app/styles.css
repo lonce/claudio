@@ -81,6 +81,7 @@ h1 {
     background-color: #f9f9f9;
     padding: 20px;
     border-radius: 5px;
+    container-type: inline-size;
 }
 
 .parameter-control {
@@ -91,6 +92,15 @@ h1 {
 
 .parameter-control label {
     flex: 1;
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+.parameter-control-row {
+    display: flex;
+    align-items: center;
+    flex: 2;
+    min-width: 0;
 }
 
 .parameter-control input[type="range"] {
@@ -105,6 +115,22 @@ h1 {
 .parameter-value {
     width: 50px;
     text-align: right;
+}
+
+@container (max-width: 300px) {
+    .parameter-control {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .parameter-control label {
+        flex: none;
+        margin-bottom: 4px;
+    }
+
+    .parameter-control-row {
+        flex: none;
+    }
 }
 
 button {
