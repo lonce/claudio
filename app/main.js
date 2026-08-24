@@ -1,6 +1,6 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
 import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, CluadesFirst, ChuaOscillator } from '/soundlib/models/index.js';
-import { HamburgerLadyChua13 } from '/soundlib/models/index_presets.js';
+import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
 import { openSavePresetDialog } from './SavePresetDialog.js';
@@ -65,8 +65,13 @@ async function initApp() {
         const cluadesFirst = await audioSystem.createSound(CluadesFirst, 'CluadesFirst', 0);
         const chuaOscillator = await audioSystem.createSound(ChuaOscillator, 'ChuaOscillator', 0);
         const hamburgerLadyChua13 = await audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0);
+        const dronePreset = await audioSystem.createSound(DronePreset, 'Drone preset', 0);
+        const rissetPreset = await audioSystem.createSound(RissetPreset, 'Risset preset', 0);
+        const waveTriggerPreset = await audioSystem.createSound(WaveTriggerPreset, 'WaveTrigger preset', 0);
+        const workletClickerPreset = await audioSystem.createSound(WorkletClickerPreset, 'Worklet_Clicker preset', 0);
+        const grannyInteractive = await audioSystem.createSound(GrannyInteractive, 'Granny interactive', 0, 'BeingRural22k.mp3');
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, cluadesFirst, chuaOscillator, hamburgerLadyChua13];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, cluadesFirst, chuaOscillator, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive];
 
         console.log('Sounds loaded');
         await requestMotionPermissions(audioSystem, handleOrientation, log);

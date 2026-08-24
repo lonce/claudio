@@ -3,3 +3,8 @@
 // export shape as index.js -- kept separate so hand-authored, canonical
 // models and preset-derived ones stay easy to tell apart.
 export { HamburgerLadyChua13 } from './HamburgerLadyChua13.js';
+export { DronePreset } from './DronePreset.js';
+export { RissetPreset } from './RissetPreset.js';
+export { WaveTriggerPreset } from './WaveTriggerPreset.js';
+export { WorkletClickerPreset } from './WorkletClickerPreset.js';
+export { GrannyInteractive } from './GrannyInteractive.js';
