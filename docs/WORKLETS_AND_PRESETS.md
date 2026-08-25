@@ -173,11 +173,27 @@ This is the workflow actually used for `HamburgerLadyChua13`:
    display name to `createSound()`.
 3. **Write the model**, following the closest existing model as reference
    (for a Chua-family preset, that's `ChuaOscillator.js` — reuse its
-   worklet per "One worklet, many models" above). Parameters with
-   `mapping !== 'none'` become real `addParameter()` calls using the
-   preset's `min`/`max`/`default`; `mapping === 'none'` entries become
-   values set once on the worklet's `AudioParam`s at construction and never
-   exposed as `Parameter`s at all.
+   worklet per "One worklet, many models" above). Every live (mapping
+   `!== 'none'`) parameter's `min`/`max`/`default` always come from the
+   preset's recorded values — never left as the base model's own range by
+   coincidence, even when the two happen to be identical, since ranges can
+   drift independently later. `mapping === 'none'` entries become values set
+   once on the worklet's `AudioParam`s at construction and never exposed as
+   `Parameter`s at all. How to apply the preset's `min`/`max`/`default`
+   depends on how the model is built:
+   - Building parameters from scratch against `BaseSound` (no canonical
+     model to extend) — e.g. `HamburgerLadyChua13.js` — pass them straight
+     to `addParameter()`.
+   - Extending a canonical model that already declares the parameter (the
+     common case for a fundamental-model-derived preset, e.g.
+     `FaustClarinetPreset.js` extending `FaustClarinet`, `DronePreset.js`
+     extending `DroneModel`) — there's no `addParameter()` call to make;
+     instead set `min`/`max`/`value`/`defaultValue` directly on the
+     already-existing `Parameter` object returned by `getParameter()`.
+     `FaustClarinetPreset.js` is the reference for a model whose parameters
+     are discovered asynchronously (see its comment on chaining onto
+     `initPromise`); `DronePreset.js` is the reference for the simpler
+     synchronous case.
 4. **Sanity-check min/max before trusting them.** Preset JSON can have
    `min > max` if the designer hand-edited the Save dialog's number inputs
    after they were prefilled — `Parameter`'s clamping and normalization
