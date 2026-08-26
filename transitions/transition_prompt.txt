@@ -1,0 +1,24 @@
+Well, I am leading up to my design idea and questions.
+
+
+I want to write sound models that use a phasor object that generates events (from a list) as it rotates past the phase attributes of the events on the list. The Phasor will expose control parameters that affect exactly how the phasor rotates:
+
+   Parameters : 1) tansition_dur - how many seconds to get to the next target "landmark"
+   				2) freq - the frequency at the next target landmark
+   				3) phase - the phase at the next target landmark
+
+ The parameters can be set by a user of the object any time, but the soundmodel doesn't use them to affect the phasor rotoation speed until the "transition" event which causes the phasor to slowly move to the new freq and phase over the transitionion_dur:  
+ 
+   	"Transition" event 
+   		Triggers: 
+   				current_freq -> freq over duration (transition_dur) (linearly for now)
+   				current_phase -> phase over transition_dur)
+
+   				The linearity of the frequency transition will, of course, have to be slightly adjusted (evenly distributed over duration, and as minimally as possible) so that the current_phase ends up at the phase exactly at the end of the duration.
+
+I want the SoundModels to be precise in time (minimally at the k-rate: the rate at which all running WebAudio API nodes are called to generate their next buffer of audio). I want to "score" the transitions by specifying the target freq and phase in the "future". The starting point for the transition can be scored, too, but will just as frequently by the "now" line on the dynamic score as time advances. The transition has to be computed based on whatever the current values of the Phasor are (current_freq, current_phase, transition_dur) and the target values (freq, and phase) given the duration between the starting time and the scored finishing time. 
+
+First, I would like you to summarize for me to check our mutual understanding. 
+Then we can talk about how to "separate concerns" between the different objects involved (the score, the sound model, the phasor) and then how to implement it (possibly using an audio worklet) to ensure rock solid timing.
+
+Just to share the joy and excitement of what I am thinking, this is a way of cordinating multiple peirodic rhythms at specific points as musical time progresses. 
