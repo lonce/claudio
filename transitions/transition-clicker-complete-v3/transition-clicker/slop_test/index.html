@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transition Clicker slop test</title>
+  <link rel="stylesheet" href="../demo/style.css">
+</head>
+<body>
+  <main>
+    <h1>Independent-model timing slop test</h1>
+    <p>
+      This deliberately uses two independent worklets without synchronized
+      scheduling. Start the audio engine, play both models, and then request
+      their five-second phase rendezvous.
+    </p>
+    <p>
+      They begin at different frequencies and phases. At the end of the
+      transition they share a frequency of 2.5 Hz, with opposite phases:
+      low at 0 and bright at 0.5.
+    </p>
+    <button id="initialize">1. Start audio engine</button>
+    <button id="play" disabled>2. Play both now</button>
+    <button id="transition" disabled>3. Transition both now</button>
+    <button id="stop" disabled>Stop</button>
+    <p id="status" aria-live="polite">Audio engine not started.</p>
+    <div class="lanes" aria-hidden="true">
+      <div><span class="dot low"></span> Low: 2 Hz, phase 0.10 → 2.5 Hz, phase 0</div>
+      <div><span class="dot high"></span> Bright: 3.2 Hz, phase 0.65 → 2.5 Hz, phase 0.5</div>
+    </div>
+  </main>
+  <script type="module" src="slop-test.js"></script>
+</body>
+</html>

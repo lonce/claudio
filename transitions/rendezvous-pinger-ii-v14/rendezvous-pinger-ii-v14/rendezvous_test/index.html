@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RendezvousPinger SoundModel test</title>
+  <link rel="stylesheet" href="../demo/style.css">
+</head>
+<body>
+  <main>
+    <h1>RendezvousPinger meta-model</h1>
+    <p>
+      One SoundModel owns two independent TransitionPingers. Play resets both
+      rhythmic phases to zero; Rendezvous moves them to a shared frequency and
+      the selected phase relationship.
+    </p>
+
+    <div class="lanes">
+      <label>Phasor 1 frequency <output id="freq-1-value">1.30 Hz</output>
+        <input id="freq-1" type="range" min="0.25" max="6" step="0.05" value="1.30">
+      </label>
+      <label>Phasor 2 frequency <output id="freq-2-value">2.10 Hz</output>
+        <input id="freq-2" type="range" min="0.25" max="6" step="0.05" value="2.10">
+      </label>
+      <label>Final shared frequency <output id="final-value">2.50 Hz</output>
+        <input id="final" type="range" min="0.25" max="6" step="0.05" value="2.50">
+      </label>
+      <label>Target phase of child 2 <output id="phase-value">0.50</output>
+        <input id="phase" type="range" min="0" max="1" step="0.01" value="0.50">
+      </label>
+      <label>Transition duration <output id="duration-value">5.0 s</output>
+        <input id="duration" type="range" min="0" max="12" step="0.25" value="5">
+      </label>
+      <label>Child 1 chord fundamental <output id="root-1-value">196.00 Hz</output>
+        <input id="root-1" type="range" min="80" max="500" step="1" value="196">
+      </label>
+      <label>Child 1 chord type
+        <select id="chord-1"></select>
+      </label>
+      <label>Child 2 chord fundamental <output id="root-2-value">293.66 Hz</output>
+        <input id="root-2" type="range" min="80" max="500" step="1" value="293.66">
+      </label>
+      <label>Child 2 chord type
+        <select id="chord-2"></select>
+      </label>
+    </div>
+
+    <div class="controls">
+      <button id="initialize">1. Start audio engine</button>
+      <button id="play" disabled>2. Play (both at phase 0)</button>
+      <button id="rendezvous" disabled>3. Rendezvous</button>
+      <button id="stop" disabled>Stop</button>
+    </div>
+
+    <p id="status" aria-live="polite">Audio engine not started.</p>
+    <div class="lanes">
+      <div>Child 1 notification delay: <strong id="delay-1">—</strong></div>
+      <div>Child 2 notification delay: <strong id="delay-2">—</strong></div>
+      <div>Dropped Pings: <strong id="dropped">0 / 0</strong></div>
+    </div>
+  </main>
+  <script type="module" src="rendezvous-test.js"></script>
+</body>
+</html>

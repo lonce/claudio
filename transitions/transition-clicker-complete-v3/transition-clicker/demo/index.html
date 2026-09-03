@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transition Clicker audible test</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>Transition Clicker audible test</h1>
+    <p>
+      First, both clickers run at 2 Hz in phase. After four seconds, the bright
+      clicker moves gradually to the half-cycle position over five seconds.
+    </p>
+    <button id="start">Start test</button>
+    <button id="stop" disabled>Stop</button>
+    <p id="status" aria-live="polite">Ready.</p>
+    <div class="lanes" aria-hidden="true">
+      <div><span class="dot low"></span> Low clicker: phase 0</div>
+      <div><span class="dot high"></span> Bright clicker: phase 0 → 0.5</div>
+    </div>
+  </main>
+  <script type="module" src="audible-test.js"></script>
+</body>
+</html>

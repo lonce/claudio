@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TransitionPinger notification test</title>
+  <link rel="stylesheet" href="../demo/style.css">
+</head>
+<body>
+  <main>
+    <h1>TransitionPinger notification test</h1>
+    <p>
+      A timing-only worklet reports phasor crossings to the main thread. Each
+      notification plays an ordinary pooled Ping SoundModel.
+    </p>
+
+    <label for="chord">Chord for future Pings:</label>
+    <select id="chord">
+      <option value="0">Major</option>
+      <option value="1">Minor</option>
+      <option value="2">Suspended fourth</option>
+      <option value="3">Diminished</option>
+    </select>
+
+    <div class="controls">
+      <button id="start">Start TransitionPinger</button>
+      <button id="transition" disabled>Transition over 5 seconds</button>
+      <button id="stop" disabled>Stop</button>
+    </div>
+
+    <p id="status" aria-live="polite">Ready.</p>
+    <div class="lanes">
+      <div>Received phase events: <strong id="received">0</strong></div>
+      <div>Dropped (no free Ping): <strong id="dropped">0</strong></div>
+      <div>Notification delay captured at receipt: <strong id="latency">—</strong></div>
+    </div>
+  </main>
+  <script type="module" src="pinger-test.js"></script>
+</body>
+</html>

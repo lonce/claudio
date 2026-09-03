@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/TransitionPhasor.test.js && node test/TransitionPinger.test.js",
+    "demo": "python3 -m http.server 8080"
+  }
+}
