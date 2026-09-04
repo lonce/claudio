@@ -1,6 +1,6 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII } from '/soundlib/models/index.js';
-import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset } from '/soundlib/models/index_presets.js';
+import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, ChimeStrike } from '/soundlib/models/index.js';
+import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
 import { openSavePresetDialog } from './SavePresetDialog.js';
@@ -65,6 +65,7 @@ async function initApp() {
         const ping = await audioSystem.createSound(Ping, 'Ping', 0);
         const chuaOscillator = await audioSystem.createSound(ChuaOscillator, 'ChuaOscillator', 0);
         const rendezvousPingerII = await audioSystem.createSound(RendezvousPingerII, 'RendezvousPingerII', 0);
+        const chimeStrike = await audioSystem.createSound(ChimeStrike, 'Chime Strike', 0);
         const hamburgerLadyChua13 = await audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0);
         const dronePreset = await audioSystem.createSound(DronePreset, 'Drone preset', 0);
         const rissetPreset = await audioSystem.createSound(RissetPreset, 'Risset preset', 0);
@@ -72,8 +73,10 @@ async function initApp() {
         const workletClickerPreset = await audioSystem.createSound(WorkletClickerPreset, 'Worklet_Clicker preset', 0);
         const grannyInteractive = await audioSystem.createSound(GrannyInteractive, 'Granny interactive', 0, 'BeingRural22k.mp3');
         const faustClarinetPreset = await audioSystem.createSound(FaustClarinetPreset, 'FaustClarinet preset', 0);
+        const rendezvousPingerIIPreset = await audioSystem.createSound(RendezvousPingerIIPreset, 'RendezvousPingerII preset', 0);
+        const chimeStrikePreset = await audioSystem.createSound(ChimeStrikePreset, 'Chime Strike preset', 0);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, chimeStrike, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset];
 
         console.log('Sounds loaded');
         await requestMotionPermissions(audioSystem, handleOrientation, log);
@@ -147,7 +150,11 @@ async function initApp() {
 function initializeParameterControls() {
     parameterControls.clear();
     const claimed = new Set();
-    const hasAccelerometers = window.hasOrientationSupport && window.hasOrientationPermission;
+    // In designer mode, treat pitch/roll as available for default-mapping
+    // resolution even on a machine with no motion sensors -- lets a preset's
+    // pitch/roll mappings be authored at a desk, to be functional later on a
+    // device that actually has them.
+    const hasAccelerometers = isDesignerMode || (window.hasOrientationSupport && window.hasOrientationPermission);
 
     currentSound.getParameters().forEach(param => {
         let type = 'slider';
@@ -278,7 +285,10 @@ function updateSliderBox() {
     }
 
     const controlOptions = ['none', 'slider', 'x', 'y'];
-    if (window.hasOrientationSupport && window.hasOrientationPermission) {
+    // Same designer-mode override as initializeParameterControls(): offer
+    // pitch/roll as selectable mappings even without motion sensors here, so
+    // a preset's mapping can be manually set (or corrected) at a desk too.
+    if (isDesignerMode || (window.hasOrientationSupport && window.hasOrientationPermission)) {
         controlOptions.push('pitch', 'roll');
     }
 

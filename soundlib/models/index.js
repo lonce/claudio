@@ -10,3 +10,4 @@ export { WaveTrigger } from './WaveTrigger.js';
 export { Ping } from './Ping.js';
 export { ChuaOscillator } from './ChuaOscillator.js';
 export { RendezvousPingerII } from './RendezvousPinger/RendezvousPingerII.js';
+export { ChimeStrike } from './ChimeStrike.js';

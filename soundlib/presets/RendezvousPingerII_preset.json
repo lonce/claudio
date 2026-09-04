@@ -1,0 +1,81 @@
+{
+  "soundName": "RendezvousPingerII preset",
+  "soundClass": "RendezvousPingerII",
+  "savedAt": "2026-09-04T13:37:13.129Z",
+  "docstring_pub": "Two phasers generate events periodically.\nThe 'rendevous' button triggers a drift to the phasor 'rendevous' freqs and phases over transition_dur, and the 'natura;' button triggers a drift back to the 'natural' frequencies and phases. \nThe freq and phase parameters have no effect until triggered. \nChords are major, minor, suspended fourth, and dimished. ",
+  "docstring_private": "",
+  "parameters": {
+    "gain": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 1,
+      "default": 0.6
+    },
+    "natural_freq_1": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 20,
+      "default": 1.3
+    },
+    "natural_freq_2": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 20,
+      "default": 2.1
+    },
+    "rendezvous_freq": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 20,
+      "default": 2.5
+    },
+    "rendezvous_phase_1": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 1,
+      "default": 0
+    },
+    "rendezvous_phase_2": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 1,
+      "default": 0.5
+    },
+    "transition_dur": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 60,
+      "default": 5
+    },
+    "transition_sharpness": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 6,
+      "default": 3
+    },
+    "fundamental_1": {
+      "mapping": "slider",
+      "min": 20,
+      "max": 1000,
+      "default": 196
+    },
+    "fundamental_2": {
+      "mapping": "slider",
+      "min": 20,
+      "max": 1000,
+      "default": 293.66
+    },
+    "chord_1": {
+      "mapping": "slider",
+      "min": 1,
+      "max": 4,
+      "default": 1
+    },
+    "chord_2": {
+      "mapping": "slider",
+      "min": 1,
+      "max": 4,
+      "default": 3
+    }
+  }
+}

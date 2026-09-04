@@ -9,3 +9,5 @@ export { WaveTriggerPreset } from './WaveTriggerPreset.js';
 export { WorkletClickerPreset } from './WorkletClickerPreset.js';
 export { GrannyInteractive } from './GrannyInteractive.js';
 export { FaustClarinetPreset } from './FaustClarinetPreset.js';
+export { RendezvousPingerIIPreset } from './RendezvousPinger/RendezvousPingerIIPreset.js';
+export { ChimeStrikePreset } from './ChimeStrikePreset.js';

@@ -1,0 +1,33 @@
+{
+  "soundName": "Chime Strike preset",
+  "soundClass": "ChimeStrike",
+  "savedAt": "2026-09-04T15:15:37.101Z",
+  "docstring_pub": "One wind-chime tube, struck. Ported from a syntex.sonicthings.org python wind-chime sound (5 fixed-ration independently-decaying sine partials per strike).",
+  "docstring_private": "",
+  "parameters": {
+    "gain": {
+      "mapping": "pitch",
+      "min": 0,
+      "max": 1,
+      "default": 0.6
+    },
+    "pitch": {
+      "mapping": "roll",
+      "min": 54,
+      "max": 90,
+      "default": 60
+    },
+    "strikeStrength": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 1,
+      "default": 0.6
+    },
+    "ampVariation": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 1,
+      "default": 0.7
+    }
+  }
+}
