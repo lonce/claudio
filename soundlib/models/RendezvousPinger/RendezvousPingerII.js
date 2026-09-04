@@ -22,8 +22,8 @@ export class RendezvousPingerII extends BaseSoundWithEvents {
         this.addParameter('rendezvous_phase_2', options.rendezvousPhase2 ?? 0.5, 0, 1);
         this.addParameter('transition_dur', options.transitionDuration ?? 5, 0, 60);
         this.addParameter('transition_sharpness', options.transitionSharpness ?? 3, 0, 6);
-        this.addParameter('fundamental_1', options.fundamental1 ?? 196, 20, 4000);
-        this.addParameter('fundamental_2', options.fundamental2 ?? 293.66, 20, 4000);
+        this.addParameter('fundamental_1', options.fundamental1 ?? 196, 20, 1000);
+        this.addParameter('fundamental_2', options.fundamental2 ?? 293.66, 20, 1000);
         this.addIntegerParameter('chord_1', options.chord1 ?? 1, 1, 4);
         this.addIntegerParameter('chord_2', options.chord2 ?? 2, 1, 4);
 

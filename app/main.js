@@ -1,5 +1,5 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, CluadesFirst, ChuaOscillator } from '/soundlib/models/index.js';
+import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII } from '/soundlib/models/index.js';
 import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
@@ -62,8 +62,9 @@ async function initApp() {
             modRate: 1.5,
             modDepth: 0.3
         });
-        const cluadesFirst = await audioSystem.createSound(CluadesFirst, 'CluadesFirst', 0);
+        const ping = await audioSystem.createSound(Ping, 'Ping', 0);
         const chuaOscillator = await audioSystem.createSound(ChuaOscillator, 'ChuaOscillator', 0);
+        const rendezvousPingerII = await audioSystem.createSound(RendezvousPingerII, 'RendezvousPingerII', 0);
         const hamburgerLadyChua13 = await audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0);
         const dronePreset = await audioSystem.createSound(DronePreset, 'Drone preset', 0);
         const rissetPreset = await audioSystem.createSound(RissetPreset, 'Risset preset', 0);
@@ -72,7 +73,7 @@ async function initApp() {
         const grannyInteractive = await audioSystem.createSound(GrannyInteractive, 'Granny interactive', 0, 'BeingRural22k.mp3');
         const faustClarinetPreset = await audioSystem.createSound(FaustClarinetPreset, 'FaustClarinet preset', 0);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, cluadesFirst, chuaOscillator, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset];
 
         console.log('Sounds loaded');
         await requestMotionPermissions(audioSystem, handleOrientation, log);
@@ -256,6 +257,16 @@ function updateSliderBox() {
     stopButton.textContent = 'Stop';
     stopButton.addEventListener('click', () => currentSound.stop());
     sliderBox.appendChild(stopButton);
+
+    if (typeof currentSound.getEvents === 'function') {
+        currentSound.getEvents().forEach(({ name, description }) => {
+            const eventButton = document.createElement('button');
+            eventButton.textContent = name;
+            if (description) eventButton.title = description;
+            eventButton.addEventListener('click', () => currentSound.event(name));
+            sliderBox.appendChild(eventButton);
+        });
+    }
 
     if (isDesignerMode) {
         const saveButton = document.createElement('button');
