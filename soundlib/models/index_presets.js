@@ -11,3 +11,4 @@ export { GrannyInteractive } from './GrannyInteractive.js';
 export { FaustClarinetPreset } from './FaustClarinetPreset.js';
 export { RendezvousPingerIIPreset } from './RendezvousPinger/RendezvousPingerIIPreset.js';
 export { ChimeStrikePreset } from './ChimeStrikePreset.js';
+export { WindChimesPreset } from './WindChimes/WindChimesPreset.js';

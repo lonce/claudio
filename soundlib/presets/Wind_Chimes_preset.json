@@ -1,0 +1,51 @@
+{
+  "soundName": "Wind Chimes preset",
+  "soundClass": "WindChimes",
+  "savedAt": "2026-09-05T16:15:13.377Z",
+  "docstring_pub": "Wind chime ensemble, ported from syntex.sonicthings.org.\nStrength is of wind, controlling density and amplitude.\nEach pitch has its own stretching factor for partials.\nEach strike randomizes the partical relative amplitudes.\nSimplex noise zero crossings determine strike times. ",
+  "docstring_private": "Preset based on WindChimes.\n{demo}",
+  "parameters": {
+    "gain": {
+      "mapping": "pitch",
+      "min": 0,
+      "max": 1,
+      "default": 0.6
+    },
+    "strength": {
+      "mapping": "roll",
+      "min": 0,
+      "max": 1,
+      "default": 0.5
+    },
+    "pitch_1": {
+      "mapping": "slider",
+      "min": 54,
+      "max": 90,
+      "default": 56.98425435044651
+    },
+    "pitch_2": {
+      "mapping": "slider",
+      "min": 54,
+      "max": 90,
+      "default": 59.19239351251245
+    },
+    "pitch_3": {
+      "mapping": "slider",
+      "min": 54,
+      "max": 90,
+      "default": 61.4005326745784
+    },
+    "pitch_4": {
+      "mapping": "slider",
+      "min": 54,
+      "max": 90,
+      "default": 63.60867183664434
+    },
+    "pitch_5": {
+      "mapping": "slider",
+      "min": 54,
+      "max": 90,
+      "default": 65.81681099871028
+    }
+  }
+}

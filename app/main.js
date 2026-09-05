@@ -1,6 +1,6 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
 import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, ChimeTube, WindChimes } from '/soundlib/models/index.js';
-import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset } from '/soundlib/models/index_presets.js';
+import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset, WindChimesPreset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
 import { openSavePresetDialog } from './SavePresetDialog.js';
@@ -76,8 +76,9 @@ async function initApp() {
         const faustClarinetPreset = await audioSystem.createSound(FaustClarinetPreset, 'FaustClarinet preset', 0);
         const rendezvousPingerIIPreset = await audioSystem.createSound(RendezvousPingerIIPreset, 'RendezvousPingerII preset', 0);
         const chimeStrikePreset = await audioSystem.createSound(ChimeStrikePreset, 'Chime Strike preset', 0);
+        const windChimesPreset = await audioSystem.createSound(WindChimesPreset, 'Wind Chimes preset', 0);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, chimeTube, windChimes, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, chimeTube, windChimes, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset];
 
         console.log('Sounds loaded');
         await requestMotionPermissions(audioSystem, handleOrientation, log);
