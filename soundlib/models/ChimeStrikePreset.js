@@ -1,4 +1,4 @@
-import { ChimeStrike } from './ChimeStrike.js';
+import { ChimeStrike } from './WindChimes/_ChimeStrike.js';
 
 // Curated ChimeStrike variant, generated from a saved preset
 // (soundlib/presets/Chime_Strike_preset.json). Every live parameter's

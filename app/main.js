@@ -1,5 +1,5 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, ChimeStrike } from '/soundlib/models/index.js';
+import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, ChimeTube, WindChimes } from '/soundlib/models/index.js';
 import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
@@ -65,7 +65,8 @@ async function initApp() {
         const ping = await audioSystem.createSound(Ping, 'Ping', 0);
         const chuaOscillator = await audioSystem.createSound(ChuaOscillator, 'ChuaOscillator', 0);
         const rendezvousPingerII = await audioSystem.createSound(RendezvousPingerII, 'RendezvousPingerII', 0);
-        const chimeStrike = await audioSystem.createSound(ChimeStrike, 'Chime Strike', 0);
+        const chimeTube = await audioSystem.createSound(ChimeTube, 'Chime Tube', 0, { seed: 1 });
+        const windChimes = await audioSystem.createSound(WindChimes, 'Wind Chimes', 0);
         const hamburgerLadyChua13 = await audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0);
         const dronePreset = await audioSystem.createSound(DronePreset, 'Drone preset', 0);
         const rissetPreset = await audioSystem.createSound(RissetPreset, 'Risset preset', 0);
@@ -76,7 +77,7 @@ async function initApp() {
         const rendezvousPingerIIPreset = await audioSystem.createSound(RendezvousPingerIIPreset, 'RendezvousPingerII preset', 0);
         const chimeStrikePreset = await audioSystem.createSound(ChimeStrikePreset, 'Chime Strike preset', 0);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, chimeStrike, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, chimeTube, windChimes, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset];
 
         console.log('Sounds loaded');
         await requestMotionPermissions(audioSystem, handleOrientation, log);

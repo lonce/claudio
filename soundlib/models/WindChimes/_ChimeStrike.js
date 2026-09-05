@@ -1,4 +1,5 @@
-import { BaseSoundWithEvents } from '../BaseSoundWithEvents.js';
+import { BaseSoundWithEvents } from '../../BaseSoundWithEvents.js';
+import { ratiosForPitch } from './_partialRatioTable.js';
 
 // Ported from a Python sound-design project (scratch/DS_WindChimes_1.1/,
 // WindChimes.py + TokMultiGrain_l0.py): a single wind-chime tube strike.
@@ -7,16 +8,18 @@ import { BaseSoundWithEvents } from '../BaseSoundWithEvents.js';
 // model is just one tube's strike, triggered by play(). Build a multi-tube
 // chime by instantiating this model multiple times with different pitches.
 //
-// A tube is 5 fixed-ratio sine partials (non-harmonic, real struck-bar
-// bending-mode ratios, not integer harmonics), each with its own decay
-// time and relative amplitude. Every one of the original's 5 tubes shared
-// the exact same decay/amplitude "shape" (durArray/ampArray) and differed
-// only in fundamental frequency -- but each tube's own partial *ratios*
-// drifted slightly too (real per-tube measurement variance, not one shape
-// mathematically transposed). This port uses tube[0]'s ratios as the one
-// canonical shape for every pitch -- a deliberate simplification, not
-// literally what the original had.
-const PARTIAL_RATIOS = [1, 590.2 / 219.8, 1115.4 / 219.8, 1766.2 / 219.8, 2513.9 / 219.8];
+// A tube is 5 non-harmonic sine partials (real struck-bar bending-mode
+// ratios, not integer harmonics), each with its own decay time and
+// relative amplitude. Every one of the original's 5 measured tubes shared
+// the exact same decay/amplitude "shape" (durArray/ampArray) -- those stay
+// fixed constants below -- but each tube's own partial *ratios* drift
+// smoothly with fundamental frequency (real measured variance, not one
+// shape mathematically transposed). ratiosForPitch() (from
+// _partialRatioTable.js) interpolates/extrapolates that measured drift as
+// a function of pitch, recomputed fresh on every strike from whatever
+// pitch is in effect -- so both a WindChimes ensemble bell and a
+// standalone ChimeStrike at an arbitrary pitch get a physically-informed
+// ratio shape, not one fixed borrowed shape.
 const PARTIAL_DURS = [25, 7, 2, 1, 0.5];      // seconds; per-partial decay time
 const PARTIAL_AMPS = [0.0787, 0.1849, 1.0, 0.0136, 0.0275]; // fixed relative partial amplitudes
 const ATTACK_S = 0.025;  // per-partial linear attack, from the original's expWindow call
@@ -27,13 +30,13 @@ export class ChimeStrike extends BaseSoundWithEvents {
         super(context, name);
 
         this.docstringPub = 'One wind-chime tube, struck. Ported from a Python wind-chime ' +
-            'sound design (5 fixed-ratio, independently-decaying sine partials per strike). ' +
+            'sound design (5 non-harmonic, independently-decaying sine partials per strike). ' +
             'pitch, strikeStrength, and ampVariation are stored destinations picked up fresh ' +
             'on the next Play -- changing them mid-ring does not affect the current strike.';
 
-        this.addParameter('pitch', 60, 36, 96, 0, 0);
+        this.addParameter('pitch', 60, 54, 90, 0, 0);
         this.addParameter('strikeStrength', 0.6, 0, 1, 0, 0);
-        this.addParameter('ampVariation', 0.7, 0, 1, 0, 0);
+        this.addParameter('ampVariation', 0.45, 0, 1, 0, 0);
 
         // Fixed strike envelope on the shared gain: near-instant attack (the
         // strike's own character already comes from each partial's 25ms
@@ -76,18 +79,23 @@ export class ChimeStrike extends BaseSoundWithEvents {
         this.partials = [];
 
         const now = this.context.currentTime;
-        const fundamentalHz = 440 * Math.pow(2, (this.getParameter('pitch').get() - 69) / 12);
+        const pitch = this.getParameter('pitch').get();
+        const fundamentalHz = 440 * Math.pow(2, (pitch - 69) / 12);
+        const partialRatios = ratiosForPitch(pitch);
         const strikeStrength = this.getParameter('strikeStrength').get();
         const ampVariation = this.getParameter('ampVariation').get();
 
-        for (let i = 0; i < PARTIAL_RATIOS.length; i++) {
-            const jitter = 1 + ampVariation * (2 * Math.random() - 1);
+        for (let i = 0; i < partialRatios.length; i++) {
+            // Average two draws (triangular distribution) instead of one
+            // (uniform) so most strikes land near nominal amplitude and only
+            // occasionally swing toward the extremes.
+            const jitter = 1 + ampVariation * (Math.random() + Math.random() - 1);
             const peakGain = strikeStrength * PARTIAL_AMPS[i] * jitter;
             const dur = PARTIAL_DURS[i];
 
             const osc = this.context.createOscillator();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(fundamentalHz * PARTIAL_RATIOS[i], now);
+            osc.frequency.setValueAtTime(fundamentalHz * partialRatios[i], now);
 
             const partialGain = this.context.createGain();
             partialGain.gain.setValueAtTime(0, now);
