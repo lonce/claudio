@@ -12,3 +12,4 @@ export { ChuaOscillator } from './ChuaOscillator.js';
 export { RendezvousPingerII } from './RendezvousPinger/RendezvousPingerII.js';
 export { ChimeTube } from './WindChimes/ChimeTube.js';
 export { WindChimes } from './WindChimes/WindChimes.js';
+export { BellStrike } from './ChurchBells/BellStrike.js';
