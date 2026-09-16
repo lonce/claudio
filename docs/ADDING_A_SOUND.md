@@ -3,7 +3,9 @@
 When asked to create a new sound:
 
 1. Read the user's sonic description carefully.
-2. Identify the closest existing model.
+2. Identify the closest existing model (see `docs/MODEL_PATTERNS.md` for
+   the full catalog of architectural patterns and which model exemplifies
+   each one).
 3. Inspect that model and BaseSound.js before coding.
 4. Implement the synthesis while preserving the existing SoundModel API.
 5. Define useful exposed parameters.
@@ -13,9 +15,13 @@ When asked to create a new sound:
 8. Export the new model from the appropriate models/index.js.
 9. Add the model to the sound-server/demo application in the same manner
    as existing models.
-10. Do not modify unrelated models or core APIs.
-11. Run whatever tests or server commands are available.
-12. Report what was added, what files changed, and anything that requires
+10. If this model introduces a genuinely new architectural pattern — not
+    just another instance of one already in `docs/MODEL_PATTERNS.md` —
+    add it there: a new catalog row always, and a new archetype
+    subsection if the pattern itself (not just the sound) is novel.
+11. Do not modify unrelated models or core APIs.
+12. Run whatever tests or server commands are available.
+13. Report what was added, what files changed, and anything that requires
     listening evaluation by the user.
 
 

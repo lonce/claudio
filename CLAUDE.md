@@ -212,6 +212,11 @@ patterns rather than inventing new ones.
 - `models/AnotherGranny.js`
   - reference for models which load external audio resources
 
+For the fuller catalog — meta-models that own child SoundModels, worklets
+used as event/timing generators, physically-informed modal synthesis,
+Worker/WASM/Faust-based models, and which existing model to copy for each —
+see `docs/MODEL_PATTERNS.md`.
+
 ## Updating Legacy Sound Models
 
 Some models may originate from older versions of the sound-model system.
@@ -233,5 +238,7 @@ The objective is generally **translation into the current sound-model protocol**
 @docs/ADDING_A_SOUND.md
 
 @docs/WORKLETS_AND_PRESETS.md
+
+@docs/MODEL_PATTERNS.md
 
 @docs/GIT_WORKFLOW.md
