@@ -42,9 +42,9 @@ export function jitterFrequencies(
  * The worklet clock does not drift, but message delivery and Ping.play() are
  * intentionally unscheduled and therefore reveal cross-model timing jitter.
  */
-export class TransitionPinger extends BaseSoundWithEvents {
+export class PhaseEventPinger extends BaseSoundWithEvents {
     static WORKLET_PATH = new URL(
-        '../../worklets/transitionNotifierProcessor.js',
+        '../../worklets/phaseEventProcessor.js',
         import.meta.url
     ).href;
 
@@ -86,7 +86,7 @@ export class TransitionPinger extends BaseSoundWithEvents {
     createNodes() {
         this.workletNode = new AudioWorkletNode(
             this.context,
-            'transitionNotifierProcessor',
+            'phaseEventProcessor',
             {
                 processorOptions: {
                     sampleRate: this.context.sampleRate,
@@ -309,4 +309,4 @@ export class TransitionPinger extends BaseSoundWithEvents {
     }
 }
 
-export default TransitionPinger;
+export default PhaseEventPinger;

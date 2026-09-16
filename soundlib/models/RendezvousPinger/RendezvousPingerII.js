@@ -1,15 +1,15 @@
 import { BaseSoundWithEvents } from '../../BaseSoundWithEvents.js';
 import {
     CHORD_NAMES,
-    TransitionPinger
-} from './_TransitionPinger.js';
+    PhaseEventPinger
+} from './_PhaseEventPinger.js';
 
 /**
  * Two rhythmic phasors that can rendezvous at a shared rate/phase relation,
  * then drift back to their independently stored natural rates.
  */
 export class RendezvousPingerII extends BaseSoundWithEvents {
-    static WORKLET_PATH = TransitionPinger.WORKLET_PATH;
+    static WORKLET_PATH = PhaseEventPinger.WORKLET_PATH;
     static CHORD_NAMES = CHORD_NAMES;
 
     constructor(context, name, options = {}) {
@@ -48,12 +48,12 @@ export class RendezvousPingerII extends BaseSoundWithEvents {
             pingDecaySeconds: options.pingDecaySeconds ?? 0.25,
             frequencyJitter: options.frequencyJitter ?? 0.005
         };
-        this.child1 = new TransitionPinger(this.context, `${this.name}-child-1`, {
+        this.child1 = new PhaseEventPinger(this.context, `${this.name}-child-1`, {
             ...shared,
             rootFrequency: this.getParameter('fundamental_1').get(),
             processorOptions: { initialRate: 0, initialPhase: 0 }
         });
-        this.child2 = new TransitionPinger(this.context, `${this.name}-child-2`, {
+        this.child2 = new PhaseEventPinger(this.context, `${this.name}-child-2`, {
             ...shared,
             rootFrequency: this.getParameter('fundamental_2').get(),
             processorOptions: { initialRate: 0, initialPhase: 0 }

@@ -7,7 +7,7 @@ import { TransitionPhasor } from '../utilities/TransitionPhasor.js';
  * to the main thread. It intentionally generates silence: a separate
  * SoundModel decides what each notification should sound like.
  */
-class TransitionNotifierProcessor extends AudioWorkletProcessor {
+class PhaseEventProcessor extends AudioWorkletProcessor {
     static get parameterDescriptors() {
         return [{
             name: 'active',
@@ -110,4 +110,4 @@ class TransitionNotifierProcessor extends AudioWorkletProcessor {
     }
 }
 
-registerProcessor('transitionNotifierProcessor', TransitionNotifierProcessor);
+registerProcessor('phaseEventProcessor', PhaseEventProcessor);

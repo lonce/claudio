@@ -1,6 +1,6 @@
 // Plain, framework-agnostic seeded 2D simplex noise generator. No Web Audio
 // references -- same spirit as TransitionPhasor.js. Consumed by
-// worklets/noiseControlProcessor.js the same way transitionNotifierProcessor.js
+// worklets/noiseControlProcessor.js the same way phaseEventProcessor.js
 // imports TransitionPhasor.
 //
 // Standard Gustavson-style 2D simplex noise. The permutation table is

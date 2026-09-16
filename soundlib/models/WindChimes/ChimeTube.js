@@ -13,7 +13,7 @@ const RANDOM_START_RANGE = 1000; // noise-coordinate units; same scale as Simple
 // simplex-noise strike scheduling in the Python original
 // (scratch/DS_WindChimes_1.1/WindChimes.py) -- that model struck 5 of these
 // tubes, each with its own seed; WindChimes.js builds an ensemble of them.
-// Publicly exported and independently playable: unlike TransitionPinger
+// Publicly exported and independently playable: unlike PhaseEventPinger
 // (which needs a pool of Ping instances because a single Ping can't safely
 // self-retrigger mid-ring), ChimeStrike.play() force-retriggers
 // unconditionally, so this owns exactly one ChimeStrike, no pool.
@@ -62,7 +62,7 @@ export class ChimeTube extends BaseSoundWithEvents {
         this.keepAliveGain.gain.setValueAtTime(0, this.context.currentTime);
 
         // The processor emits silence -- this connection keeps it in the
-        // actively rendered graph, same pattern as _TransitionPinger.js.
+        // actively rendered graph, same pattern as _PhaseEventPinger.js.
         this.workletNode.connect(this.keepAliveGain);
         this.keepAliveGain.connect(this.masterGain);
 

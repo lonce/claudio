@@ -126,7 +126,7 @@ when it isn't.
 A model that owns and triggers other `SoundModel` instances as children,
 rather than creating raw `AudioNode`s itself. Canonical:
 `soundlib/models/RendezvousPinger/RendezvousPingerII.js` (owns two
-`_TransitionPinger.js` children) and `soundlib/models/WindChimes/WindChimes.js`
+`_PhaseEventPinger.js` children) and `soundlib/models/WindChimes/WindChimes.js`
 (owns N `ChimeTube.js` children, which in turn each own one `_ChimeStrike.js`).
 
 Key protocol details:
@@ -140,7 +140,7 @@ Key protocol details:
 - **`static WORKLET_PATH` can be borrowed from a child** so `AudioSystem`
   preloads the worklet before construction, even when the parent never
   touches an `AudioWorkletNode` directly (`RendezvousPingerII.WORKLET_PATH
-  = TransitionPinger.WORKLET_PATH`). `AudioSystem.loadWorklet()` already
+  = PhaseEventPinger.WORKLET_PATH`). `AudioSystem.loadWorklet()` already
   dedupes by path, so this is free even when multiple levels declare the
   same path.
 - **Stored-destination vs. live parameters.** A parameter a child only
@@ -167,7 +167,7 @@ Key protocol details:
 A worklet that doesn't produce audible output itself — it advances some
 state on the audio-render clock (a phasor, a noise process) and posts
 discrete events to the main thread when something crosses a threshold.
-Canonical: `soundlib/worklets/transitionNotifierProcessor.js` (drives
+Canonical: `soundlib/worklets/phaseEventProcessor.js` (drives
 `soundlib/utilities/TransitionPhasor.js`) and
 `soundlib/worklets/noiseControlProcessor.js` (drives
 `soundlib/utilities/SimplexNoise.js`).
@@ -289,7 +289,7 @@ changing" rule for unrelated cleanup:
 - `soundlib/models/TransitionClickerWorkletSoundModel.js` and
   `soundlib/worklets/transitionClickTrainProcessor.js` — an unexported
   prototype of the transition-event mechanism now inside
-  `_TransitionPinger.js`.
+  `_PhaseEventPinger.js`.
 - `soundlib/models/CluadesFirst.js` — near-duplicate of `Ping.js`'s
   pattern, not exported.
 

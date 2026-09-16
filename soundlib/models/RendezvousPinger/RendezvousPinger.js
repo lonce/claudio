@@ -1,18 +1,18 @@
 import { BaseSoundWithEvents } from '../../BaseSoundWithEvents.js';
 import {
     CHORD_NAMES,
-    TransitionPinger
-} from './_TransitionPinger.js';
+    PhaseEventPinger
+} from './_PhaseEventPinger.js';
 
 /**
- * A musical "meta model" containing two independent TransitionPingers.
+ * A musical "meta model" containing two independent PhaseEventPingers.
  *
  * The model deliberately preserves the notification slop of two ordinary
  * SoundModels: each child owns its own timing worklet and its own Ping pool.
  * RendezvousPinger coordinates them through their public, immediate APIs.
  */
 export class RendezvousPinger extends BaseSoundWithEvents {
-    static WORKLET_PATH = TransitionPinger.WORKLET_PATH;
+    static WORKLET_PATH = PhaseEventPinger.WORKLET_PATH;
     static CHORD_NAMES = CHORD_NAMES;
 
     constructor(context, name, options = {}) {
@@ -27,7 +27,7 @@ export class RendezvousPinger extends BaseSoundWithEvents {
         this.addParameter('fundamental_2', options.fundamental2 ?? 293.66, 20, 4000);
 
         // Public chord numbers are 1-4, a friendlier convention than the
-        // zero-based array index used internally by TransitionPinger.
+        // zero-based array index used internally by PhaseEventPinger.
         this.addIntegerParameter('chord_1', options.chord1 ?? 1, 1, 4);
         this.addIntegerParameter('chord_2', options.chord2 ?? 2, 1, 4);
 
@@ -48,12 +48,12 @@ export class RendezvousPinger extends BaseSoundWithEvents {
             frequencyJitter: options.frequencyJitter ?? 0.005
         };
 
-        this.child1 = new TransitionPinger(this.context, `${this.name}-child-1`, {
+        this.child1 = new PhaseEventPinger(this.context, `${this.name}-child-1`, {
             ...sharedChildOptions,
             rootFrequency: this.getParameter('fundamental_1').get(),
             processorOptions: { initialRate: 0, initialPhase: 0 }
         });
-        this.child2 = new TransitionPinger(this.context, `${this.name}-child-2`, {
+        this.child2 = new PhaseEventPinger(this.context, `${this.name}-child-2`, {
             ...sharedChildOptions,
             rootFrequency: this.getParameter('fundamental_2').get(),
             processorOptions: { initialRate: 0, initialPhase: 0 }
@@ -137,7 +137,7 @@ export class RendezvousPinger extends BaseSoundWithEvents {
     }
 
     stopSound(onReleased) {
-        // Each TransitionPinger first stops accepting new notifications, then
+        // Each PhaseEventPinger first stops accepting new notifications, then
         // waits for every active Ping voice to finish its own release. Only
         // after both complete do we silently reset this outer master gain.
         const playingChildren = [this.child1, this.child2]
