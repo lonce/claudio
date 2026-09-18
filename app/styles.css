@@ -43,6 +43,10 @@ h1 {
     width: 100%;
     height: 300px;
     background-color: #e0e0e0;
+    background-image: url('fingerprint.svg');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: auto 220px; /* preserves the source image's own aspect ratio */
     margin-bottom: 20px;
     position: relative;
     cursor: pointer;
