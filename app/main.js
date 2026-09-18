@@ -252,6 +252,99 @@ function updateXyPadDoc() {
 }
 
 ///////////////////////////////////////////////////////////////
+// Snapshots: lightweight, per-sound localStorage recall of slider values.
+// Distinct from the designer-mode "Save Preset" workflow
+// (SavePresetDialog.js), which downloads a JSON file meant to become a new
+// permanent SoundModel class -- snapshots never leave the browser.
+//
+// Known, accepted limitation: keyed by the sound's display name
+// (currentSound.name). If that name is ever changed in this file, its
+// previously-saved snapshots become orphaned under the old name -- no
+// stable identifier separate from the display string exists anywhere in
+// this codebase today, and introducing one isn't worth it for this feature.
+function snapshotStorageKey(soundName) {
+    return `claudio:snapshots:${soundName}`;
+}
+
+function loadSnapshots(soundName) {
+    try {
+        const raw = localStorage.getItem(snapshotStorageKey(soundName));
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.error('Failed to load snapshots for', soundName, error);
+        return [];
+    }
+}
+
+function saveSnapshots(soundName, snapshots) {
+    try {
+        localStorage.setItem(snapshotStorageKey(soundName), JSON.stringify(snapshots));
+    } catch (error) {
+        console.error('Failed to save snapshots for', soundName, error);
+    }
+}
+
+function captureSnapshotValues(sound) {
+    const values = {};
+    sound.getParameters().forEach(param => {
+        values[param.name] = param.get();
+    });
+    return values;
+}
+
+function applySnapshotValues(sound, values) {
+    Object.entries(values).forEach(([name, value]) => {
+        if (sound.getParameter(name)) {
+            sound.setParameter(name, value);
+        }
+    });
+    updateSliderValues();
+}
+
+function promptNewSnapshot(sound, select) {
+    const name = window.prompt('Name this snapshot:');
+    if (name === null) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    const snapshots = loadSnapshots(sound.name);
+    const existingIndex = snapshots.findIndex(s => s.name === trimmed);
+    const entry = { name: trimmed, values: captureSnapshotValues(sound) };
+    if (existingIndex !== -1) {
+        if (!window.confirm(`Overwrite "${trimmed}"?`)) return;
+        snapshots[existingIndex] = entry;
+    } else {
+        snapshots.push(entry);
+    }
+    saveSnapshots(sound.name, snapshots);
+    populateSnapshotSelect(select, sound.name);
+}
+
+function populateSnapshotSelect(select, soundName) {
+    select.innerHTML = '';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '— select —';
+    select.appendChild(placeholder);
+
+    loadSnapshots(soundName).forEach(snapshot => {
+        const option = document.createElement('option');
+        option.value = snapshot.name;
+        option.textContent = snapshot.name;
+        select.appendChild(option);
+    });
+
+    const newOption = document.createElement('option');
+    newOption.value = '__new__';
+    newOption.textContent = '+ New snapshot';
+    select.appendChild(newOption);
+
+    select.value = '';
+}
+
+///////////////////////////////////////////////////////////////
 function updateSliderBox() {
     //log("updateSliderBox")
     updateXyPadDoc();
@@ -408,6 +501,30 @@ function updateSliderBox() {
 
         sliderBox.appendChild(paramControl);
     });
+
+    const snapshotRow = document.createElement('div');
+    snapshotRow.className = 'snapshot-controls';
+
+    const snapshotLabel = document.createElement('label');
+    snapshotLabel.textContent = 'Snapshots';
+    snapshotRow.appendChild(snapshotLabel);
+
+    const snapshotSelect = document.createElement('select');
+    populateSnapshotSelect(snapshotSelect, currentSound.name);
+    snapshotSelect.addEventListener('change', () => {
+        const value = snapshotSelect.value;
+        if (value === '') return;
+        if (value === '__new__') {
+            promptNewSnapshot(currentSound, snapshotSelect);
+        } else {
+            const snapshot = loadSnapshots(currentSound.name).find(s => s.name === value);
+            if (snapshot) applySnapshotValues(currentSound, snapshot.values);
+        }
+        snapshotSelect.value = '';
+    });
+    snapshotRow.appendChild(snapshotSelect);
+
+    sliderBox.appendChild(snapshotRow);
 }
 
 

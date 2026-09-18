@@ -121,6 +121,21 @@ h1 {
     text-align: right;
 }
 
+.snapshot-controls {
+    display: flex;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.snapshot-controls label {
+    flex: 1;
+    min-width: 0;
+}
+
+.snapshot-controls select {
+    flex: 2;
+}
+
 @container (max-width: 300px) {
     .parameter-control {
         flex-direction: column;
