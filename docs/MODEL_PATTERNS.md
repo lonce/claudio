@@ -31,6 +31,7 @@ library.
 | `Ping` | Oscillator-bank leaf | `soundlib/models/Ping.js` |
 | `BellStrike` | Physically-informed modal synthesis | `soundlib/models/ChurchBells/BellStrike.js` |
 | `RendezvousPingerII` | Meta-model composition | `soundlib/models/RendezvousPinger/RendezvousPingerII.js` |
+| `RendezvousPingerIII` | Meta-model composition | `soundlib/models/RendezvousPinger/RendezvousPingerIII.js` |
 | `ChimeTube` | Meta-model composition (+ worklet event generator) | `soundlib/models/WindChimes/ChimeTube.js` |
 | `WindChimes` | Meta-model composition (ensemble) | `soundlib/models/WindChimes/WindChimes.js` |
 | `ClickerWorkletSoundModel` | Worklet audio source (simple) | `soundlib/models/ClickerWorkletSoundModel.js` |
@@ -168,9 +169,15 @@ A worklet that doesn't produce audible output itself — it advances some
 state on the audio-render clock (a phasor, a noise process) and posts
 discrete events to the main thread when something crosses a threshold.
 Canonical: `soundlib/worklets/phaseEventProcessor.js` (drives
-`soundlib/utilities/TransitionPhasor.js`) and
+`soundlib/utilities/TransitionPhasor.js`),
 `soundlib/worklets/noiseControlProcessor.js` (drives
-`soundlib/utilities/SimplexNoise.js`).
+`soundlib/utilities/SimplexNoise.js`), and
+`soundlib/worklets/plusSimplexPhaseEventProcessor.js` (drives
+`soundlib/utilities/PlusSimplexPhasor.js` -- a generalization of
+`TransitionPhasor` that adds a simplex-driven timing-irregularity `weight`
+parameter, on top of a corrected version of the branch-search below that
+sorts candidates nearest-first and exits on the first feasible one, rather
+than evaluating the full candidate window unconditionally).
 
 Key protocol details:
 - The worklet owns **timing precision**; the **main-thread model** owns
