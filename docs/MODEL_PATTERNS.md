@@ -32,6 +32,7 @@ library.
 | `BellStrike` | Physically-informed modal synthesis | `soundlib/models/ChurchBells/BellStrike.js` |
 | `RendezvousPingerII` | Meta-model composition | `soundlib/models/RendezvousPinger/RendezvousPingerII.js` |
 | `RendezvousPingerIII` | Meta-model composition | `soundlib/models/RendezvousPinger/RendezvousPingerIII.js` |
+| `RendezvousChimes` | Meta-model composition | `soundlib/models/RendezvousChimes.js` |
 | `ChimeTube` | Meta-model composition (+ worklet event generator) | `soundlib/models/WindChimes/ChimeTube.js` |
 | `WindChimes` | Meta-model composition (ensemble) | `soundlib/models/WindChimes/WindChimes.js` |
 | `ClickerWorkletSoundModel` | Worklet audio source (simple) | `soundlib/models/ClickerWorkletSoundModel.js` |
@@ -162,6 +163,19 @@ Key protocol details:
   (`this.scheduleAttack(this.gainNode, true)`) specifically reads
   `this.gainNode` — a model that only sets `outputNode` will throw if
   `play()` is ever called while `inDecaySegment` is true.
+- **A doubled "stored destination" set isn't the only shape.**
+  `RendezvousPingerII/III` bake in two named destinations per child
+  (`natural_*` and `rendezvous_*`) because the model itself has to
+  remember both. `RendezvousChimes.js` instead keeps one live destination
+  per child (`freq_N`/`weight_N`/`phase_N`) and exposes two events that
+  differ only in whether an endpoint phase is imposed — both just
+  transition from wherever a child currently is to whatever its own
+  parameters say right now. This works once there's an external way to
+  save/recall a full destination configuration (the app's Snapshots
+  feature); without one, the doubled shape is still the right call. Also
+  note `RendezvousChimes.js` keeps its N children in an array rather than
+  N named fields (`child1`, `child2`, ...) — reasonable once N gets much
+  past 2.
 
 ### 4. AudioWorklet as a precise event/timing generator
 
@@ -198,6 +212,20 @@ Key protocol details:
   — keep the actual math/algorithm in that plain class, separate from the
   `process()`-loop plumbing, so it stays testable and reusable outside the
   worklet context too.
+- **A phase-targeted `PlusSimplexPhasor.beginTransition` can blow an audio
+  callback's budget even with the nearest-first search working correctly.**
+  The search itself typically only needs one candidate/one bisection (that
+  part is cheap), but the bisection's own simulation resolution —
+  `planningSteps`, default 1024 — is not: measured at ~7-10ms for a single
+  phasor's `_prepareTransition`, called synchronously inside `process()`,
+  against a ~2.67ms budget at 128 samples/48kHz. A model that fires this on
+  several children in the same render quantum (`RendezvousChimes.js`,
+  `RendezvousPingerIII.js`'s `'rendezvous'` event) will audibly glitch.
+  Pass a much lower `planningSteps` (128 measured ~20x cheaper, no loss of
+  landing accuracy — only the interior rate/weight glide's resolution gets
+  coarser, immaterial over a multi-second transition) via
+  `processorOptions` at construction. `beginNaturalTransition` (no target
+  phase) skips this search path entirely and stays cheap regardless.
 
 ### 5. AudioWorklet as the audio source
 
@@ -299,6 +327,15 @@ changing" rule for unrelated cleanup:
   `_PhaseEventPinger.js`.
 - `soundlib/models/CluadesFirst.js` — near-duplicate of `Ping.js`'s
   pattern, not exported.
+- **File-placement policy, applied going forward only.** A top-level,
+  independently-loadable model lives directly in `soundlib/models/`; a
+  child-only helper not meant to be used on its own lives in a subfolder
+  named after its top-level sound (see `docs/ADDING_A_SOUND.md`).
+  `RendezvousPingerII/III` (subfoldered under `RendezvousPinger/` even
+  though both are top-level) and `ChimeTube` (subfoldered under
+  `WindChimes/` even though it's independently loadable) predate this
+  policy and are intentionally left unmigrated — not something to copy
+  for a new model, just a known, deliberately-deferred inconsistency.
 
 ## Keeping this doc current
 

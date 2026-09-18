@@ -1,5 +1,21 @@
 # Adding a Sound Model
 
+## File placement
+
+A top-level model — one meant to be independently loadable/playable on
+its own — lives directly in `soundlib/models/`. A child-only helper not
+meant to be used separately from its owning top-level model (e.g. an
+underscore-prefixed, unexported class) lives in a subfolder named after
+that top-level model (`soundlib/models/<TopLevelName>/`). If a top-level
+model happens to use a child that is *also* independently loadable on its
+own, that child stays directly in `soundlib/models/`, not in the
+subfolder — see `soundlib/models/RendezvousChimes.js` (top-level) and
+`soundlib/models/RendezvousChimes/_PSChimePinger.js` (child-only) for the
+current worked example. This policy applies going forward only — see
+`docs/MODEL_PATTERNS.md`'s "Housekeeping" section for the
+already-existing models that predate it and are intentionally left
+unmigrated.
+
 When asked to create a new sound:
 
 1. Read the user's sonic description carefully.

@@ -60,15 +60,29 @@ export class RendezvousPingerIII extends BaseSoundWithEvents {
             pingDecaySeconds: options.pingDecaySeconds ?? 0.25,
             frequencyJitter: options.frequencyJitter ?? 0.005
         };
+        // PlusSimplexPhasor's default planningSteps (1024) makes a
+        // phase-targeted beginTransition's bisection search take several ms
+        // -- measured well over a single audio callback's budget (~2.67ms at
+        // 128 samples/48kHz) on its own, so the 'rendezvous' event (which
+        // fires it on both children in the same render quantum) can produce
+        // an audible glitch. 128 measured ~20x cheaper with no loss of
+        // landing accuracy (only the interior glide's resolution, ~1
+        // point/39ms over a multi-second transition, is coarser).
         this.child1 = new PSPinger(this.context, `${this.name}-child-1`, {
             ...shared,
             rootFrequency: this.getParameter('fundamental_1').get(),
-            processorOptions: { initialRate: 0, initialPhase: 0, initialWeight: 0, seed: options.seed1 ?? 1 }
+            processorOptions: {
+                initialRate: 0, initialPhase: 0, initialWeight: 0,
+                seed: options.seed1 ?? 1, planningSteps: options.planningSteps1 ?? 128
+            }
         });
         this.child2 = new PSPinger(this.context, `${this.name}-child-2`, {
             ...shared,
             rootFrequency: this.getParameter('fundamental_2').get(),
-            processorOptions: { initialRate: 0, initialPhase: 0, initialWeight: 0, seed: options.seed2 ?? 2 }
+            processorOptions: {
+                initialRate: 0, initialPhase: 0, initialWeight: 0,
+                seed: options.seed2 ?? 2, planningSteps: options.planningSteps2 ?? 128
+            }
         });
         this.child1.setParameter('gain', options.childGain1 ?? 0.5);
         this.child2.setParameter('gain', options.childGain2 ?? 0.42);
