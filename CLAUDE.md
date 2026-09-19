@@ -168,6 +168,18 @@ Index modules may be used to provide convenient public entry points without expo
 **VERY IMPORTANT:**
 
 - Make only the changes requested.
+- Before implementing a small feature or fix, actively check whether a
+  narrower implementation exists before defaulting to the first approach
+  that comes to mind. If the change you're about to make would still
+  touch many files — especially shared/core files like `BaseSound.js` or
+  `AudioSystem.js` — for something the user described as small, stop and
+  describe the scope (which files, roughly how many, why) before writing
+  any code, rather than proceeding and presenting the result afterward.
+  (Concrete case: a first pass at an app-level CPU meter touched 20 files
+  across `BaseSound.js`, six worklets, and a dozen models to hand-roll
+  per-processor load timing; `AudioContext.renderCapacity`, a single
+  standardized browser API, did the same job in a few lines confined to
+  `app/main.js`.)
 - Do not perform unrelated cleanup or architectural changes.
 - Do not rename parameters, change defaults, reorder API arguments, or alter behavior merely because another design seems cleaner.
 - If you notice an unrelated improvement, report it separately and ask before changing it.

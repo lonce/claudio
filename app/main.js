@@ -356,7 +356,10 @@ function updateSliderBox() {
 
     const playButton = document.createElement('button');
     playButton.textContent = 'Play';
-    playButton.addEventListener('mousedown', () => currentSound.play());
+    playButton.addEventListener('mousedown', () => {
+        currentSound.play();
+        triggerSoleEventIfAny();
+    });
     sliderBox.appendChild(playButton);
 
     const stopButton = document.createElement('button');
@@ -369,7 +372,16 @@ function updateSliderBox() {
             const eventButton = document.createElement('button');
             eventButton.textContent = name;
             if (description) eventButton.title = description;
-            eventButton.addEventListener('click', () => currentSound.event(name));
+            // mousedown/touchstart, not click -- fire immediately on press
+            // rather than waiting for release, same as the Play button.
+            // preventDefault on touchstart suppresses the synthetic
+            // mousedown/click browsers fire afterward, which would
+            // otherwise trigger the event a second time.
+            eventButton.addEventListener('mousedown', () => currentSound.event(name));
+            eventButton.addEventListener('touchstart', (event) => {
+                event.preventDefault();
+                currentSound.event(name);
+            });
             sliderBox.appendChild(eventButton);
         });
     }
@@ -531,13 +543,26 @@ function updateSliderBox() {
 
 
 
+// A model with exactly one event (e.g. Maraca's 'shake') is silent until
+// that event fires -- Play alone shouldn't require a second trigger to
+// hear anything. Models with more than one event (e.g. RendezvousChimes's
+// two rendezvous events) already produce sound on their own after Play,
+// and there's no single unambiguous event to pick, so this only applies
+// to the exactly-one case. Shared by the Play button and the x/y pad's
+// own press-down gesture below.
+function triggerSoleEventIfAny() {
+    if (typeof currentSound.getEvents !== 'function') return;
+    const events = currentSound.getEvents();
+    if (events.length === 1) currentSound.event(events[0].name);
+}
+
 function startSound(e) {
     //log("start sound");
 
     e.preventDefault();
     updateSound(e, true);
     currentSound.play()
-    
+    triggerSoleEventIfAny();
 }
 
 function updateSound(e, force=false) {

@@ -37,6 +37,18 @@ export class Maraca extends BaseSoundWithEvents {
         this.createNodes();
     }
 
+    play() {
+        if (this.isPlaying && this.inDecaySegment) {
+            // BaseSound.play()'s resume-from-decay path calls
+            // scheduleAttack directly and never re-invokes startSound(),
+            // so acceptingShakes (only ever set true there) would
+            // otherwise stay false and silently drop a shake fired right
+            // after resuming from a still-decaying release.
+            this.acceptingShakes = true;
+        }
+        super.play();
+    }
+
     createNodes() {
         this.workletNode = new AudioWorkletNode(this.context, 'maracaProcessor', {
             processorOptions: {
