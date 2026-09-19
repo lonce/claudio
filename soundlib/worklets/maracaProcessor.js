@@ -4,6 +4,7 @@ import { StochasticCollisionGenerator } from '../utilities/StochasticCollisionGe
 import { NoiseBurstExciter } from '../utilities/NoiseBurstExciter.js';
 import { ResonatorBank } from '../utilities/ResonatorBank.js';
 import { OutputConditioner } from '../utilities/OutputConditioner.js';
+import { bandwidthFromDecay } from '../utilities/decayMath.js';
 import { MARACA_CONFIG } from './maracaConfig.js';
 
 const MAX_MODES = 4; // preallocated capacity; only mode 0 is configured/active in this first pass
@@ -24,7 +25,31 @@ class MaracaProcessor extends AudioWorkletProcessor {
             { name: 'shakeEnergy', defaultValue: 0, minValue: 0, maxValue: 1 },
             { name: 'systemDecay', defaultValue: 0.35, minValue: 0.05, maxValue: 2.0 },
             { name: 'numberOfObjects', defaultValue: 64, minValue: 1, maxValue: 256 },
-            { name: 'resonanceFrequency', defaultValue: 3200, minValue: 20, maxValue: 20000 }
+            { name: 'resonanceFrequency', defaultValue: 3200, minValue: 20, maxValue: 20000 },
+            // Below: exposed for MaracaExtended.js only -- Maraca.js never
+            // touches these, so they stay at defaultValue, which is computed
+            // from (never re-typed from) the same MARACA_CONFIG constants
+            // Maraca.js's own behavior already depends on, so an unmodified
+            // Maraca is provably unaffected by their existence. See
+            // docs/MODEL_PATTERNS.md archetype 3, "One worklet, many models."
+            {
+                name: 'resonanceBandwidth',
+                defaultValue: bandwidthFromDecay(MARACA_CONFIG.modeDecaySeconds),
+                minValue: 15,
+                maxValue: 4000
+            },
+            {
+                name: 'collisionRateScale',
+                defaultValue: MARACA_CONFIG.collisionRateScale,
+                minValue: 0.5,
+                maxValue: 64
+            },
+            {
+                name: 'collisionDecaySeconds',
+                defaultValue: MARACA_CONFIG.collisionDecaySeconds,
+                minValue: 0.0001,
+                maxValue: 0.01
+            }
         ];
     }
 
@@ -105,9 +130,11 @@ class MaracaProcessor extends AudioWorkletProcessor {
         this.resonators.setMode(
             0,
             parameters.resonanceFrequency[0],
-            MARACA_CONFIG.modeDecaySeconds,
+            bandwidthFromDecay(parameters.resonanceBandwidth[0]),
             MARACA_CONFIG.modeGain
         );
+        this.exciter.setDecaySeconds(parameters.collisionDecaySeconds[0]);
+        this.collisions.setRateScale(parameters.collisionRateScale[0]);
         const driveLevel = parameters.shakeEnergy[0];
         const numberOfObjects = parameters.numberOfObjects[0];
 

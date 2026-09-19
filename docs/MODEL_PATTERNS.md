@@ -38,6 +38,7 @@ library.
 | `ClickerWorkletSoundModel` | Worklet audio source (simple) | `soundlib/models/ClickerWorkletSoundModel.js` |
 | `ChuaOscillator` | Worklet audio source (numerical integration) | `soundlib/models/ChuaOscillator.js` |
 | `Maraca` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/Maraca.js` |
+| `MaracaExtended` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/MaracaExtended.js` |
 | `WorkerFM` | Worker-offloaded generation | `soundlib/models/WorkerFM.js` |
 | `WaterFillRNN` | Worker-offloaded generation (ML/ONNX) | `soundlib/models/WaterFillRNN.js` |
 | `WaveTrigger` | File/sample playback (plain) | `soundlib/models/WaveTrigger.js` |

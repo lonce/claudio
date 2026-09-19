@@ -80,6 +80,18 @@ live. `AudioSystem.loadWorklet()` already dedupes `addModule()` calls by
 path (`this.loadedWorklets` Set), so sharing a `WORKLET_PATH` string across
 models is cheap and safe.
 
+The reverse direction works too: a sibling model can expose *more* of a
+worklet's parameter surface than another, not just freeze more.
+`MaracaExtended.js` subclasses `Maraca.js` and exposes three `AudioParam`s
+(`resonanceBandwidth`, `collisionRateScale`, `collisionDecaySeconds`) that
+`maracaProcessor.js` already declares but `Maraca.js` never touches, so
+they simply sit at their `defaultValue` for a plain `Maraca` instance —
+each `defaultValue` is computed from (never re-typed from) the same
+`MARACA_CONFIG` constant `Maraca.js`'s own behavior already depends on
+(`docs/MODEL_PATTERNS.md`, "Decay constants must be derived, not
+transcribed"), so adding the new `AudioParam`s is provably a no-op for the
+model that doesn't use them.
+
 ## The preset system
 
 Preset support turns the app into a sound-*design* tool, not just a sound

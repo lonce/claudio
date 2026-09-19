@@ -20,6 +20,10 @@ export class StochasticCollisionGenerator {
         this.random = options.random; // shared SeededRandom instance
     }
 
+    setRateScale(rateScale) {
+        this.rateScale = rateScale;
+    }
+
     // Returns this sample's collision amplitude (0 if no collision this
     // sample). Per-collision amplitude is normalized by
     // 1/sqrt(numberOfObjects) -- same principle as BellStrike.js's noise-

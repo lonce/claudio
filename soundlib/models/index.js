@@ -16,3 +16,4 @@ export { ChimeTube } from './WindChimes/ChimeTube.js';
 export { WindChimes } from './WindChimes/WindChimes.js';
 export { BellStrike } from './ChurchBells/BellStrike.js';
 export { Maraca } from './Maraca.js';
+export { MaracaExtended } from './MaracaExtended.js';

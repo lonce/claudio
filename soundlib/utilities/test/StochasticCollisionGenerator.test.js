@@ -83,3 +83,29 @@ test('individual collision amplitude shrinks as numberOfObjects grows (density u
         `expected 1/sqrt(N) normalization to reduce per-event amplitude, got ${amplitudeFewObjects} -> ${amplitudeManyObjects}`
     );
 });
+
+test('setRateScale() changes the observed collision rate', () => {
+    const energy = 1.5;
+    const numberOfObjects = 64;
+    const seconds = 2;
+
+    function observedRate(rateScale) {
+        const generator = new StochasticCollisionGenerator(SAMPLE_RATE, {
+            rateScale: 1, // deliberately wrong -- setRateScale() must override it
+            random: new SeededRandom(42)
+        });
+        generator.setRateScale(rateScale);
+        let collisions = 0;
+        for (let i = 0; i < SAMPLE_RATE * seconds; i++) {
+            if (generator.tick(energy, numberOfObjects) !== 0) collisions++;
+        }
+        return collisions / seconds;
+    }
+
+    const low = observedRate(4);
+    const high = observedRate(32);
+    assert.ok(
+        high > low * 5,
+        `expected setRateScale to scale observed collision rate, got ${low} -> ${high}`
+    );
+});
