@@ -104,3 +104,34 @@ test('reset() clears energy and any pending impulse', () => {
     assert.equal(acc.energy, 0);
     assert.equal(acc.tick(0), 0); // the queued impulse must not still apply after reset
 });
+
+test('setEnergy() lands at the same target regardless of prior energy', () => {
+    const acc = new EnergyAccumulator(48000, { maxEnergy: 4 });
+    acc.setDecaySeconds(0.35);
+
+    acc.setEnergy(1.5);
+    assert.equal(acc.energy, 1.5); // takes effect immediately, before any tick()
+    const fromZero = acc.tick(0); // one sample of decay applied on top
+
+    // Leave some residual energy from a "previous shake" this time.
+    acc.injectImpulse(3);
+    acc.tick(0);
+    acc.setEnergy(1.5);
+    assert.equal(acc.energy, 1.5);
+    const fromResidual = acc.tick(0);
+
+    assert.ok(Math.abs(fromZero - 1.5) < 1e-4);
+    assert.equal(
+        fromResidual, fromZero,
+        `expected setEnergy to ignore prior residual, got ${fromZero} vs ${fromResidual}`
+    );
+});
+
+test('setEnergy() clamps to maxEnergy and discards any pending impulse', () => {
+    const acc = new EnergyAccumulator(48000, { maxEnergy: 4 });
+    acc.setDecaySeconds(0.35);
+
+    acc.injectImpulse(1000); // queued, should be discarded by setEnergy
+    acc.setEnergy(100);
+    assert.equal(acc.energy, 4); // clamped immediately, before any tick()
+});

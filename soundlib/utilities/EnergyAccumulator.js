@@ -35,6 +35,16 @@ export class EnergyAccumulator {
         this.pendingImpulse += Math.max(0, amount);
     }
 
+    // Sets stored energy directly to `amount` (clamped to maxEnergy),
+    // discarding whatever energy remains from prior activity -- unlike
+    // injectImpulse()'s additive stacking, for triggers that should always
+    // land at the same target regardless of how much energy a previous,
+    // not-yet-decayed trigger left behind.
+    setEnergy(amount) {
+        this.energy = Math.max(0, Math.min(this.maxEnergy, amount));
+        this.pendingImpulse = 0;
+    }
+
     reset() {
         this.energy = 0;
         this.pendingImpulse = 0;

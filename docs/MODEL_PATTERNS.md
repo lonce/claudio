@@ -83,6 +83,19 @@ Key protocol details:
   `startSound()` already disconnects the previous strike's nodes and
   `scheduleAttack()` already cancels any pending decay, so the override is
   safe on its own.
+- **The outer gain envelope's `attackTime` should be near-instant** (e.g.
+  `0.005`), not `BaseSound`'s generic 150ms default — the audible
+  "attack" of a percussive/self-enveloping instrument already comes from
+  its own synthesis (each partial's own attack here; a worklet's internal
+  energy/collision/resonator response for archetype 5.1's PhISEM family),
+  not from this outer node. Leaving the default in place layers a second,
+  slower fade-in on top of it, and — worse — only on whichever `play()`
+  path actually invokes `scheduleAttack()` (a fresh start, or a resume
+  from decay), not on a `play()` that's a no-op because the model is
+  already marked playing but has gone silent on its own; that
+  inconsistency reads as "sometimes a soft attack, sometimes sharp," not
+  as a single wrong constant. `decayTime` is unaffected — it only matters
+  on an explicit `stop()`, not on a strike's own attack.
 - Per-strike amplitude jitter uses a **triangular distribution**
   (`1 + ampVariation * (Math.random() + Math.random() - 1)`), not a
   uniform one (`2 * Math.random() - 1`) — a uniform draw makes every
@@ -307,11 +320,58 @@ Key protocol details:
   `acceptingShakes`-style flag on the model (matching archetype 4's
   `acceptingXEvents` convention) guards `shake()` itself from firing after
   `stop()` has begun.
-- **All Cook/STK-derived constants are provisional placeholders** until a
-  Phase D comparison against Cook's published model/STK's `Shakers`
-  implementation -- flag them as such in comments (matching archetype 2's
-  sourced-fact-vs-informed-construction distinction) rather than
-  presenting a plausible first-pass number as a verified one.
+- **Decay constants must be derived from their cited coefficient, not
+  transcribed from an architecture doc's placeholder.** The first-pass
+  `collisionDecaySeconds`/`modeDecaySeconds` were copied verbatim from
+  the architecture doc's own illustrative config (explicitly marked there
+  as "not approved constants") and never actually computed from the
+  STK coefficients the model cited as its basis -- the resulting
+  resonator Q (~201) was ~36x higher than the STK-implied value (~5.6),
+  producing an audibly metallic, bell-like ring instead of a damped gourd
+  knock (diagnosed and corrected September 2026). A comment citing a
+  source is a claim of provenance; if the number wasn't actually derived
+  from that source, the comment is misleading. Use
+  `soundlib/utilities/decayMath.js`'s `decaySecondsFromCoefficient(coefficient,
+  referenceSampleRate)` (and its siblings -- `perSampleCoefficient`, `t60`,
+  `bandwidthFromDecay`, `qFromDecay`, and their inverses) rather than
+  reimplementing the conversion inline, and show the derivation next to
+  the constant (source coefficient, its sample rate, resulting tau/T60 in
+  a comment) so it's auditable -- see `maracaConfig.js` for the pattern.
+  If a decay constant has no such derivation, treat it as an unverified
+  placeholder regardless of what surrounding comments imply. This applies
+  most cleanly to fixed config constants where a single-strike reference
+  coefficient maps directly onto a single-strike component; a live,
+  continuously-excited `Parameter` like `systemDecay` doesn't map 1:1
+  onto a single-strike coefficient the same way -- compute the
+  STK-implied value for comparison anyway, but treat the live default as
+  a judgment call and say so in the comment (matching archetype 2's
+  sourced-fact-vs-informed-construction distinction).
+- **The near-instant `gain.attackTime` override (see archetype 2) applies
+  here too, and matters even more.** A worklet-driven instrument's
+  `play()` can take three different paths (fresh start, resume-from-decay,
+  or a no-op while already marked playing but gone silent on its own),
+  and only some of them invoke `scheduleAttack()` at all. With
+  `BaseSound`'s generic 150ms default, the paths that do call it sound
+  audibly softer than the one that doesn't — diagnosed on `Maraca.js` as
+  "sometimes a soft attack, sometimes sharp" (not an obvious single wrong
+  constant from reading the code). It only fully resolved once
+  `attackTime` itself became too fast for the difference between paths to
+  be audible — an earlier, narrower fix that instead tried to make
+  `play()`'s resume-from-decay path behave identically to a fresh start
+  had to be partly undone once this was found, since it no longer served
+  a purpose and fought against the next bullet's intended behavior.
+- **A discrete trigger that should read as a consistent, comparable hit
+  needs `EnergyAccumulator.setEnergy()`, not `injectImpulse()`.**
+  `injectImpulse()` is additive by design — a genuine accumulator, correct
+  for a model where sustained/rapid triggering should audibly build up.
+  `Maraca.js`'s `shake()` used it for its one-shot trigger too, which let
+  a shake landing during a previous one's still-decaying tail sum with
+  the residual and land at a noticeably louder peak than an isolated
+  shake — not obviously wrong from reading the code, only audible by ear.
+  Decide which behavior a new trigger actually wants before wiring it up:
+  `setEnergy()` for "every trigger should feel the same regardless of
+  recent history," `injectImpulse()` for "triggering faster/more should
+  build."
 
 ### 6. Worker-offloaded generation
 

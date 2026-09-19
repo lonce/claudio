@@ -76,7 +76,7 @@ class MaracaProcessor extends AudioWorkletProcessor {
     _applyPendingCommands() {
         for (const command of this.pendingCommands) {
             if (command.type === 'shake') {
-                this.energy.injectImpulse(MARACA_CONFIG.shakeImpulseScale * (command.amount ?? 1));
+                this.energy.setEnergy(MARACA_CONFIG.shakeImpulseScale * (command.amount ?? 1));
             } else if (command.type === 'reset') {
                 this.energy.reset();
                 this.exciter.reset();

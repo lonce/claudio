@@ -1,4 +1,23 @@
 import { BaseSoundWithEvents } from '../BaseSoundWithEvents.js';
+import { decaySecondsFromCoefficient } from '../utilities/decayMath.js';
+
+// STK/Cook mechanical-system decay coefficient (~0.999 per sample @44.1kHz)
+// -> decaySeconds ~= 0.0227s, T60 ~= 0.157s (see docs/MODEL_PATTERNS.md,
+// "Decay constants must be derived, not transcribed"). PROVISIONAL: the
+// old default of 0.35s (T60 ~2.4s) let shake energy persist across
+// closely-spaced taps, so each shake's audible "attack" depended on how
+// much energy happened to still be around from recent taps -- reported
+// as the sound getting stuck in a louder or softer mode for several
+// shakes at a time before switching. This much faster decay means
+// consecutive shakes' residual energy clears before the next one
+// typically arrives, so each impulse produces a more consistent jump
+// from near-zero. Revisit (and possibly revert toward the old default)
+// if this removes a wanted "shakes held close together build energy"
+// character, or if it turns out not to fully explain the reported
+// inconsistency (the collision generator is genuinely stochastic, so
+// some shake-to-shake variation is expected and not a bug).
+const SYSTEM_DECAY_DEFAULT = decaySecondsFromCoefficient(0.999, 44100);
+const SYSTEM_DECAY_MIN = 0.01;
 
 /**
  * A worklet-native PhISEM (Cook) maraca -- mechanical energy accumulation,
@@ -23,7 +42,7 @@ export class Maraca extends BaseSoundWithEvents {
         this.seed = options.seed ?? 1;
 
         this.addParameter('shakeEnergy', 0, 0, 1, 0, 0);
-        this.addParameter('systemDecay', 0.35, 0.05, 2.0, 0, 0);
+        this.addParameter('systemDecay', SYSTEM_DECAY_DEFAULT, SYSTEM_DECAY_MIN, 2.0, 0, 0);
         this.addIntegerParameter('numberOfObjects', 64, 4, 256);
         this.addParameter('resonanceFrequency', 3200, 500, 8000, 0, 0);
 
@@ -33,17 +52,34 @@ export class Maraca extends BaseSoundWithEvents {
             'Inject a discrete energy impulse (one bean shake).'
         );
 
+        // Near-instant attack, matching _ChimeStrike.js's identical reasoning:
+        // the audible "attack" of a shake already comes from the worklet's
+        // own energy/collision/resonator response, not from this outer gain
+        // node. BaseSound's generic 150ms default attackTime (meant for
+        // models with no natural attack of their own) was audibly layering a
+        // second, slower fade-in on top of it whenever scheduleAttack() ran
+        // (a fresh Play, or a Play that resumed from decay) -- but not on a
+        // Play that was a no-op (already playing, not decaying), which left
+        // the worklet's real attack unshaped. That inconsistency, not
+        // randomness, was the "sometimes soft" attack. decayTime (250ms, only
+        // used on an explicit stop) is untouched.
+        this.getParameter('gain').attackTime = 0.005;
+
         this.acceptingShakes = false;
         this.createNodes();
     }
 
     play() {
         if (this.isPlaying && this.inDecaySegment) {
-            // BaseSound.play()'s resume-from-decay path calls
-            // scheduleAttack directly and never re-invokes startSound(),
-            // so acceptingShakes (only ever set true there) would
-            // otherwise stay false and silently drop a shake fired right
-            // after resuming from a still-decaying release.
+            // BaseSound.play()'s resume-from-decay path calls scheduleAttack
+            // directly and never re-invokes startSound(), so acceptingShakes
+            // (only ever set true there) would otherwise stay false and
+            // silently drop a shake fired right after resuming. Now that
+            // attackTime is negligible (see constructor), there's no longer
+            // a reason to force a full startSound()/DSP reset just to make
+            // the gain ramp consistent -- that would also fight the natural
+            // shake-during-decay blending EnergyAccumulator.setEnergy() (see
+            // maracaProcessor.js) is meant to control on its own terms.
             this.acceptingShakes = true;
         }
         super.play();

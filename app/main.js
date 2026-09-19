@@ -295,6 +295,14 @@ function captureSnapshotValues(sound) {
     return values;
 }
 
+function captureDefaultValues(sound) {
+    const values = {};
+    sound.getParameters().forEach(param => {
+        values[param.name] = param.defaultValue;
+    });
+    return values;
+}
+
 function applySnapshotValues(sound, values) {
     Object.entries(values).forEach(([name, value]) => {
         if (sound.getParameter(name)) {
@@ -330,6 +338,11 @@ function populateSnapshotSelect(select, soundName) {
     placeholder.value = '';
     placeholder.textContent = '— select —';
     select.appendChild(placeholder);
+
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '__default__';
+    defaultOption.textContent = 'Default';
+    select.appendChild(defaultOption);
 
     loadSnapshots(soundName).forEach(snapshot => {
         const option = document.createElement('option');
@@ -530,6 +543,8 @@ function updateSliderBox() {
         if (value === '') return;
         if (value === '__new__') {
             promptNewSnapshot(currentSound, snapshotSelect);
+        } else if (value === '__default__') {
+            applySnapshotValues(currentSound, captureDefaultValues(currentSound));
         } else {
             const snapshot = loadSnapshots(currentSound.name).find(s => s.name === value);
             if (snapshot) applySnapshotValues(currentSound, snapshot.values);
