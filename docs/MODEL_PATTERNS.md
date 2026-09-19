@@ -37,6 +37,7 @@ library.
 | `WindChimes` | Meta-model composition (ensemble) | `soundlib/models/WindChimes/WindChimes.js` |
 | `ClickerWorkletSoundModel` | Worklet audio source (simple) | `soundlib/models/ClickerWorkletSoundModel.js` |
 | `ChuaOscillator` | Worklet audio source (numerical integration) | `soundlib/models/ChuaOscillator.js` |
+| `Maraca` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/Maraca.js` |
 | `WorkerFM` | Worker-offloaded generation | `soundlib/models/WorkerFM.js` |
 | `WaterFillRNN` | Worker-offloaded generation (ML/ONNX) | `soundlib/models/WaterFillRNN.js` |
 | `WaveTrigger` | File/sample playback (plain) | `soundlib/models/WaveTrigger.js` |
@@ -240,6 +241,77 @@ worklet's `process()` can permanently kill that node with no recovery
 short of a page reload, so explicit `Number.isFinite()` checks and a
 "fail toward silence" flag matter here in a way they don't for a stateless
 worklet.
+
+### 5.1. Stochastic/physically-informed audio source (PhISEM)
+
+A variant of archetype 5 where the worklet's internal state isn't one
+deterministic system (an oscillator, an ODE) but a stochastic process:
+accumulated mechanical energy driving probabilistic micro-collisions,
+excitations, and modal resonance. Canonical: `soundlib/models/Maraca.js` /
+`soundlib/worklets/maracaProcessor.js`, following Perry Cook's PhISEM
+approach (see `fromChat/energy/Claudio-PhISEM-Architecture-and-Maraca-
+First-Pass.md` for the full architecture rationale this was built from).
+Intended as the first of a family (cabasa/sekere as a close relative,
+bamboo chimes as a structural-generalization test) -- read the source doc
+before assuming these boundaries are final.
+
+Key protocol details:
+- **The DSP is decomposed into plain, framework-agnostic classes in
+  `soundlib/utilities/`** (`SeededRandom`, `EnergyAccumulator`,
+  `StochasticCollisionGenerator`, `NoiseBurstExciter`, `ResonatorBank`,
+  `OutputConditioner`), imported and composed by one processor -- same
+  "keep the math separate from the `process()`-loop plumbing" principle
+  archetype 4 already established, extended here to *several* composed
+  components in a single audio-source worklet rather than one. They live
+  in `soundlib/utilities/` flat (not nested under `Maraca/`) because
+  they're meant to be reused across the whole PhISEM family, not private
+  to one model.
+- **Model-specific tuning constants live in their own plain data file**
+  (`soundlib/worklets/maracaConfig.js`), imported by both the processor
+  and by Node-side tests -- not inlined in the processor, specifically so
+  `node --test` can exercise the exact same constants the browser uses
+  without needing an `AudioWorkletProcessor` stub.
+- **Every time-based coefficient uses `exp(-1 / (seconds * sampleRate))`**,
+  never an approximation tied to one assumed sample rate -- the exact
+  per-sample coefficient for continuous exponential decay at any sample
+  rate. Applied identically for energy decay, collision/noise-burst decay,
+  and resonator-mode decay (via pole radius). Continuous drive is likewise
+  divided by `sampleRate` so total energy added per second of held drive
+  doesn't change with sample rate either.
+- **Resonator frequencies are clamped well below Nyquist** (45% of
+  `sampleRate`) before computing filter coefficients -- at or above
+  Nyquist the mode folds back audibly and the coefficient math stops
+  meaning what it assumes. `ResonatorBank` also finite-checks every
+  computed sample and zeros that mode's state rather than letting a
+  diverged coefficient set poison every future sample, the same
+  fail-toward-silence principle `docs/WORKLETS_AND_PRESETS.md`'s
+  numerical-safety section documents for `ChuaOscillator`.
+- **A discrete public action (`shake()`) is deliberately coarse-grained.**
+  The worklet reuses the established `pendingCommands` array + `port.
+  onmessage` + drain-once-per-block pattern from
+  `plusSimplexPhaseEventProcessor.js` (archetype 4) rather than inventing
+  a new one -- an injected energy impulse then drives many independent,
+  genuinely stochastic per-sample collision decisions over its decay
+  tail, which is what actually produces a convincing decaying "cloud" of
+  micro-collisions rather than one fixed-shape transient. Reusing the
+  block-granularity command queue for this is deliberate: it keeps
+  collision-level events entirely off the message port (`docs/
+  WORKLETS_AND_PRESETS.md`'s guidance never to post per-event messages
+  applies doubly here, since a maraca shake can be hundreds of collisions
+  a second).
+- **`{ type: 'reset' }` is applied every `startSound()`, not just at
+  construction**, and is drained even while the worklet's `active` gate is
+  0 -- otherwise a fast stop-then-replay resumes from whatever energy,
+  resonator, and DC-blocker state a prior shake left behind, since the
+  `active` gate stops *output*, not internal state. An
+  `acceptingShakes`-style flag on the model (matching archetype 4's
+  `acceptingXEvents` convention) guards `shake()` itself from firing after
+  `stop()` has begun.
+- **All Cook/STK-derived constants are provisional placeholders** until a
+  Phase D comparison against Cook's published model/STK's `Shakers`
+  implementation -- flag them as such in comments (matching archetype 2's
+  sourced-fact-vs-informed-construction distinction) rather than
+  presenting a plausible first-pass number as a verified one.
 
 ### 6. Worker-offloaded generation
 
