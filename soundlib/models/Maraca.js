@@ -24,12 +24,12 @@ const SYSTEM_DECAY_MIN = 0.01;
  * stochastic bean-collision generation, and one resonant gourd-body mode
  * all run inside maracaProcessor.js's process(), sample by sample. This
  * wrapper contains no per-collision DSP; it only exposes performance
- * parameters and the public shake() action. See
+ * parameters and the public strike() action. See
  * fromChat/energy/Claudio-PhISEM-Architecture-and-Maraca-First-Pass.md and
  * docs/MODEL_PATTERNS.md archetype 5.
  *
  * play() starts silent (zero stored energy) rather than auto-shaking --
- * call shake() to actually hear anything. All Cook/STK-derived constants
+ * call strike() to actually hear anything. All Cook/STK-derived constants
  * (resonanceFrequency's default among them) are provisional placeholders
  * pending listening-based refinement, not verified measured figures.
  */
@@ -47,7 +47,7 @@ export class Maraca extends BaseSoundWithEvents {
         this.addParameter('resonanceFrequency', 3200, 500, 8000, 0, 0);
 
         this.addEvent(
-            'shake',
+            'strike',
             (data) => this._submitShake(data?.amount ?? 1),
             'Inject a discrete energy impulse (one bean shake).'
         );

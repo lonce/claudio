@@ -5,6 +5,7 @@ import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
 import { openSavePresetDialog } from './SavePresetDialog.js';
 import { formatFixedDigits } from './formatNumber.js';
+import { ShakeControlSource } from './ShakeControlSource.js';
 
 // Designer mode (?mode=designer): NudgeSliders + Save Preset button.
 // Normal mode (default): plain sliders, no Save button.
@@ -14,6 +15,13 @@ const USE_NUDGE_SLIDER = isDesignerMode;
 const audioSystem = new AudioSystem();
 let currentSound = null;
 let parameterControls = new Map();
+
+// One shared detector for the whole app -- per
+// scratch/Shake-Control-Source-Specification.md section 4, multiple
+// parameters mapped to 'shake' all follow the same value, not one
+// detector instance each.
+const shakeDetector = new ShakeControlSource();
+let lastSentShakeValue = 0;
 
 let ocount=0; // orientation event counter
 let mouseDownP=false;
@@ -147,6 +155,8 @@ async function initApp() {
         updateSliderBox();
         console.log('Slider box updated');
 
+        requestAnimationFrame(shakeAnimationFrame);
+
     } catch (error) {
         console.error('Failed to initialize app:', error);
         appContainer.textContent = 'Failed to load audio components. Please check the console for details.';
@@ -156,6 +166,10 @@ async function initApp() {
 
 function initializeParameterControls() {
     parameterControls.clear();
+    // The selected sound is changing -- any in-progress stroke tracked
+    // against the old mapping is no longer meaningful.
+    shakeDetector.reset();
+    lastSentShakeValue = 0;
     const claimed = new Set();
     // In designer mode, treat pitch/roll as available for default-mapping
     // resolution even on a machine with no motion sensors -- lets a preset's
@@ -208,6 +222,15 @@ function handleOrientation(event) {
     const roll = mapAndClamp(event.gamma, -45, 45, 0, 1);
 
     updateSoundFromOrientation(pitch, roll);
+
+    // Raw, unclamped beta -- clamping (as the pitch mapping above does)
+    // would flatten velocity right at the extremes of a vigorous shake,
+    // exactly where direction reversals happen. Independent of the pitch
+    // mapping above; feeding it here doesn't change that mapping's own
+    // behavior at all.
+    if (Number.isFinite(event.beta)) {
+        shakeDetector.update(event.beta, performance.now() / 1000);
+    }
 }
 
 function updateSoundFromOrientation(pitch, roll) {
@@ -223,6 +246,32 @@ function updateSoundFromOrientation(pitch, roll) {
     });
 
     updateSliderValues();
+}
+
+function updateSoundFromShake(value) {
+    // Avoid redundant parameter messages when the value hasn't moved
+    // materially, per the shake-control-source spec's section 11.
+    if (Math.abs(value - lastSentShakeValue) < shakeDetector.config.outputEpsilon) return;
+    lastSentShakeValue = value;
+
+    let touched = false;
+    parameterControls.forEach((control) => {
+        if (control.type === 'shake') {
+            control.param.setNormalized(value);
+            touched = true;
+        }
+    });
+    if (touched) updateSliderValues();
+}
+
+// One shared animation loop drives the shake envelope's decay at a steady
+// rate, rather than only updating whenever a new deviceorientation event
+// happens to arrive (the app has no other continuous-update loop today).
+// Runs for the app's whole lifetime -- harmless and cheap even when no
+// parameter is currently mapped to 'shake'.
+function shakeAnimationFrame(domHighResTimestamp) {
+    updateSoundFromShake(shakeDetector.tick(domHighResTimestamp / 1000));
+    requestAnimationFrame(shakeAnimationFrame);
 }
 
 // Static text describing how to use the XY plane, same for every sound.
@@ -411,10 +460,13 @@ function updateSliderBox() {
 
     const controlOptions = ['none', 'slider', 'x', 'y'];
     // Same designer-mode override as initializeParameterControls(): offer
-    // pitch/roll as selectable mappings even without motion sensors here, so
-    // a preset's mapping can be manually set (or corrected) at a desk too.
+    // pitch/roll/shake as selectable mappings even without motion sensors
+    // here, so a preset's mapping can be manually set (or corrected) at a
+    // desk too. 'shake' rides the same deviceorientation permission as
+    // pitch/roll (it's derived from the same sensor), so it shares this
+    // exact availability check rather than needing its own.
     if (isDesignerMode || (window.hasOrientationSupport && window.hasOrientationPermission)) {
-        controlOptions.push('pitch', 'roll');
+        controlOptions.push('pitch', 'roll', 'shake');
     }
 
     function addControlSelect(param, paramControl) {
@@ -428,6 +480,13 @@ function updateSliderBox() {
         controlSelect.value = parameterControls.get(param.name).type;
         controlSelect.addEventListener('change', (e) => {
             parameterControls.get(param.name).type = e.target.value;
+            if (e.target.value === 'shake') {
+                // A parameter is newly assigned to 'shake' -- any
+                // in-progress stroke tracked before this assignment isn't
+                // meaningful to it.
+                shakeDetector.reset();
+                lastSentShakeValue = 0;
+            }
             const isSlider = e.target.value === 'slider';
             const rangeInput = paramControl.querySelector('input[type="range"]');
             if (rangeInput) rangeInput.disabled = !isSlider;
@@ -559,7 +618,7 @@ function updateSliderBox() {
 
 
 
-// A model with exactly one event (e.g. Maraca's 'shake') is silent until
+// A model with exactly one event (e.g. Maraca's 'strike') is silent until
 // that event fires -- Play alone shouldn't require a second trigger to
 // hear anything. Models with more than one event (e.g. RendezvousChimes's
 // two rendezvous events) already produce sound on their own after Play,

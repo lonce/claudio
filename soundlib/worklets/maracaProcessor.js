@@ -14,7 +14,7 @@ const MAX_MODES = 4; // preallocated capacity; only mode 0 is configured/active 
  * stochastic collision generation, accumulated noise-burst excitation, and
  * one resonant body mode -- all inside process(), sample by sample. The
  * worklet owns every collision-level detail; the SoundModel (Maraca.js)
- * only ever sees "shake" as a public action. See
+ * only ever sees "strike" as a public action. See
  * docs/MODEL_PATTERNS.md archetype 5 and
  * fromChat/energy/Claudio-PhISEM-Architecture-and-Maraca-First-Pass.md.
  */

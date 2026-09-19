@@ -300,7 +300,7 @@ Key protocol details:
   diverged coefficient set poison every future sample, the same
   fail-toward-silence principle `docs/WORKLETS_AND_PRESETS.md`'s
   numerical-safety section documents for `ChuaOscillator`.
-- **A discrete public action (`shake()`) is deliberately coarse-grained.**
+- **A discrete public action (`strike()`) is deliberately coarse-grained.**
   The worklet reuses the established `pendingCommands` array + `port.
   onmessage` + drain-once-per-block pattern from
   `plusSimplexPhaseEventProcessor.js` (archetype 4) rather than inventing
@@ -319,7 +319,7 @@ Key protocol details:
   resonator, and DC-blocker state a prior shake left behind, since the
   `active` gate stops *output*, not internal state. An
   `acceptingShakes`-style flag on the model (matching archetype 4's
-  `acceptingXEvents` convention) guards `shake()` itself from firing after
+  `acceptingXEvents` convention) guards `strike()` itself from firing after
   `stop()` has begun.
 - **Decay constants must be derived from their cited coefficient, not
   transcribed from an architecture doc's placeholder.** The first-pass
@@ -365,7 +365,7 @@ Key protocol details:
   needs `EnergyAccumulator.setEnergy()`, not `injectImpulse()`.**
   `injectImpulse()` is additive by design — a genuine accumulator, correct
   for a model where sustained/rapid triggering should audibly build up.
-  `Maraca.js`'s `shake()` used it for its one-shot trigger too, which let
+  `Maraca.js`'s `strike()` used it for its one-shot trigger too, which let
   a shake landing during a previous one's still-decaying tail sum with
   the residual and land at a noticeably louder peak than an isolated
   shake — not obviously wrong from reading the code, only audible by ear.
