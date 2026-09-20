@@ -551,6 +551,11 @@ function updateSliderBox() {
             controlRow.appendChild(slider);
 
             const valueDisplay = document.createElement('span');
+            valueDisplay.className = 'parameter-value';
+            valueDisplay.style.display = 'inline-block';
+            valueDisplay.style.minWidth = '5.5em';
+            valueDisplay.style.textAlign = 'right';
+            valueDisplay.style.fontFamily = 'monospace';
             valueDisplay.textContent = param.get();
             controlRow.appendChild(valueDisplay);
 

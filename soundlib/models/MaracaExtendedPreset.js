@@ -28,8 +28,8 @@ export class MaracaExtendedPreset extends MaracaExtended {
         const systemDecayParam = this.getParameter('systemDecay');
         systemDecayParam.min = 0.01;
         systemDecayParam.max = 2;
-        systemDecayParam.value = 1.1244;
-        systemDecayParam.defaultValue = 1.1244;
+        systemDecayParam.value = 0.3;
+        systemDecayParam.defaultValue = 0.3;
 
         const numberOfObjectsParam = this.getParameter('numberOfObjects');
         numberOfObjectsParam.min = 4;

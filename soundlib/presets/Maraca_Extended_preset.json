@@ -21,7 +21,7 @@
       "mapping": "slider",
       "min": 0.01,
       "max": 2,
-      "default": 1.1244
+      "default": 0.3
     },
     "numberOfObjects": {
       "mapping": "slider",
