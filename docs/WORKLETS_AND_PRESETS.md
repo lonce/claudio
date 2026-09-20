@@ -221,10 +221,10 @@ This is the workflow actually used for `HamburgerLadyChua13`:
 ### Parameter preference hints
 
 `Parameter` (in `soundlib/Parameter.js`) carries an inert `preference`
-field (`'x' | 'y' | 'pitch' | 'roll' | null`), settable as a trailing
-optional argument to `addParameter()`/`addIntegerParameter()`, or by direct
-field assignment for `BaseSound`'s own `gain` parameter (which isn't
-declared via a subclass's `addParameter()` call):
+field (`'x' | 'y' | 'pitch' | 'roll' | 'shake' | null`), settable as a
+trailing optional argument to `addParameter()`/`addIntegerParameter()`, or
+by direct field assignment for `BaseSound`'s own `gain` parameter (which
+isn't declared via a subclass's `addParameter()` call):
 
 ```js
 this.addParameter('alpha', default, min, max, attackTime, decayTime, 'roll');
@@ -236,16 +236,20 @@ about itself, and any consumer (this app, or e.g. a game calling
 `setParameter()` directly with no GUI at all) can honor it or ignore it.
 `app/main.js`'s `initializeParameterControls()` is the one place that
 *resolves* it into an actual starting control mapping, once per sound
-selection: `pitch`/`roll` are used directly if `window.hasOrientationSupport
-&& window.hasOrientationPermission`, else they fall back to `y`/`x`
-respectively; any collision with an already-claimed slot (processed in
-`getParameters()` order, `gain` always first) falls back to `'slider'`.
-This is why a curated preset-derived model can "just work" on a phone
-without the listener touching the mapping dropdowns — see
-`HamburgerLadyChua13.js` for the worked example. When hand-authoring a
-model from a preset, translate its `mapping` field into `preference` hints
-this way (skip it for parameters whose preset `mapping` was `'slider'` —
-that just means no hint).
+selection: `pitch`/`roll`/`shake` are used directly if
+`window.hasOrientationSupport && window.hasOrientationPermission` (`shake`
+rides the same deviceorientation permission `pitch`/`roll` do, per
+`app/ShakeControlSource.js`), else `pitch`/`roll` fall back to `y`/`x`
+respectively and `shake` falls back to `'slider'` (no natural non-sensor
+substitute for a shake pulse the way an axis has one); any collision with
+an already-claimed slot (processed in `getParameters()` order, `gain`
+always first) falls back to `'slider'`. This is why a curated preset-
+derived model can "just work" on a phone without the listener touching the
+mapping dropdowns — see `HamburgerLadyChua13.js` for the worked example,
+or `MaracaExtendedPreset.js` for one using `preference = 'shake'`. When
+hand-authoring a model from a preset, translate its `mapping` field into
+`preference` hints this way (skip it for parameters whose preset `mapping`
+was `'slider'` — that just means no hint).
 
 ### `docstringPub`
 

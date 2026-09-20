@@ -54,6 +54,7 @@ library.
 | `RendezvousPingerIIPreset` | Preset-derived | `soundlib/models/RendezvousPinger/RendezvousPingerIIPreset.js` |
 | `ChimeStrikePreset` | Preset-derived | `soundlib/models/ChimeStrikePreset.js` |
 | `WindChimesPreset` | Preset-derived *(exception: `setParameter()` forwarding needed — see below)* | `soundlib/models/WindChimes/WindChimesPreset.js` |
+| `MaracaExtendedPreset` | Preset-derived | `soundlib/models/MaracaExtendedPreset.js` |
 
 ## Archetypes
 

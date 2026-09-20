@@ -1,0 +1,57 @@
+{
+  "soundName": "Maraca Extended preset",
+  "soundClass": "MaracaExtended",
+  "savedAt": "2026-09-20T15:15:35.985Z",
+  "docstring_pub": "SHAKE this rattle!",
+  "docstring_private": "Based on Maraca Extended. \nDemo.",
+  "parameters": {
+    "gain": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 1,
+      "default": 0.6
+    },
+    "shakeEnergy": {
+      "mapping": "shake",
+      "min": 0,
+      "max": 1,
+      "default": 0
+    },
+    "systemDecay": {
+      "mapping": "slider",
+      "min": 0.01,
+      "max": 2,
+      "default": 1.1244
+    },
+    "numberOfObjects": {
+      "mapping": "slider",
+      "min": 4,
+      "max": 256,
+      "default": 100
+    },
+    "resonanceFrequency": {
+      "mapping": "slider",
+      "min": 100,
+      "max": 8000,
+      "default": 3200
+    },
+    "resonanceBandwidth": {
+      "mapping": "slider",
+      "min": 15,
+      "max": 4000,
+      "default": 573.0373593426146
+    },
+    "collisionRateScale": {
+      "mapping": "slider",
+      "min": 0.5,
+      "max": 64,
+      "default": 8
+    },
+    "collisionDecaySeconds": {
+      "mapping": "slider",
+      "min": 0.0001,
+      "max": 0.01,
+      "default": 0.00044207994889396086
+    }
+  }
+}
