@@ -142,7 +142,8 @@ class MaracaProcessor extends AudioWorkletProcessor {
             const energyLevel = this.energy.tick(driveLevel);
             const collisionAmplitude = this.collisions.tick(energyLevel, numberOfObjects);
             const excitation = this.exciter.tick(collisionAmplitude);
-            const resonated = this.resonators.tick(excitation);
+            this.resonators.excite(0, excitation);
+            const resonated = this.resonators.tick();
             channel[i] = this.output.tick(resonated);
         }
 

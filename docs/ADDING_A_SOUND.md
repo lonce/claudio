@@ -66,6 +66,18 @@ A new sound model is not complete until:
 - existing sounds and application behavior remain unchanged
 - anything requiring subjective listening evaluation is reported to the user
 
+For a PhISEM-family model (`docs/MODEL_PATTERNS.md` archetype 5.1), also run
+`npm run check-params -- <ModelName>` (`scripts/checkParameterSanity.js`)
+before reporting the model as ready for listening review. It renders the
+model's quick-start scenarios (a strike, and a sustained drive
+approximating holding the X/Y pad) and flags purely objective problems --
+clipping against the DSP's own output clamp, unexpected silence, and
+parameters with little or no audible effect across their declared range
+(the kind of bug this tool exists because of: `BambooChimes`'
+`collisionDecaySeconds` genuinely had none, caused by a routing bug, not a
+tuning choice). It does not judge whether anything sounds *good* -- that
+stays a listening call.
+
 
 ## Adding Sound Models to the Web App
 

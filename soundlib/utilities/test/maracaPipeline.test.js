@@ -10,57 +10,20 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SeededRandom } from '../SeededRandom.js';
-import { EnergyAccumulator } from '../EnergyAccumulator.js';
-import { StochasticCollisionGenerator } from '../StochasticCollisionGenerator.js';
-import { NoiseBurstExciter } from '../NoiseBurstExciter.js';
-import { ResonatorBank } from '../ResonatorBank.js';
-import { OutputConditioner } from '../OutputConditioner.js';
-import { MARACA_CONFIG } from '../../worklets/maracaConfig.js';
+import { buildMaracaPipeline, renderMaracaStrike } from '../../worklets/test-support/maracaPipelineCore.js';
 
 const SAMPLE_RATE = 48000;
 
+// Thin wrappers preserving this file's original local names/signatures --
+// the actual pipeline composition now lives in maracaPipelineCore.js
+// (shared with scripts/checkParameterSanity.js) to avoid a second
+// hand-maintained copy of maracaProcessor.js's logic.
 function buildPipeline(seed) {
-    const random = new SeededRandom(seed);
-    const energy = new EnergyAccumulator(SAMPLE_RATE, {
-        maxEnergy: MARACA_CONFIG.energyMax,
-        driveScale: MARACA_CONFIG.driveScale
-    });
-    energy.setDecaySeconds(0.35);
-    const collisions = new StochasticCollisionGenerator(SAMPLE_RATE, {
-        rateScale: MARACA_CONFIG.collisionRateScale,
-        amplitudeScale: MARACA_CONFIG.collisionAmplitudeScale,
-        random
-    });
-    const exciter = new NoiseBurstExciter(SAMPLE_RATE, { random });
-    exciter.setDecaySeconds(MARACA_CONFIG.collisionDecaySeconds);
-    const resonators = new ResonatorBank(SAMPLE_RATE, 4);
-    resonators.setMode(0, 3200, MARACA_CONFIG.modeDecaySeconds, MARACA_CONFIG.modeGain);
-    const output = new OutputConditioner({ outputGain: MARACA_CONFIG.outputGain });
-    return { random, energy, collisions, exciter, resonators, output };
+    return buildMaracaPipeline(SAMPLE_RATE, seed);
 }
 
-// Renders `seconds` of audio, injecting one shake at t=0. Returns the
-// sample buffer and the per-sample collision amplitude trace (0 = no
-// collision that sample) so tests can inspect collision timing directly.
 function renderShake(seed, numberOfObjects, seconds) {
-    const pipeline = buildPipeline(seed);
-    pipeline.energy.injectImpulse(MARACA_CONFIG.shakeImpulseScale);
-
-    const frameCount = Math.round(SAMPLE_RATE * seconds);
-    const samples = new Float64Array(frameCount);
-    const collisionTrace = new Float64Array(frameCount);
-
-    for (let i = 0; i < frameCount; i++) {
-        const energyLevel = pipeline.energy.tick(0);
-        const collisionAmplitude = pipeline.collisions.tick(energyLevel, numberOfObjects);
-        collisionTrace[i] = collisionAmplitude;
-        const excitation = pipeline.exciter.tick(collisionAmplitude);
-        const resonated = pipeline.resonators.tick(excitation);
-        samples[i] = pipeline.output.tick(resonated);
-    }
-
-    return { samples, collisionTrace };
+    return renderMaracaStrike(SAMPLE_RATE, seed, {}, numberOfObjects, seconds);
 }
 
 test('silence before any shake', () => {
@@ -69,7 +32,8 @@ test('silence before any shake', () => {
         const energyLevel = pipeline.energy.tick(0);
         const collisionAmplitude = pipeline.collisions.tick(energyLevel, 64);
         const excitation = pipeline.exciter.tick(collisionAmplitude);
-        const resonated = pipeline.resonators.tick(excitation);
+        pipeline.resonators.excite(0, excitation);
+        const resonated = pipeline.resonators.tick();
         assert.equal(pipeline.output.tick(resonated), 0);
     }
 });
@@ -116,7 +80,10 @@ test('different seeds diverge', () => {
 });
 
 test('no NaN or Infinity across a full render, at low and high object counts', () => {
-    for (const numberOfObjects of [4, 256]) {
+    // 512/1024 extend coverage up to and beyond Cabasa's numberOfObjects
+    // range (soundlib/models/Cabasa.js) -- same shared pipeline, wider
+    // range than Maraca's own 4-256.
+    for (const numberOfObjects of [4, 256, 512, 1024]) {
         const { samples } = renderShake(7, numberOfObjects, 2);
         for (const sample of samples) {
             assert.ok(Number.isFinite(sample), `expected finite output, got ${sample}`);

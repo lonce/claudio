@@ -39,6 +39,8 @@ library.
 | `ChuaOscillator` | Worklet audio source (numerical integration) | `soundlib/models/ChuaOscillator.js` |
 | `Maraca` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/Maraca.js` |
 | `MaracaExtended` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/MaracaExtended.js` |
+| `Cabasa` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/Cabasa.js` |
+| `BambooChimes` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/BambooChimes.js` |
 | `WorkerFM` | Worker-offloaded generation | `soundlib/models/WorkerFM.js` |
 | `WaterFillRNN` | Worker-offloaded generation (ML/ONNX) | `soundlib/models/WaterFillRNN.js` |
 | `WaveTrigger` | File/sample playback (plain) | `soundlib/models/WaveTrigger.js` |
@@ -374,6 +376,58 @@ Key protocol details:
   `setEnergy()` for "every trigger should feel the same regardless of
   recent history," `injectImpulse()` for "triggering faster/more should
   build."
+- **Phase F confirmed: a close-relative instrument needs no new DSP, just
+  retuned parameters.** `Cabasa.js` subclasses `MaracaExtended` and only
+  overrides already-declared `Parameter` defaults/ranges -- no new
+  worklet, no new config file, no changes to `maracaProcessor.js` or any
+  of the six plain DSP classes. This was verified, not assumed: Perry
+  Cook/STK's own `Shakers.cpp` implements Maraca and Cabasa as one shared
+  algorithm, differing only in a per-instrument constant table (object
+  count, resonance frequency/Q, per-event and system decay), which is
+  exactly the parameter surface `Maraca`/`MaracaExtended` already expose
+  as live `AudioParam`s. Not every STK constant transcribes validly,
+  though -- our collision-probability law
+  (`StochasticCollisionGenerator`) and output-gain normalization are not
+  the same laws STK uses, so `Cabasa.js` explicitly distinguishes
+  *sourced* constants (system decay, resonance frequency/bandwidth,
+  collision decay -- same physical quantity, safe to transcribe) from
+  *STK-value-reused-as-a-starting-point* (`numberOfObjects`' default) and
+  *not sourced at all* (`collisionRateScale`, outer `gain` -- left
+  unchanged, no STK equivalent under our differing laws). This doesn't
+  extend to Phase G (bamboo chimes), which the architecture doc identifies
+  as the harder *structural* test -- it will be the first model to
+  actually configure more than one `ResonatorBank` mode (every PhISEM
+  model so far, including Cabasa, only ever uses mode 0 of the bank's
+  existing multi-mode capacity).
+- **Phase G (`BambooChimes.js`) confirmed the structural generalization
+  too, but it needed one small, generic DSP change, not just config.**
+  Cook/STK's own `Shakers.h`/`.cpp` implements two different "bamboo"
+  instruments with genuinely different `tick()` control flow: a plain
+  type (3 fixed resonances, all excited by the *same* shared collision
+  signal every hit -- architecturally identical to Maraca/Cabasa's single-
+  shared-excitation family, just more modes) and a "Tuned"/angklung type
+  (STK's own internal constants are literally named `ANGKLUNG_*`; 7
+  resonances at real musical pitches, one randomly-chosen tube excited per
+  collision while the other 6 keep ringing on their own persistent filter
+  state). `BambooChimes.js` builds the second one, since that's the
+  actual per-collision-resonator-selection case. This required adding
+  `ResonatorBank.excite(index, amount)` + changing `tick(excitation)` to
+  a no-argument `tick()` that consumes whatever's been accumulated per
+  mode -- a real, generic capability the class didn't have (feed one
+  mode's excitation independently of the others), not a bamboo-specific
+  special case. `maracaProcessor.js`'s one call site was updated to the
+  new two-step form (`excite(0, ...)` then `tick()`), numerically
+  identical for its single-mode use -- proven, not just argued, by
+  `maracaPipeline.test.js`'s existing bit-identical-seed-reproduction test
+  still passing unchanged after the refactor. `BambooChimes` uses its own
+  `bambooChimeProcessor.js` rather than sharing `maracaProcessor.js` --
+  per-collision tube selection is a different composition/routing loop,
+  not just different constants on the same loop, so sharing would have
+  meant instrument-specific branching inside what's meant to stay a
+  generic composition. Not to be confused with the pre-existing, wholly
+  unrelated `WindChimes`/`ChimeTube` (archetype 3, meta-model composition
+  of full child `SoundModel` instances) -- same category of instrument,
+  completely different implementation technique.
 
 ### 6. Worker-offloaded generation
 

@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "check-params": "node scripts/checkParameterSanity.js"
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "create-cert": "^1.0.6",

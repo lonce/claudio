@@ -1,5 +1,5 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended } from '/soundlib/models/index.js';
+import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes } from '/soundlib/models/index.js';
 import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset, WindChimesPreset, MaracaExtendedPreset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
@@ -95,6 +95,8 @@ async function initApp() {
         const bellStrike = await audioSystem.createSound(BellStrike, 'Bell Strike', 0);
         const maraca = await audioSystem.createSound(Maraca, 'Maraca', 0);
         const maracaExtended = await audioSystem.createSound(MaracaExtended, 'Maraca Extended', 0);
+        const cabasa = await audioSystem.createSound(Cabasa, 'Cabasa', 0);
+        const bambooChimes = await audioSystem.createSound(BambooChimes, 'Bamboo Chimes', 0);
         const hamburgerLadyChua13 = await audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0);
         const dronePreset = await audioSystem.createSound(DronePreset, 'Drone preset', 0);
         const rissetPreset = await audioSystem.createSound(RissetPreset, 'Risset preset', 0);
@@ -107,11 +109,15 @@ async function initApp() {
         const windChimesPreset = await audioSystem.createSound(WindChimesPreset, 'Wind Chimes preset', 0);
         const maracaExtendedPreset = await audioSystem.createSound(MaracaExtendedPreset, 'Maraca Extended preset', 0);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset];
 
         console.log('Sounds loaded');
 
-        sounds.forEach(sound => {
+        // Sort only the dropdown's display order alphabetically -- `sounds`
+        // itself stays in creation order since sounds[0] is still used
+        // below as the default-on-load sound.
+        const soundsAlphabetical = [...sounds].sort((a, b) => a.name.localeCompare(b.name));
+        soundsAlphabetical.forEach(sound => {
             const option = document.createElement('option');
             option.value = sound.name;
             option.textContent = sound.name;

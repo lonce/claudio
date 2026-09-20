@@ -25,6 +25,7 @@ export class ResonatorBank {
         this.gain = new Float64Array(maxModes);
         this.y1 = new Float64Array(maxModes);
         this.y2 = new Float64Array(maxModes);
+        this.excitation = new Float64Array(maxModes);
     }
 
     // Configures mode `index` (0 <= index < maxModes). Recomputes
@@ -47,17 +48,35 @@ export class ResonatorBank {
     reset() {
         this.y1.fill(0);
         this.y2.fill(0);
+        this.excitation.fill(0);
     }
 
-    tick(excitation) {
+    // Adds to mode `index`'s pending excitation for the sample about to be
+    // ticked -- lets a caller target one mode (or several, or none) per
+    // sample instead of driving every active mode with the same shared
+    // signal. Additive (not overwriting) so more than one excite() call
+    // before the next tick() sums, matching how simultaneous excitations
+    // would naturally combine.
+    excite(index, amount) {
+        if (index < 0 || index >= this.maxModes) return;
+        this.excitation[index] += amount;
+    }
+
+    // Advances every active mode by one sample using whatever excitation
+    // has accumulated for it since the last tick() (via excite()), then
+    // clears it. A mode that received no excite() this sample still
+    // advances on its own prior state -- this is what lets modes ring down
+    // independently across later collisions that target other modes.
+    tick() {
         let sum = 0;
         for (let i = 0; i < this.activeModes; i++) {
-            const y0 = this.a1[i] * this.y1[i] + this.a2[i] * this.y2[i] + this.gain[i] * excitation;
+            const y0 = this.a1[i] * this.y1[i] + this.a2[i] * this.y2[i] + this.gain[i] * this.excitation[i];
             const safeY0 = Number.isFinite(y0) ? y0 : 0;
             this.y2[i] = this.y1[i];
             this.y1[i] = safeY0;
             sum += safeY0;
         }
+        this.excitation.fill(0);
         return sum;
     }
 }
