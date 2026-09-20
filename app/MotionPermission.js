@@ -13,7 +13,32 @@
 //     }
 // }
 
-export async function requestMotionPermissions(audioSystem, handleOrientation, log) {
+const LIVENESS_CHECK_TIMEOUT_MS = 2000;
+
+// Some browsers (e.g. Brave, via its own per-site "Motion Sensing"
+// permission -- distinct from Shields and invisible to any JS-level
+// check) attach the listener successfully but never actually deliver
+// events. Confirm a real event arrives before trusting the optimistic
+// permissionGranted state set by the caller.
+function checkOrientationLiveness(onAvailabilityChange, log) {
+    let received = false;
+    const livenessListener = () => {
+        received = true;
+        window.removeEventListener('deviceorientation', livenessListener);
+    };
+    window.addEventListener('deviceorientation', livenessListener);
+
+    setTimeout(() => {
+        if (received) return;
+        window.removeEventListener('deviceorientation', livenessListener);
+        window.hasOrientationPermission = false;
+        window.orientationSensorsBlocked = true;
+        log('⚠️ Motion sensors seem to be blocked by your browser or OS — check its site permissions for motion sensors');
+        onAvailabilityChange?.({ hasOrientationPermission: false, orientationSensorsBlocked: true });
+    }, LIVENESS_CHECK_TIMEOUT_MS);
+}
+
+export async function requestMotionPermissions(audioSystem, handleOrientation, log, onAvailabilityChange) {
     return new Promise((resolve) => {
         const dialog = document.createElement('dialog');
         dialog.innerHTML = `
@@ -67,6 +92,7 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
 
             window.hasOrientationSupport = hasOrientationSupport;
             window.hasOrientationPermission = permissionGranted;
+            window.orientationSensorsBlocked = false;
 
             dialog.close();
             dialog.remove();
@@ -76,6 +102,10 @@ export async function requestMotionPermissions(audioSystem, handleOrientation, l
             }
 
             resolve();
+
+            if (permissionGranted) {
+                checkOrientationLiveness(onAvailabilityChange, log);
+            }
         }, { once: true });
     });
 }

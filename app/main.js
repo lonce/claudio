@@ -50,6 +50,21 @@ async function initApp() {
     loadXyPadInfo(xyPad);
 
     try {
+        // Requested before any sound is loaded (rather than after, as
+        // before) so the dialog appears immediately instead of waiting on
+        // however long the 28 createSound() calls below take (worklet
+        // module loads, audio file fetches/decodes -- network/device-
+        // dependent, easily a few seconds). audioSystem and document.body
+        // are the only things this depends on, and both already exist here.
+        const orientationApiPresent = 'DeviceOrientationEvent' in window;
+        if (orientationApiPresent) {
+            await requestMotionPermissions(audioSystem, handleOrientation, log, onOrientationAvailabilityChange);
+        } else {
+            window.hasOrientationSupport = false;
+            window.hasOrientationPermission = false;
+        }
+        console.log('Orientation support checked');
+
         console.log('Loading sounds...');
         const risset = await audioSystem.createSound(RissetBasic, 'Risset', 0);
         const drone = await audioSystem.createSound(DroneModel, 'Drone', 0);
@@ -95,8 +110,6 @@ async function initApp() {
         const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset];
 
         console.log('Sounds loaded');
-        await requestMotionPermissions(audioSystem, handleOrientation, log);
-        console.log ('Orientation support checked');
 
         sounds.forEach(sound => {
             const option = document.createElement('option');
@@ -164,6 +177,18 @@ async function initApp() {
     }
 }
 
+
+// Called by MotionPermission.js if/when its post-dialog liveness check
+// finds that no real deviceorientation events actually arrived (sensors
+// blocked by the browser/OS despite an apparently-successful grant).
+// Refreshes any already-displayed control dropdown so pitch/roll/shake
+// drop back out without needing a page reload.
+function onOrientationAvailabilityChange(state) {
+    if (currentSound) {
+        initializeParameterControls();
+        updateSliderBox();
+    }
+}
 
 function initializeParameterControls() {
     parameterControls.clear();
