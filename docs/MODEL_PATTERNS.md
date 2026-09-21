@@ -41,6 +41,7 @@ library.
 | `MaracaExtended` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/MaracaExtended.js` |
 | `Cabasa` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/Cabasa.js` |
 | `BambooChimes` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/BambooChimes.js` |
+| `ChimeVocoder` | Cross-synthesis / vocoder (hidden PhISEM engine + external-audio carrier filterbank) | `soundlib/models/ChimeVocoder.js` |
 | `WorkerFM` | Worker-offloaded generation | `soundlib/models/WorkerFM.js` |
 | `WaterFillRNN` | Worker-offloaded generation (ML/ONNX) | `soundlib/models/WaterFillRNN.js` |
 | `WaveTrigger` | File/sample playback (plain) | `soundlib/models/WaveTrigger.js` |
@@ -497,6 +498,70 @@ Three documented exceptions to the otherwise-uniform pattern:
   time (rather than treating it as a pure stored destination read fresh
   later), the preset needs this same `setParameter()` treatment instead of
   the usual direct-`.value` shortcut.
+
+### 10. Cross-synthesis / vocoder: hidden PhISEM engine driving an external-audio carrier filterbank
+
+A model that owns two identically-tuned `ResonatorBank`s: one excited by a
+hidden stochastic PhISEM engine (archetype 5.1) whose own audio is never
+summed into output — only its per-mode `.y1[i]` values are read, through
+an envelope follower, as control-rate signals — and one excited by a real
+external audio signal (all modes together every sample, a true parallel
+filterbank, not the one-at-a-time routing the hidden engine itself uses).
+Each carrier band is multiplied by its matching envelope and summed.
+Canonical: `soundlib/models/ChimeVocoder.js` (hidden engine = a
+`BambooChimes`-identical composition; carrier = an internally-owned
+`GrannyInteractive` instance).
+
+Key protocol details:
+- **`ResonatorBank.y1[i]`'s pre-existing plain-field exposure is what
+  makes this possible with zero `ResonatorBank` changes.** The class
+  already stores `a1`/`a2`/`gain`/`y1`/`y2`/`excitation` as plain public
+  fields, no encapsulation — `.y1[i]` already holds mode `i`'s own latest
+  output right after `tick()`. Contrast with Phase G's `excite()`/`tick()`
+  split (this same doc's archetype 5.1 notes), which *was* a genuine new
+  capability the class didn't have; this archetype needed none.
+- **Summing several high-Q resonators driven by the same shared input
+  needs the same `1/sqrt(filterCount)` normalization archetype 2 already
+  documents for `BellStrike`'s noise-bank summing** — they're strongly
+  correlated (not independent sources), so an un-normalized sum grows
+  roughly with tube count and clips hard in practice. Confirmed
+  empirically on `ChimeVocoder`, not just assumed: a plain white-noise
+  stand-in carrier hit the output's hard clamp even at a low `outputGain`
+  before this normalization was added to the per-sample band sum.
+- **Owning a child `SoundModel` purely as an inaudible upstream `AudioNode`
+  source is a distinct shape from archetype 3's usual audible children.**
+  The child is still constructed directly (never through
+  `audioSystem.createSound()`, so it's never auto-wired to master gain or
+  exposed in the app's own sound selector), but its output is
+  `.connect()`-ed straight into the parent's own worklet as an audio-rate
+  carrier input rather than summed into a shared gain node. This is why
+  the parent's `stopSound()` does **not** need to gate on the child's own
+  release the way archetype 3's rule normally requires — nothing about the
+  child is ever itself audible, so there's nothing to click by cutting the
+  parent's envelope first. `AnotherGranny.stopSound()` also has a
+  pre-existing quirk worth knowing about here: it invokes its own
+  `onReleased` callback twice (once immediately, once again inside its own
+  `scheduleDecay()` completion) — passing a callback into the child's
+  `stop()` would double-fire it, so call it with none.
+- **The worklet needs to actually read its `inputs` argument** — every
+  other worklet in this codebase declares `process(inputs, outputs,
+  parameters)` but never indexes into `inputs`; this archetype is the
+  first to. The model's own `AudioWorkletNode` needs explicit
+  `channelCount: 1, channelCountMode: 'explicit'` in its constructor
+  options, since nothing else forces the connected carrier down to mono
+  before `process()` sees it otherwise.
+- **A model exposing a full union of two composed instruments' parameters
+  needs a naming convention to avoid collisions**, not just distinct
+  purposes. Every `SoundModel` has an inherited `gain` `Parameter` from
+  `BaseSound` — forwarding a child's own `gain` alongside the parent's own
+  outer `gain` needs a prefix (`ChimeVocoder` uses `carrier*` for
+  everything forwarded from its `GrannyInteractive` child) so the two
+  genuinely different controls (raw carrier level vs. final output level)
+  don't collide under one name. Forwarding itself uses the child's public
+  `setParameter()` API (matching archetype 9's `WindChimesPreset`
+  exception, for the identical reason: a raw `.value` mutation would
+  change what's displayed without the child ever actually receiving it),
+  via a small lookup table rather than one switch case per forwarded name.
 
 ## Housekeeping (flagged, not touched)
 

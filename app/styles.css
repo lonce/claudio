@@ -80,6 +80,33 @@ h1 {
     pointer-events: none; /* never let this become e.target during x/y drag */
 }
 
+/* Crosshair showing where the currently x/y-mapped parameters (if any)
+   currently sit -- moves live while dragging the pad, and reflects the
+   same values even when they were set some other way (a snapshot, the
+   auto-resolved default mapping on sound switch, etc). Absent entirely
+   when no parameter is mapped to that axis. */
+#xyPad .xy-crosshair-v {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px; /* center the line on its left% position */
+    background-color: #00c000;
+    pointer-events: none;
+    display: none;
+}
+
+#xyPad .xy-crosshair-h {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    margin-top: -1px; /* center the line on its top% position */
+    background-color: #00c000;
+    pointer-events: none;
+    display: none;
+}
+
 #xyPad .xy-info {
     position: absolute;
     left: 0;

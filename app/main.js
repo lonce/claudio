@@ -1,5 +1,5 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes } from '/soundlib/models/index.js';
+import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes, ChimeVocoder } from '/soundlib/models/index.js';
 import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset, WindChimesPreset, MaracaExtendedPreset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
@@ -97,6 +97,7 @@ async function initApp() {
         const maracaExtended = await audioSystem.createSound(MaracaExtended, 'Maraca Extended', 0);
         const cabasa = await audioSystem.createSound(Cabasa, 'Cabasa', 0);
         const bambooChimes = await audioSystem.createSound(BambooChimes, 'Bamboo Chimes', 0);
+        const chimeVocoder = await audioSystem.createSound(ChimeVocoder, 'Chime Vocoder', 0);
         const hamburgerLadyChua13 = await audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0);
         const dronePreset = await audioSystem.createSound(DronePreset, 'Drone preset', 0);
         const rissetPreset = await audioSystem.createSound(RissetPreset, 'Risset preset', 0);
@@ -109,7 +110,7 @@ async function initApp() {
         const windChimesPreset = await audioSystem.createSound(WindChimesPreset, 'Wind Chimes preset', 0);
         const maracaExtendedPreset = await audioSystem.createSound(MaracaExtendedPreset, 'Maraca Extended preset', 0);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset];
 
         console.log('Sounds loaded');
 
@@ -338,6 +339,56 @@ function updateXyPadDoc() {
     }
     docEl.textContent = currentSound.docstringPub || '';
     docEl.style.display = currentSound.docstringPub ? 'block' : 'none';
+}
+
+// Draws a green crosshair on the x/y pad at wherever the first parameter
+// mapped to 'x' (vertical line) and the first mapped to 'y' (horizontal
+// line) currently sit -- moves live while dragging the pad, and stays in
+// sync with any other way those values change (a snapshot recall, the
+// auto-resolved default mapping on sound switch, etc), since this is
+// called from updateSliderValues(), the app's existing catch-all refresh
+// point. Either line is simply absent if nothing is currently mapped to
+// that axis.
+function updateXyCrosshair() {
+    const xyPad = document.getElementById('xyPad');
+
+    let vLine = xyPad.querySelector('.xy-crosshair-v');
+    if (!vLine) {
+        vLine = document.createElement('div');
+        vLine.className = 'xy-crosshair-v';
+        xyPad.appendChild(vLine);
+    }
+
+    let hLine = xyPad.querySelector('.xy-crosshair-h');
+    if (!hLine) {
+        hLine = document.createElement('div');
+        hLine.className = 'xy-crosshair-h';
+        xyPad.appendChild(hLine);
+    }
+
+    let xControl = null;
+    let yControl = null;
+    parameterControls.forEach((control) => {
+        if (control.type === 'x' && !xControl) xControl = control;
+        if (control.type === 'y' && !yControl) yControl = control;
+    });
+
+    if (xControl) {
+        vLine.style.left = `${xControl.param.getNormalized() * 100}%`;
+        vLine.style.display = 'block';
+    } else {
+        vLine.style.display = 'none';
+    }
+
+    if (yControl) {
+        // CSS `top` is measured from the pad's visual top, but
+        // getNormalized() follows updateSound()'s own convention (0 at
+        // the bottom) -- invert to convert between the two.
+        hLine.style.top = `${(1 - yControl.param.getNormalized()) * 100}%`;
+        hLine.style.display = 'block';
+    } else {
+        hLine.style.display = 'none';
+    }
 }
 
 ///////////////////////////////////////////////////////////////
@@ -656,6 +707,8 @@ function updateSliderBox() {
     snapshotRow.appendChild(snapshotSelect);
 
     sliderBox.appendChild(snapshotRow);
+
+    updateXyCrosshair();
 }
 
 
@@ -738,6 +791,8 @@ function updateSliderValues() {
             }
         }
     });
+
+    updateXyCrosshair();
 }
 
 function stopSound(e) {

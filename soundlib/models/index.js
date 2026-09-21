@@ -19,3 +19,4 @@ export { Maraca } from './Maraca.js';
 export { MaracaExtended } from './MaracaExtended.js';
 export { Cabasa } from './Cabasa.js';
 export { BambooChimes } from './BambooChimes.js';
+export { ChimeVocoder } from './ChimeVocoder.js';
