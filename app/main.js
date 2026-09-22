@@ -1,5 +1,5 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes, ChimeVocoder } from '/soundlib/models/index.js';
+import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes, ChimeVocoder, Wind } from '/soundlib/models/index.js';
 import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset, WindChimesPreset, MaracaExtendedPreset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
@@ -98,6 +98,7 @@ async function initApp() {
         const cabasa = await audioSystem.createSound(Cabasa, 'Cabasa', 0);
         const bambooChimes = await audioSystem.createSound(BambooChimes, 'Bamboo Chimes', 0);
         const chimeVocoder = await audioSystem.createSound(ChimeVocoder, 'Chime Vocoder', 0);
+        const wind = await audioSystem.createSound(Wind, 'Wind', 0);
         const hamburgerLadyChua13 = await audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0);
         const dronePreset = await audioSystem.createSound(DronePreset, 'Drone preset', 0);
         const rissetPreset = await audioSystem.createSound(RissetPreset, 'Risset preset', 0);
@@ -110,7 +111,7 @@ async function initApp() {
         const windChimesPreset = await audioSystem.createSound(WindChimesPreset, 'Wind Chimes preset', 0);
         const maracaExtendedPreset = await audioSystem.createSound(MaracaExtendedPreset, 'Maraca Extended preset', 0);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset];
 
         console.log('Sounds loaded');
 

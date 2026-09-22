@@ -42,6 +42,7 @@ library.
 | `Cabasa` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/Cabasa.js` |
 | `BambooChimes` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/BambooChimes.js` |
 | `ChimeVocoder` | Cross-synthesis / vocoder (hidden PhISEM engine + external-audio carrier filterbank) | `soundlib/models/ChimeVocoder.js` |
+| `Wind` | Continuous noise-excited, simplex-modulated resonant filter | `soundlib/models/Wind.js` |
 | `WorkerFM` | Worker-offloaded generation | `soundlib/models/WorkerFM.js` |
 | `WaterFillRNN` | Worker-offloaded generation (ML/ONNX) | `soundlib/models/WaterFillRNN.js` |
 | `WaveTrigger` | File/sample playback (plain) | `soundlib/models/WaveTrigger.js` |
@@ -204,8 +205,9 @@ discrete events to the main thread when something crosses a threshold.
 Canonical: `soundlib/worklets/phaseEventProcessor.js` (drives
 `soundlib/utilities/TransitionPhasor.js`),
 `soundlib/worklets/noiseControlProcessor.js` (drives
-`soundlib/utilities/SimplexNoise.js`), and
-`soundlib/worklets/plusSimplexPhaseEventProcessor.js` (drives
+`soundlib/utilities/SimplexNoise.js` -- see its own bullet below for a
+second capability this one worklet has beyond the rest of this archetype),
+and `soundlib/worklets/plusSimplexPhaseEventProcessor.js` (drives
 `soundlib/utilities/PlusSimplexPhasor.js` -- a generalization of
 `TransitionPhasor` that adds a simplex-driven timing-irregularity `weight`
 parameter, on top of a corrected version of the branch-search below that
@@ -217,6 +219,42 @@ Key protocol details:
   **what an event means** — the processor should stay usable by a future
   model with entirely different trigger semantics (`noiseControlProcessor.js`
   has zero knowledge of chimes, tubes, or Claudio parameters at all).
+- **`noiseControlProcessor.js` is not purely an event generator — it also
+  writes a continuous k-rate signal to its own audio output every block**
+  (`channel.fill(currentValue)`, one value computed once per block from
+  `this.noiseTime += rate * blockDuration`), coexisting with its
+  threshold-crossing `postMessage`s, not instead of them. This means a
+  *second*, likely simpler way to use it for continuously modulating
+  another model's parameter (e.g. a wind sound's gust strength) needs
+  **zero code changes** to either this file or `SimplexNoise.js`:
+  `.connect()` this worklet's `AudioWorkletNode` output directly into the
+  target `AudioParam` (`noiseNode.connect(otherWorkletNode.parameters.get
+  ('gustStrength'))`), exactly like connecting into any other `AudioParam`.
+  Web Audio sums a connected modulator with whatever intrinsic value is
+  set via `setValueAtTime()` and automatically clamps the result to that
+  param's own declared `minValue`/`maxValue` — so a base level set through
+  the normal `Parameter`/`setParameter()` path plus this noise connected on
+  top gives "base level + fluctuating modulation" for free, sample-
+  accurate, no extra latency, no message-port round-trip. The tradeoff:
+  this bypasses the JS-side `Parameter` bookkeeping entirely, so the UI
+  (if the target is ever independently exposed to it) won't reflect the
+  actual instantaneous modulated value, only whatever base value was last
+  set — a non-issue for a parent model modulating its own hidden,
+  never-independently-exposed child (archetype 3's composition shape), but
+  worth knowing before reaching for it on a directly user-facing parameter.
+  Only if you specifically want the noise-driven value to flow through the
+  visible `Parameter`/`setParameter()` path instead (so it's inspectable,
+  clamped by the *Claudio* parameter's own range, recorded in snapshots,
+  etc.) does something need to change: add a periodic (throttled — posting
+  every block at audio rate would flood the port, per the guidance already
+  below about never posting per-event messages at audio-block granularity)
+  `port.postMessage({ value: currentValue })` and have the owning model's
+  `onmessage` call `child.setParameter(name, value)`. Also note `enabled`
+  defaults to `false` — a parent needs to `postMessage({type:'set-enabled',
+  enabled:true})` in its own `startSound()` before anything (event or
+  continuous signal) is produced, and `rate`/`amplitude`/`offset` are
+  already exposed `AudioParam`s for shaping the noise's speed and range
+  before it reaches whatever it's connected to.
 - An `acceptingXEvents` flag on the model (not the worklet), set `true` in
   `startSound()` and `false` at the very start of `stopSound()`, rejects
   any notification still in flight after `stop()` — a worklet message can
@@ -429,6 +467,99 @@ Key protocol details:
   unrelated `WindChimes`/`ChimeTube` (archetype 3, meta-model composition
   of full child `SoundModel` instances) -- same category of instrument,
   completely different implementation technique.
+
+### 5.2. Continuous noise-excited, simplex-modulated resonant filter
+
+A sibling to 5.1, not a variant of it: broadband noise, fixed-lowpass-
+filtered, excites a single `ResonatorBank` mode whose center frequency
+*and* gain are both driven, every block, by ONE shared multi-octave
+simplex trajectory (`SimplexNoise.noise1DMultiOctave` -- see archetype 4's
+k-rate note; this is a from-scratch worklet composition, not a
+`noiseControlProcessor.js` consumer). `Q` is set independently and stays
+constant while the shared trajectory continues to drive both destinations.
+Unlike 5.1, there is no discrete trigger/energy-accumulator concept --
+this is a continuously-playing texture from the moment `play()` is called,
+so the model extends plain `BaseSound` (not `BaseSoundWithEvents`) and
+uses the default attack/decay lifecycle, matching archetype 1/
+`DroneModel`, not `Maraca`'s. Canonical: `soundlib/models/Wind.js` /
+`soundlib/models/Wind/windProcessor.js`, ported from a non-real-time
+Python prototype (`scratch/DS_Wind_1.1/DSWind.py`) that recomputed its
+resonator coefficients every sample and globally peak-normalized its
+output after the fact -- neither ports directly to a continuous
+real-time stream.
+
+Key protocol details:
+
+- **One shared trajectory driving two destinations reads as a coherent
+  gust, not a filtered drone with an LFO bolted on.** `cf` moves in
+  octaves around a `strength`-set center; gain moves linearly; both come
+  from the *same* per-block simplex sample, not two independent generators
+  -- this is what makes a pitch shift and a loudness swell arrive together
+  as one perceptual event.
+- **A fixed-gain continuous resonant model has no natural normalization
+  point.** A percussive model (archetype 2) gets one for free from its own
+  attack transient; the Python prototype had one from its offline global
+  peak-normalize; a continuous real-time resonant filter has neither --
+  expect to need an explicit, derived loudness-compensation term, and
+  expect it to need MORE than one factor (see next two bullets).
+- **Q-compensation must be derived empirically, not assumed from the
+  textbook `RMS ~ sqrt(Q)` relationship.** That analytical guess
+  (exponent 0.5) was measured to be wrong for this specific
+  resonator/exciter combination -- rendering uncompensated across
+  `howliness`'s full range and comparing RMS gave the actually-needed
+  exponent (~0.154 here), a large enough gap from the analytical guess
+  that skipping the empirical check would have shipped an audibly
+  Q-dependent loudness swing.
+- **A resonator's output level also depends on WHERE its center frequency
+  sits relative to the noise source's own spectral shape** -- a mode deep
+  in a fixed lowpass's passband extracts far more energy than one near/
+  above its cutoff. Unlike Q-compensation, this does NOT need to be a
+  measured/fitted constant: since the noise pre-filter is a fixed, known
+  filter, its exact magnitude response at any frequency is analytically
+  computable (a closed-form formula for a cascaded one-pole lowpass, in
+  `windProcessor.js`'s `lowpassMagnitudeAt()`) and can be inverted
+  directly as a second, independent compensation factor alongside
+  Q-compensation. This is a real, substantial improvement over leaving it
+  uncompensated (measured on Wind: a 327x worst-case/quietest-case RMS
+  ratio across the full parameter grid dropped to ~52-57x once both
+  compensations were applied) -- but even combined, the two don't fully
+  flatten loudness across the grid; a complete fix would need a genuinely
+  spectrum-aware adaptive normalizer, which is a different, larger
+  undertaking than this archetype's "reasonable estimate" scope.
+- **`outputGain` cannot be sized by "render N seconds and take the max
+  peak."** A high-Q resonator driven by broadband noise behaves like a
+  narrowband Gaussian process -- its RMS is a stable, well-behaved
+  quantity, but its PEAK is a property of a stochastic process with no
+  finite upper bound over unbounded listening time; peak measured this way
+  keeps creeping up the longer the test render runs (confirmed empirically
+  on Wind: peak grew from ~65 to ~90 over a 16-second render at otherwise-
+  fixed settings, purely from observing more independent excursions of the
+  same stationary process, not from any instability). Two consequences:
+  first, size `outputGain` from worst-case RMS times a measured crest
+  factor (peak/RMS was empirically ~4.3-4.5x here and stayed essentially
+  constant across the whole parameter grid -- a genuinely useful, stable
+  number once measured) with real margin, not from a short render's
+  observed peak. Second, accept that `OutputConditioner`'s hard clamp will
+  occasionally, rarely trigger during long continuous play at the loudest
+  parameter corners -- that is what the clamp is for, not a bug to
+  engineer away entirely.
+- **A one-time-looking discrepancy in a gain-staging measurement is worth
+  chasing down, not rationalizing away.** Mid-implementation here, an
+  `outputGain=1` peak measurement came back at exactly `4.0` -- which
+  looked like "coincidentally already fine," but was actually the
+  `OutputConditioner`'s own hard clamp saturating the measurement itself,
+  silently hiding a true unclamped magnitude that turned out to be ~480x
+  larger. Re-measuring with a deliberately tiny `outputGain` (so the clamp
+  can't engage) and dividing back out is the reliable way to recover a
+  filter's true unclamped magnitude for gain-staging purposes.
+- `CascadedLowpass` (a simple one-pole cascade, chosen over an exact
+  Butterworth port as an informed approximation -- see archetype 2's
+  sourced-vs-informed distinction) is kept local to `windProcessor.js`
+  rather than extracted to `soundlib/utilities/`, per this codebase's
+  "extract once a second real consumer exists" rule -- it, and its
+  analytical `lowpassMagnitudeAt()` companion, are the concrete
+  candidates to promote the moment a second atmospheric/textural model
+  (rain, fire, ocean) needs its own noise pre-filter.
 
 ### 6. Worker-offloaded generation
 

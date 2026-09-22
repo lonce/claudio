@@ -73,15 +73,7 @@ class NoiseControlProcessor extends AudioWorkletProcessor {
     }
 
     _sampleNoise(noiseTime) {
-        let sum = 0;
-        let weightTotal = 0;
-        for (let octave = 0; octave < this.octaveWeights.length; octave++) {
-            const weight = this.octaveWeights[octave];
-            sum += weight * this.simplex.noise2D(noiseTime * 2 ** octave, this.fixedY);
-            weightTotal += weight;
-        }
-        const raw = weightTotal > 0 ? sum / weightTotal : 0;
-        return Math.max(-1, Math.min(1, raw));
+        return this.simplex.noise1DMultiOctave(noiseTime, this.octaveWeights, this.fixedY);
     }
 
     _handleMessage(data) {

@@ -110,6 +110,25 @@ export class SimplexNoise {
         const random = mulberry32(normalizedSeed ^ 0x9E3779B9);
         return 1 + random() * 999;
     }
+
+    // 1D traversal of this 2D field (noise2D(t, fixedY)) summed across
+    // several octaves (each octave's t scaled by 2^octave), weighted and
+    // normalized so the result stays in [-1,1] regardless of how the
+    // weights are scaled. `fixedY` stays a plain argument rather than a
+    // constructor-owned field -- callers that need a specific fixedY
+    // (deriveFixedY(seed), or an explicit override) already compute it
+    // themselves.
+    noise1DMultiOctave(t, octaveWeights, fixedY) {
+        let sum = 0;
+        let weightTotal = 0;
+        for (let octave = 0; octave < octaveWeights.length; octave++) {
+            const weight = octaveWeights[octave];
+            sum += weight * this.noise2D(t * 2 ** octave, fixedY);
+            weightTotal += weight;
+        }
+        const raw = weightTotal > 0 ? sum / weightTotal : 0;
+        return Math.max(-1, Math.min(1, raw));
+    }
 }
 
 export default SimplexNoise;
