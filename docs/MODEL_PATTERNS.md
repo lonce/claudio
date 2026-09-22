@@ -499,69 +499,289 @@ Three documented exceptions to the otherwise-uniform pattern:
   later), the preset needs this same `setParameter()` treatment instead of
   the usual direct-`.value` shortcut.
 
-### 10. Cross-synthesis / vocoder: hidden PhISEM engine driving an external-audio carrier filterbank
+### 10. Cross-synthesis / vocoder: a hidden control-source engine shaping an external-audio carrier
 
-A model that owns two identically-tuned `ResonatorBank`s: one excited by a
-hidden stochastic PhISEM engine (archetype 5.1) whose own audio is never
-summed into output — only its per-mode `.y1[i]` values are read, through
-an envelope follower, as control-rate signals — and one excited by a real
-external audio signal (all modes together every sample, a true parallel
-filterbank, not the one-at-a-time routing the hidden engine itself uses).
-Each carrier band is multiplied by its matching envelope and summed.
-Canonical: `soundlib/models/ChimeVocoder.js` (hidden engine = a
-`BambooChimes`-identical composition; carrier = an internally-owned
-`GrannyInteractive` instance).
+**The general shape, independent of which specific sounds fill it**: two
+roles, composed inside one worklet. **Role A, the control source**: some
+process that internally evolves N independently-varying numeric signals
+over time, whose own raw audio is never itself meant to be heard — only
+tapped, per-signal, as control-rate data. **Role B, the carrier**: a real
+audio-rate signal — in practice, another `SoundModel`'s actual output —
+that gets shaped by Role A's N control signals, band by band or however
+the coupling is defined. Canonical instance so far:
+`soundlib/models/ChimeVocoder.js` — Role A is a hidden, `BambooChimes`-
+identical stochastic-collision engine (archetype 5.1) whose 7 per-tube
+`ResonatorBank` outputs are the N control signals; Role B is an internally-
+owned `GrannyInteractive` instance's granular output, split into the same
+7 tuned bands by a second `ResonatorBank`, each band multiplied by its
+matching envelope-followed control signal and summed.
 
-Key protocol details:
-- **`ResonatorBank.y1[i]`'s pre-existing plain-field exposure is what
-  makes this possible with zero `ResonatorBank` changes.** The class
-  already stores `a1`/`a2`/`gain`/`y1`/`y2`/`excitation` as plain public
-  fields, no encapsulation — `.y1[i]` already holds mode `i`'s own latest
-  output right after `tick()`. Contrast with Phase G's `excite()`/`tick()`
-  split (this same doc's archetype 5.1 notes), which *was* a genuine new
-  capability the class didn't have; this archetype needed none.
-- **Summing several high-Q resonators driven by the same shared input
-  needs the same `1/sqrt(filterCount)` normalization archetype 2 already
-  documents for `BellStrike`'s noise-bank summing** — they're strongly
-  correlated (not independent sources), so an un-normalized sum grows
-  roughly with tube count and clips hard in practice. Confirmed
-  empirically on `ChimeVocoder`, not just assumed: a plain white-noise
-  stand-in carrier hit the output's hard clamp even at a low `outputGain`
-  before this normalization was added to the per-sample band sum.
-- **Owning a child `SoundModel` purely as an inaudible upstream `AudioNode`
-  source is a distinct shape from archetype 3's usual audible children.**
-  The child is still constructed directly (never through
-  `audioSystem.createSound()`, so it's never auto-wired to master gain or
-  exposed in the app's own sound selector), but its output is
-  `.connect()`-ed straight into the parent's own worklet as an audio-rate
-  carrier input rather than summed into a shared gain node. This is why
-  the parent's `stopSound()` does **not** need to gate on the child's own
-  release the way archetype 3's rule normally requires — nothing about the
-  child is ever itself audible, so there's nothing to click by cutting the
-  parent's envelope first. `AnotherGranny.stopSound()` also has a
-  pre-existing quirk worth knowing about here: it invokes its own
-  `onReleased` callback twice (once immediately, once again inside its own
-  `scheduleDecay()` completion) — passing a callback into the child's
-  `stop()` would double-fire it, so call it with none.
-- **The worklet needs to actually read its `inputs` argument** — every
-  other worklet in this codebase declares `process(inputs, outputs,
-  parameters)` but never indexes into `inputs`; this archetype is the
-  first to. The model's own `AudioWorkletNode` needs explicit
-  `channelCount: 1, channelCountMode: 'explicit'` in its constructor
-  options, since nothing else forces the connected carrier down to mono
-  before `process()` sees it otherwise.
-- **A model exposing a full union of two composed instruments' parameters
-  needs a naming convention to avoid collisions**, not just distinct
-  purposes. Every `SoundModel` has an inherited `gain` `Parameter` from
-  `BaseSound` — forwarding a child's own `gain` alongside the parent's own
-  outer `gain` needs a prefix (`ChimeVocoder` uses `carrier*` for
-  everything forwarded from its `GrannyInteractive` child) so the two
-  genuinely different controls (raw carrier level vs. final output level)
-  don't collide under one name. Forwarding itself uses the child's public
-  `setParameter()` API (matching archetype 9's `WindChimesPreset`
-  exception, for the identical reason: a raw `.value` mutation would
-  change what's displayed without the child ever actually receiving it),
-  via a small lookup table rather than one switch case per forwarded name.
+**Recognizing this pattern in a new request**: watch for phrasing like
+"let sound A's energy/activity/character shape sound B," "sound A played
+through sound B's resonance" (or the reverse), "one instrument's dynamics
+modulating another's timbre or filter," or anything explicitly asking for
+a cross-synthesis/vocoder-style effect *between two of the library's
+existing sounds*. When you see it, the concrete design questions are:
+which existing model (or hidden, non-instantiated engine) supplies the N
+control signals, and which supplies the carrier audio — Role A and Role B
+don't have to be `BambooChimes`/`GrannyInteractive` specifically, and
+don't even have to be different classes (two independently-seeded
+instances of the *same* class could fill both roles). Once those two
+roles are identified, the rest of this section's structure transfers
+directly; only the tap mechanism (see below) is tied to `ResonatorBank`
+specifically.
+
+#### Audio graph and node ownership
+
+```
+Role B: carrier                          Role A: hidden control source
+────────────────                         ─────────────────────────────
+GrannyInteractive child                  chime engine (inline DSP in the
+  grain sources -> grain windows         same worklet, not a 2nd child)
+  -> granny.gainNode (= outputNode)        stochastic collision -> exciter
+        |                                  -> resonators.excite(tube)
+        | .connect()                       -> resonators.tick()
+        v                                  -> .y1[i]  (7 signals)
+  inputs[0][0]                                   |
+        |                                        v
+        v                                  EnvelopeFollowerBank
+  carrierResonators (7 modes, all                |
+  excited by the same sample)                    |
+        |                                        |
+        v                                        |
+  .y1[j]  (7 bands)  ------- multiply ------------+
+                                |
+                                v
+                        sum all 7 bands
+                                |
+                                v
+                     * 1/sqrt(7) normalize
+                                |
+                                v
+                        OutputConditioner
+                                |
+                                v
+                  outputs[0][0]  (worklet's own output)
+                                |
+                                v
+             ChimeVocoder.gainNode (outer envelope, = outputNode)
+                                |
+                                v
+                     AudioSystem's master gain
+```
+
+**Node ownership**: `ChimeVocoder` owns `this.workletNode` and
+`this.gainNode` (also `this.outputNode`) — that's it. `this.granny` (the
+child instance) owns its *entire* internal graph itself — grain sources,
+grain-window gains, its own `this.gainNode`/`outputNode` — `ChimeVocoder`
+never reaches into any of it directly, only through the child's public
+API (`Parameter`s, `setParameter()`, `play()`, `stop()`, `connect()`,
+`destroy()`). The **only** edge between the two models' graphs is one
+call: `this.granny.connect(this.workletNode)`.
+
+#### Lifecycle ordering
+
+Constructor sequence, and why the order matters:
+1. `super(context, name, gain)` — `BaseSound`'s own setup, no nodes yet.
+2. All `addParameter()`/`addStringParameter()` calls — declares the full
+   parameter union (see below); still no nodes, no child.
+3. `addEvent(...)` — registers the discrete-trigger event, if any.
+4. **The child is constructed** (`this.granny = new GrannyInteractive(...)`)
+   — this is when the child's *own* nodes get created (inside its own
+   constructor) and, for a file-loading carrier like `GrannyInteractive`,
+   when its async load kicks off in the background (see the flagged
+   `waitForLoad()` gap below).
+5. **`this.createNodes()` runs last** — it calls
+   `this.granny.connect(this.workletNode)`, so the child must already
+   exist by this point. This is the one hard ordering constraint the
+   pattern imposes: *construct the child before wiring it in.*
+
+#### How `play()`/`stop()` propagate
+
+Neither is automatic or inherited from the child relationship — both are
+explicit calls the parent makes:
+- `startSound()` calls `this.granny.play()` itself (after setting the
+  worklet's `active` param, before `scheduleAttack()`).
+- `stopSound()` calls `this.granny.stop()` itself, **without** waiting for
+  it to finish and **without** a callback, before starting its own
+  `scheduleDecay()`. This is a deliberate deviation from archetype 3's
+  usual "wait for every child's release" rule (see below for why), and
+  also sidesteps a pre-existing quirk in `AnotherGranny.stopSound()`: it
+  invokes its own `onReleased` callback *twice* (once immediately, once
+  again inside its own `scheduleDecay()` completion) — passing a callback
+  into the child's `stop()` here would double-fire it, so don't.
+- Role A (the hidden engine) has no `play()`/`stop()` of its own at all —
+  it isn't a `SoundModel`, just inline worklet DSP. Its on/off state is
+  entirely the same `active` `AudioParam` and `{type:'reset'}`/
+  `{type:'strike'}` port messages the whole worklet already uses.
+
+#### Parameter aggregation and conflict resolution
+
+A model exposing a full union of two composed instruments' parameters
+needs a naming convention to avoid collisions, not just distinct
+purposes. Every `SoundModel` has an inherited `gain` `Parameter` from
+`BaseSound` — forwarding a child's own `gain` alongside the parent's own
+outer `gain` needs a prefix (`ChimeVocoder` uses `carrier*` for
+everything forwarded from its `GrannyInteractive` child) so the two
+genuinely different controls (raw carrier level vs. final output level)
+don't collide under one name. Forwarding itself uses the child's public
+`setParameter()` API (matching archetype 9's `WindChimesPreset` exception,
+for the identical reason: a raw `.value` mutation would change what's
+displayed without the child ever actually receiving it), via a small
+lookup table (forwarded name -> child's own name) rather than one switch
+case per forwarded parameter.
+
+#### Gain staging (the full chain — easy to lose track of where to adjust level)
+
+For `ChimeVocoder` specifically, level passes through **five** distinct
+stages before reaching the master gain:
+1. `carrierGain` (Granny's own `gain`, default 0.8) — scales the carrier's
+   raw grain-summed output *before it ever leaves the child*.
+2. That unscaled signal excites all 7 carrier resonator modes (their own
+   per-mode `gain` field, from `ResonatorBank.setMode()`, is a fixed `1.0`
+   here — no per-mode scaling of its own).
+3. Each band's resonant output is multiplied by its envelope, then all 7
+   products are summed and scaled by `1/sqrt(7)` (the correlated-sources
+   normalization, confirmed empirically necessary — see below).
+4. `OutputConditioner`'s own `outputGain` (0.2, informed starting point,
+   not sourced) plus its hard clamp (±4).
+5. `ChimeVocoder`'s own outer `gain` envelope (default 0.6, `BaseSound`'s
+   default attack/decay — see the character note below), then whatever
+   `AudioSystem`'s own master gain applies on top.
+
+#### Channel-count assumptions
+
+The worklet needs to actually read its `inputs` argument — every other
+worklet in this codebase declares `process(inputs, outputs, parameters)`
+but never indexes into `inputs`; this archetype is the first to. The
+model's own `AudioWorkletNode` needs explicit `channelCount: 1,
+channelCountMode: 'explicit'` in its constructor options, since nothing
+else forces the connected carrier down to mono before `process()` sees it
+otherwise.
+
+#### Connection, disconnection, and disposal
+
+`connect()`/`disconnect()` are **not** overridden on `ChimeVocoder` —
+`BaseSound`'s defaults already fully cover it, since `outputNode`/
+`gainNode` are the same node. Critically, these calls only ever touch
+*that* node — the internal `granny -> workletNode` edge, set up once in
+`createNodes()`, is never renegotiated by a `connect()`/`disconnect()`
+call on the parent. `destroy()` **is** overridden: `super.destroy()`
+(stops + disconnects the parent's own output) runs first, then
+`this.granny?.destroy?.()` (which internally calls the child's *own*
+`stop()`+`disconnect()` — this is what actually tears down the
+`granny -> workletNode` edge, via the child's own `this.destination`
+bookkeeping, not anything the parent does to that edge by name), then the
+parent's own `workletNode`/`gainNode` get explicitly disconnected too.
+
+#### Whether either half can run independently
+
+`GrannyInteractive` *the class* is fully general and already runs
+independently elsewhere (it's its own standalone top-level sound in the
+app). The *specific instance* `ChimeVocoder` owns, though, is private and
+dedicated — freshly constructed, never registered with `AudioSystem`,
+never in the sound selector, sharing no state with the standalone Granny
+sound. Role A (the hidden engine) has no independent existence at all
+here — it's inline DSP inside the same worklet as the carrier processing,
+a design choice (see "general vs. specific" below), not something you
+could extract and play on its own without restructuring it into a real
+second child or a standalone worklet.
+
+#### Whether the composite adds latency
+
+Reasoned from the Web Audio spec, not empirically measured in a browser:
+no. `AudioWorkletProcessor.process()` is called once per render quantum
+with that *same* quantum's audio already present on `inputs[0]` from
+whatever is `.connect()`-ed to it — a same-render-pass, quantum-
+synchronous read, identical in kind to a plain `GainNode`-to-`GainNode`
+connection. Routing the carrier through this worklet doesn't add a
+buffering hop beyond the baseline per-quantum latency every node in *any*
+Web Audio graph already has. If this ever matters for a latency-sensitive
+use, verify empirically rather than trust this claim blindly — it hasn't
+been measured, only reasoned from documented spec behavior.
+
+#### Which pieces are general vs. specific to this instance
+
+**General, reusable regardless of which two models fill the roles**: the
+overall shape (Role A's per-signal taps -> `EnvelopeFollowerBank` ->
+multiply against Role B's own per-band taps -> sum -> normalize ->
+`OutputConditioner`); the `channelCount:1`/`channelCountMode:'explicit'`
+requirement; the `carrier*`-forwarding-with-collision-avoidance pattern;
+the "child constructed directly, connected as an inaudible upstream
+input, no release-gating" composition shape; `EnvelopeFollowerBank` itself
+(lives in `soundlib/utilities/`, fully model-agnostic already).
+
+**Specific to `ChimeVocoder` today**: the 7 fixed tube frequencies and
+`BambooChimes`-identical stochastic-collision engine as Role A, and
+`GrannyInteractive` specifically as Role B. A future variant swapping in
+a different control source (say, `Maraca`'s single-mode engine, or a
+non-resonator control source like an LFO bank) and/or a different carrier
+(any other `SoundModel`, or even a second instance of the same class used
+for Role A) would reuse everything general above unchanged, *except*: the
+tap mechanism (`.y1[i]`) is specific to `ResonatorBank` — a non-resonator
+control source would need a different way to expose its own N per-channel
+values, since `.y1[i]`'s free availability here is a `ResonatorBank`-
+specific accident (see below), not a general contract every possible
+Role-A engine provides automatically.
+
+#### Why this needed no `ResonatorBank` changes, unlike Phase G
+
+`ResonatorBank.y1[i]`'s pre-existing plain-field exposure is what makes
+tapping Role A's per-mode state possible with zero class changes — it
+already stores `a1`/`a2`/`gain`/`y1`/`y2`/`excitation` as plain public
+fields, no encapsulation, and `.y1[i]` already holds mode `i`'s own latest
+output right after `tick()`. Contrast with Phase G's `excite()`/`tick()`
+split (archetype 5.1's own note above), which *was* a genuine new
+capability the class didn't have; this archetype needed none — it's
+simply the first caller to read per-mode state instead of only using
+`tick()`'s summed return value.
+
+#### The correlated-resonator-summing gotcha (empirically confirmed, not assumed)
+
+Summing several high-Q resonators driven by the same shared input needs
+the same `1/sqrt(filterCount)` normalization archetype 2 already documents
+for `BellStrike`'s noise-bank summing — they're strongly correlated (not
+independent sources), so an un-normalized sum grows roughly with tube
+count and clips hard in practice. Confirmed empirically on `ChimeVocoder`,
+not just assumed: a plain white-noise stand-in carrier hit the output's
+hard clamp even at a low `outputGain` before this normalization was added
+to the per-sample band sum.
+
+#### Tests: what's covered automatically, what needs manual verification
+
+`soundlib/utilities/test/chimeVocoderPipeline.test.js` (via
+`soundlib/models/ChimeVocoder/chimeVocoderPipelineCore.js`, the same
+node-side-mirror pattern every PhISEM worklet already uses) covers, at the
+pure-DSP level: silence with nothing connected/struck; silence with *only*
+a carrier connected (the hidden engine must actually be struck for
+anything to happen — confirms Role A is required); silence with *only* a
+strike and no carrier (confirms Role B is required — there's nothing to
+shape); audible, finite, non-clipping output with both present; seeded
+determinism and seed divergence; no NaN/Infinity at extreme parameter
+settings; and that changing a parameter (`envelopeSmoothing`) measurably
+changes the render, not just that nothing crashes — the same class of bug
+this whole test-infrastructure pattern exists to catch (see the
+`collisionDecaySeconds` routing-bug note above).
+
+What this **cannot** cover, because none of it touches
+`AudioWorkletProcessor.process()`: the real child's actual lifecycle
+through a live `AudioContext` (`play()`/`stop()`/`destroy()` propagation),
+the `.connect()` edge itself, or `channelCountMode` actually downmixing a
+real (e.g. stereo) source. Verify these by hand in the running app, per
+`docs/ADDING_A_SOUND.md`'s acceptance checklist: select the sound, run a
+Play → Strike → Stop → replay cycle, and confirm no console errors or
+audible artifacts after Stop.
+
+#### Pre-existing gap this pattern inherits, not fixed here
+
+`AnotherGranny`'s constructor calls `loadAudioFile(...).then(...)`
+directly, bypassing `BaseSound.initializeAudio()`, so `waitForLoad()` is a
+silent no-op for `AnotherGranny`/`GrannyInteractive` today — already true
+for the existing standalone `GrannyInteractive` app instance. Any future
+model using a file-loading carrier inherits this same gap (its audio may
+still be loading when the parent's `play()` is first called) unless fixed
+upstream in `AnotherGranny.js` itself, which is out of scope for any one
+model built on top of it.
 
 ## Housekeeping (flagged, not touched)
 
