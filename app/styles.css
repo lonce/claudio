@@ -35,6 +35,40 @@ h1 {
     padding: 5px;
 }
 
+#headerControls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#recordButton {
+    /* Slightly darker than header's #4CAF50 background, with a thin
+       outline so it reads clearly against it. */
+    background-color: #43a047;
+    border: 1px solid #2e7d32;
+}
+
+#recordButton:hover {
+    /* Overrides the generic button:hover (#45a049) -- too close to this
+       button's own darker base color to read as a visible change. */
+    background-color: #388e3c;
+}
+
+#recordButton.recording {
+    background-color: #d32f2f;
+}
+
+#recordButton.recording:hover {
+    background-color: #b71c1c;
+}
+
+.record-save-panel {
+    border: 1px solid #999;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 8px 0;
+}
+
 #controlPanel {
     padding: 20px;
 }

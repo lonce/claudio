@@ -5,17 +5,23 @@ export class AudioSystem {
         this.masterGainNode = this.context.createGain();
         this.masterGainNode.gain.value = 0.4; // default master gain
         this.masterGainNode.connect(this.context.destination);
-        this.loadedWorklets = new Set();
+        // path -> in-flight/completed addModule() promise, not just a
+        // "done" flag -- createSound() calls now run concurrently
+        // (app/main.js), so two calls sharing a worklet path can both
+        // reach here before either's addModule() resolves. Caching the
+        // promise itself (set synchronously, before the first await) means
+        // a concurrent second call sees it already present and just awaits
+        // the same load, instead of both calling addModule() on the same
+        // path -- which would double-register the same processor name and
+        // throw.
+        this.loadedWorklets = new Map();
     }
 
     async loadWorklet(workletPath) {
-        console.log(`loadworklet with workletPath=${workletPath}`)
         if (!this.loadedWorklets.has(workletPath)) {
-            console.log(` loadWorklets does "has" ${workletPath}, so we'll addModule`)
-            await this.context.audioWorklet.addModule(workletPath);
-            console.log(` got the module, now loadWorklet ${workletPath}`)
-            this.loadedWorklets.add(workletPath);
+            this.loadedWorklets.set(workletPath, this.context.audioWorklet.addModule(workletPath));
         }
+        await this.loadedWorklets.get(workletPath);
     }
 
     async createSound(SoundClass, name, maxPoolSize = 4, ...args) {

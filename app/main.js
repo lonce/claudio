@@ -6,6 +6,7 @@ import { createNudgeSliderControl } from './NudgeSlider.js';
 import { openSavePresetDialog } from './SavePresetDialog.js';
 import { formatFixedDigits } from './formatNumber.js';
 import { ShakeControlSource } from './ShakeControlSource.js';
+import { initAudioRecorder } from './AudioRecorder.js';
 
 // Designer mode (?mode=designer): NudgeSliders + Save Preset button.
 // Normal mode (default): plain sliders, no Save button.
@@ -46,10 +47,19 @@ async function initApp() {
     const soundSelector = document.getElementById('soundSelector');
     const xyPad = document.getElementById('xyPad');
     const sliderBox = document.getElementById('sliderBox');
+    const recordButton = document.getElementById('recordButton');
+    const recordPanelMount = document.getElementById('recordPanelMount');
 
     loadXyPadInfo(xyPad);
 
     try {
+        // Feature-detects internally and disables the button rather than
+        // throwing if unsupported; awaited here (inside the try block, like
+        // everything else in initApp()) so a genuine failure -- e.g. the
+        // worklet module failing to load -- is caught by the catch below
+        // instead of crashing init before any sound loads.
+        await initAudioRecorder(audioSystem, recordButton, recordPanelMount);
+
         // Requested before any sound is loaded (rather than after, as
         // before) so the dialog appears immediately instead of waiting on
         // however long the 28 createSound() calls below take (worklet
@@ -66,50 +76,66 @@ async function initApp() {
         console.log('Orientation support checked');
 
         console.log('Loading sounds...');
-        const risset = await audioSystem.createSound(RissetBasic, 'Risset', 0);
-        const drone = await audioSystem.createSound(DroneModel, 'Drone', 0);
-        const waveTrigger = await audioSystem.createSound(WaveTrigger, 'WaveTrigger', 0);
-        const workletClicker = await audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet_Clicker', 0);
-        const granny = await audioSystem.createSound(AnotherGranny, 'Granny', 0, 'BeingRural22k.mp3');
-        const faustClarinet = await audioSystem.createSound(FaustClarinet, 'FaustClarinet', 0);
-        const workerFM = await audioSystem.createSound(WorkerFM, 'WorkerFM', 0, 
-            {
+        // All 33 createSound() calls are independent (none takes another
+        // sound's result as an argument), so they run concurrently via
+        // Promise.all rather than one at a time -- previously each
+        // worklet-module fetch/audio-file download/WASM load waited for
+        // every prior one to finish first, serializing startup latency for
+        // no reason. Promise.all preserves this array's order regardless
+        // of completion order, so `sounds`'s order (sounds[0] is still the
+        // default-on-load sound) is unaffected.
+        const [
+            risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN,
+            ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube,
+            windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind,
+            hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset,
+            grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset,
+            windChimesPreset, maracaExtendedPreset
+        ] = await Promise.all([
+            audioSystem.createSound(RissetBasic, 'Risset', 0),
+            audioSystem.createSound(DroneModel, 'Drone', 0),
+            audioSystem.createSound(WaveTrigger, 'WaveTrigger', 0),
+            audioSystem.createSound(ClickerWorkletSoundModel, 'Worklet_Clicker', 0),
+            audioSystem.createSound(AnotherGranny, 'Granny', 0, 'BeingRural22k.mp3'),
+            audioSystem.createSound(FaustClarinet, 'FaustClarinet', 0),
+            audioSystem.createSound(WorkerFM, 'WorkerFM', 0, {
                 lookaheadFrames: 12,  // Configurable buffer size
                 centerFreq: 220,     // Start at A3
                 modRate: 1.5,        // Slow modulation
                 modDepth: 0.3        // Moderate frequency variation
-            });
-        const waterFillRNN = await audioSystem.createSound(WaterFillRNN, 'WaterFillRNN', 0, {
-            lookaheadFrames: 12,
-            centerFreq: 220,
-            modRate: 1.5,
-            modDepth: 0.3
-        });
-        const ping = await audioSystem.createSound(Ping, 'Ping', 0);
-        const chuaOscillator = await audioSystem.createSound(ChuaOscillator, 'ChuaOscillator', 0);
-        const rendezvousPingerII = await audioSystem.createSound(RendezvousPingerII, 'RendezvousPingerII', 0);
-        const rendezvousPingerIII = await audioSystem.createSound(RendezvousPingerIII, 'RendezvousPingerIII', 0);
-        const rendezvousChimes = await audioSystem.createSound(RendezvousChimes, 'RendezvousChimes', 0);
-        const chimeTube = await audioSystem.createSound(ChimeTube, 'Chime Tube', 0, { seed: 1 });
-        const windChimes = await audioSystem.createSound(WindChimes, 'Wind Chimes', 0);
-        const bellStrike = await audioSystem.createSound(BellStrike, 'Bell Strike', 0);
-        const maraca = await audioSystem.createSound(Maraca, 'Maraca', 0);
-        const maracaExtended = await audioSystem.createSound(MaracaExtended, 'Maraca Extended', 0);
-        const cabasa = await audioSystem.createSound(Cabasa, 'Cabasa', 0);
-        const bambooChimes = await audioSystem.createSound(BambooChimes, 'Bamboo Chimes', 0);
-        const chimeVocoder = await audioSystem.createSound(ChimeVocoder, 'Chime Vocoder', 0);
-        const wind = await audioSystem.createSound(Wind, 'Wind', 0);
-        const hamburgerLadyChua13 = await audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0);
-        const dronePreset = await audioSystem.createSound(DronePreset, 'Drone preset', 0);
-        const rissetPreset = await audioSystem.createSound(RissetPreset, 'Risset preset', 0);
-        const waveTriggerPreset = await audioSystem.createSound(WaveTriggerPreset, 'WaveTrigger preset', 0);
-        const workletClickerPreset = await audioSystem.createSound(WorkletClickerPreset, 'Worklet_Clicker preset', 0);
-        const grannyInteractive = await audioSystem.createSound(GrannyInteractive, 'Granny interactive', 0, 'BeingRural22k.mp3');
-        const faustClarinetPreset = await audioSystem.createSound(FaustClarinetPreset, 'FaustClarinet preset', 0);
-        const rendezvousPingerIIPreset = await audioSystem.createSound(RendezvousPingerIIPreset, 'RendezvousPingerII preset', 0);
-        const chimeStrikePreset = await audioSystem.createSound(ChimeStrikePreset, 'Chime Strike preset', 0);
-        const windChimesPreset = await audioSystem.createSound(WindChimesPreset, 'Wind Chimes preset', 0);
-        const maracaExtendedPreset = await audioSystem.createSound(MaracaExtendedPreset, 'Maraca Extended preset', 0);
+            }),
+            audioSystem.createSound(WaterFillRNN, 'WaterFillRNN', 0, {
+                lookaheadFrames: 12,
+                centerFreq: 220,
+                modRate: 1.5,
+                modDepth: 0.3
+            }),
+            audioSystem.createSound(Ping, 'Ping', 0),
+            audioSystem.createSound(ChuaOscillator, 'ChuaOscillator', 0),
+            audioSystem.createSound(RendezvousPingerII, 'RendezvousPingerII', 0),
+            audioSystem.createSound(RendezvousPingerIII, 'RendezvousPingerIII', 0),
+            audioSystem.createSound(RendezvousChimes, 'RendezvousChimes', 0),
+            audioSystem.createSound(ChimeTube, 'Chime Tube', 0, { seed: 1 }),
+            audioSystem.createSound(WindChimes, 'Wind Chimes', 0),
+            audioSystem.createSound(BellStrike, 'Bell Strike', 0),
+            audioSystem.createSound(Maraca, 'Maraca', 0),
+            audioSystem.createSound(MaracaExtended, 'Maraca Extended', 0),
+            audioSystem.createSound(Cabasa, 'Cabasa', 0),
+            audioSystem.createSound(BambooChimes, 'Bamboo Chimes', 0),
+            audioSystem.createSound(ChimeVocoder, 'Chime Vocoder', 0),
+            audioSystem.createSound(Wind, 'Wind', 0),
+            audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0),
+            audioSystem.createSound(DronePreset, 'Drone preset', 0),
+            audioSystem.createSound(RissetPreset, 'Risset preset', 0),
+            audioSystem.createSound(WaveTriggerPreset, 'WaveTrigger preset', 0),
+            audioSystem.createSound(WorkletClickerPreset, 'Worklet_Clicker preset', 0),
+            audioSystem.createSound(GrannyInteractive, 'Granny interactive', 0, 'BeingRural22k.mp3'),
+            audioSystem.createSound(FaustClarinetPreset, 'FaustClarinet preset', 0),
+            audioSystem.createSound(RendezvousPingerIIPreset, 'RendezvousPingerII preset', 0),
+            audioSystem.createSound(ChimeStrikePreset, 'Chime Strike preset', 0),
+            audioSystem.createSound(WindChimesPreset, 'Wind Chimes preset', 0),
+            audioSystem.createSound(MaracaExtendedPreset, 'Maraca Extended preset', 0)
+        ]);
 
         const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset];
 
