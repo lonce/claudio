@@ -35,20 +35,27 @@ h1 {
     padding: 5px;
 }
 
-#headerControls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+#sliderBoxWrapper {
+    /* Positioning context for #recordButton -- the button is a sibling of
+       #sliderBox (not a child of it), so it survives #sliderBox's own
+       innerHTML rebuild on every sound switch instead of being destroyed
+       and recreated. */
+    position: relative;
 }
 
 #recordButton {
+    /* Pinned to the parameter panel's own top-right corner, overlapping
+       #sliderBox -- no margin, positioned via top/right instead. */
+    position: absolute;
+    top: 0;
+    right: 0;
     /* Slightly darker than header's #4CAF50 background, with a thin
        outline so it reads clearly against it. */
     background-color: #43a047;
     border: 1px solid #2e7d32;
-    /* Narrower than the shared button rule's 10px/20px -- the wider
-       default pushed #soundSelector off narrow phone screens. */
-    padding: 6px 10px;
+    /* As small as possible -- just enough to fit "Rec"/"Stop" -- so it
+       doesn't eat vertical space and isn't an easy accidental target. */
+    padding: 2px;
     margin: 0;
 }
 

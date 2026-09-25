@@ -231,13 +231,13 @@ export async function initAudioRecorder(audioSystem, button, getCurrentSoundName
         };
 
         isRecording = true;
-        button.textContent = '■ Stop';
+        button.textContent = 'Stop';
         button.classList.add('recording');
     }
 
     function resetToIdle() {
         isRecording = false;
-        button.textContent = '● Record';
+        button.textContent = 'Rec';
         button.classList.remove('recording');
     }
 

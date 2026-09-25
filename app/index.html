@@ -11,14 +11,14 @@
     <div id="app">
         <header>
             <h1>Claudio</h1>
-            <div id="headerControls">
-                <button id="recordButton">● Record</button>
-                <select id="soundSelector"></select>
-            </div>
+            <select id="soundSelector"></select>
         </header>
         <div id="controlPanel">
             <div id="xyPad"></div>
-            <div id="sliderBox"></div>
+            <div id="sliderBoxWrapper">
+                <button id="recordButton">Rec</button>
+                <div id="sliderBox"></div>
+            </div>
         </div>
     </div>
     <script type="module" src="main.js"></script>
