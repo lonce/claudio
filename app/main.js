@@ -48,7 +48,6 @@ async function initApp() {
     const xyPad = document.getElementById('xyPad');
     const sliderBox = document.getElementById('sliderBox');
     const recordButton = document.getElementById('recordButton');
-    const recordPanelMount = document.getElementById('recordPanelMount');
 
     loadXyPadInfo(xyPad);
 
@@ -58,7 +57,7 @@ async function initApp() {
         // everything else in initApp()) so a genuine failure -- e.g. the
         // worklet module failing to load -- is caught by the catch below
         // instead of crashing init before any sound loads.
-        await initAudioRecorder(audioSystem, recordButton, recordPanelMount);
+        await initAudioRecorder(audioSystem, recordButton, () => currentSound?.name);
 
         // Requested before any sound is loaded (rather than after, as
         // before) so the dialog appears immediately instead of waiting on

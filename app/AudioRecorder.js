@@ -30,12 +30,13 @@ function extensionForMimeType(mimeType) {
     return 'bin';
 }
 
-function defaultFileName() {
+function defaultFileName(soundName) {
     const now = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-` +
-        `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    return `claudio-recording-${stamp}`;
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const safeSoundName = (soundName || 'recording').replace(/\s+/g, '');
+    const mmdd = `${pad2(now.getMonth() + 1)}${pad2(now.getDate())}`;
+    const hhmmss = `${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`;
+    return `${safeSoundName}-${mmdd}-${hhmmss}`;
 }
 
 // Encodes accumulated per-channel Float32 sample chunks as a standard
@@ -104,11 +105,11 @@ function downloadBlob(blob, fileName) {
     URL.revokeObjectURL(url);
 }
 
-function showSavePanel(panelMount, compressedBlob, compressedMimeType, wavBlob) {
-    const existing = panelMount.querySelector('.record-save-panel');
-    if (existing) existing.remove();
-
-    const panel = document.createElement('div');
+function showSavePanel(soundName, compressedBlob, compressedMimeType, wavBlob) {
+    // A native <dialog> (matching MotionPermission.js's existing pattern)
+    // pops up as a real modal instead of extending the page's own layout,
+    // and needs no browser permission -- it's a plain HTML5 element.
+    const panel = document.createElement('dialog');
     panel.className = 'record-save-panel';
 
     const heading = document.createElement('div');
@@ -122,7 +123,7 @@ function showSavePanel(panelMount, compressedBlob, compressedMimeType, wavBlob) 
     nameLabel.textContent = 'File name:';
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
-    nameInput.value = defaultFileName();
+    nameInput.value = defaultFileName(soundName);
     nameInput.style.width = '100%';
     nameLabel.appendChild(nameInput);
     panel.appendChild(nameLabel);
@@ -153,26 +154,31 @@ function showSavePanel(panelMount, compressedBlob, compressedMimeType, wavBlob) 
     const saveButton = document.createElement('button');
     saveButton.textContent = 'Save';
     saveButton.addEventListener('click', () => {
-        const baseName = nameInput.value.trim().replace(/\s+/g, '_') || defaultFileName();
+        const baseName = nameInput.value.trim().replace(/\s+/g, '_') || defaultFileName(soundName);
         if (formatSelect.value === 'wav') {
             if (wavBlob) downloadBlob(wavBlob, `${baseName}.wav`);
         } else if (compressedBlob) {
             downloadBlob(compressedBlob, `${baseName}.${extensionForMimeType(compressedMimeType)}`);
         }
-        panel.remove();
+        panel.close();
     });
     buttonRow.appendChild(saveButton);
 
     const cancelButton = document.createElement('button');
     cancelButton.textContent = 'Cancel';
-    cancelButton.addEventListener('click', () => panel.remove());
+    cancelButton.addEventListener('click', () => panel.close());
     buttonRow.appendChild(cancelButton);
 
     panel.appendChild(buttonRow);
-    panelMount.appendChild(panel);
+    // Removes the element on any close path -- Save, Cancel, or the
+    // Escape key (built into <dialog>, which the old in-page div had no
+    // equivalent for).
+    panel.addEventListener('close', () => panel.remove());
+    document.body.appendChild(panel);
+    panel.showModal();
 }
 
-export async function initAudioRecorder(audioSystem, button, panelMount) {
+export async function initAudioRecorder(audioSystem, button, getCurrentSoundName) {
     if (typeof MediaRecorder === 'undefined' || typeof AudioWorkletNode === 'undefined') {
         button.disabled = true;
         button.title = 'Recording is not supported in this browser.';
@@ -245,7 +251,7 @@ export async function initAudioRecorder(audioSystem, button, panelMount) {
 
         mediaRecorder.onstop = () => {
             const compressedBlob = new Blob(compressedChunks, { type: mimeType });
-            showSavePanel(panelMount, compressedBlob, mimeType, wavBlob);
+            showSavePanel(getCurrentSoundName?.(), compressedBlob, mimeType, wavBlob);
         };
         mediaRecorder.stop();
 

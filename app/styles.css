@@ -46,6 +46,10 @@ h1 {
        outline so it reads clearly against it. */
     background-color: #43a047;
     border: 1px solid #2e7d32;
+    /* Narrower than the shared button rule's 10px/20px -- the wider
+       default pushed #soundSelector off narrow phone screens. */
+    padding: 6px 10px;
+    margin: 0;
 }
 
 #recordButton:hover {
@@ -63,10 +67,11 @@ h1 {
 }
 
 .record-save-panel {
+    /* No margin -- this is now a native <dialog>, centered by the
+       browser's own UA stylesheet; a fixed margin would fight that. */
     border: 1px solid #999;
     border-radius: 4px;
     padding: 8px;
-    margin: 8px 0;
 }
 
 #controlPanel {
