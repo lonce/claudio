@@ -6,7 +6,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { renderWg2Pluck } from '../../models/WG2/wg2PipelineCore.js';
+import { renderWg2Pluck, buildWg2Pipeline } from '../../models/WG2/wg2PipelineCore.js';
 import { t60 } from '../decayMath.js';
 
 const SAMPLE_RATE = 44100;
@@ -45,6 +45,65 @@ function measuredT60Seconds(samples, sampleRate, blockSize = 512) {
     const initialRms = rmsOf(0, blockSize);
     for (let start = 0; start + blockSize < samples.length; start += blockSize) {
         if (rmsOf(start, blockSize) < initialRms / 1000) return start / sampleRate;
+    }
+    return null;
+}
+
+// Single-frequency-bin DFT magnitude (Goertzel-style) -- isolates the
+// FUNDAMENTAL's own decay from broadband/high-frequency content. See
+// soundlib/models/WG2/knowledge/causal-claims.yaml.
+function fundamentalBandT60Seconds(samples, sampleRate, targetHz, blockSize = 1024) {
+    const magnitudeAt = (start) => {
+        let re = 0;
+        let im = 0;
+        for (let n = 0; n < blockSize; n++) {
+            const angle = (2 * Math.PI * targetHz * n) / sampleRate;
+            re += samples[start + n] * Math.cos(angle);
+            im -= samples[start + n] * Math.sin(angle);
+        }
+        return Math.sqrt(re * re + im * im) / blockSize;
+    };
+    const initial = magnitudeAt(0);
+    for (let start = 0; start + blockSize < samples.length; start += blockSize) {
+        if (magnitudeAt(start) < initial / 1000) return start / sampleRate;
+    }
+    return null;
+}
+
+// Drives the exact same DSP composition as wg2Processor.js's process()
+// loop, but exposes the two rails' own internal stored energy rather than
+// only the pickup output -- isolates a genuine propagation-energy-loss
+// regression from a pickup-position/interference artifact (see the
+// interpolation investigation this test guards against regressing).
+// Returns the measured T60 in seconds, or null if energy was never
+// observed to decay to -60dB within the render (i.e. fully preserved).
+function internalEnergyT60Seconds(frequency, seconds, sampleRate = SAMPLE_RATE) {
+    const pipeline = buildWg2Pipeline(sampleRate, 7);
+    pipeline.waveguide.setRailLength(sampleRate / (2 * frequency));
+    // Near-lossless: isolates the interpolator's own effect from the
+    // explicit LoopLossFilter, exactly as the investigation's control did.
+    pipeline.lossFilter.setDecayTime(1e6, sampleRate, pipeline.waveguide.railLength);
+    pipeline.exciter.exciteAtPosition(pipeline.waveguide.rightGoing, pipeline.waveguide.leftGoing, pipeline.waveguide.railLength, 0.18, 'impulse', 1.0);
+
+    const frameCount = Math.round(sampleRate * seconds);
+    const len = Math.round(pipeline.waveguide.railLength);
+    const blockSize = 512;
+    let initialRms = null;
+    let sumSq = 0;
+    for (let i = 0; i < frameCount; i++) {
+        pipeline.waveguide.tick(pipeline.nutTermination, pipeline.bridgeTermination, pipeline.lossFilter);
+        let e = 0;
+        for (let k = 0; k < len; k++) {
+            e += pipeline.waveguide.rightGoing.buffer[k] * pipeline.waveguide.rightGoing.buffer[k];
+            e += pipeline.waveguide.leftGoing.buffer[k] * pipeline.waveguide.leftGoing.buffer[k];
+        }
+        sumSq += e;
+        if ((i + 1) % blockSize === 0) {
+            const blockRms = Math.sqrt(sumSq / blockSize);
+            sumSq = 0;
+            if (initialRms === null) initialRms = blockRms;
+            else if (blockRms < initialRms / 1000) return i / sampleRate;
+        }
     }
     return null;
 }
@@ -232,4 +291,47 @@ test('excitationType=triangle produces a distinct render from noise/impulse', ()
     const impulse = renderWg2Pluck(SAMPLE_RATE, 42, { frequency: 220, excitationType: 'impulse' }, 0.1, 0);
     assert.notDeepEqual(Array.from(triangle), Array.from(noise));
     assert.notDeepEqual(Array.from(triangle), Array.from(impulse));
+});
+
+// The regression-coverage gap the interpolation investigation surfaced --
+// see wg1Pipeline.test.js's matching tests for the full rationale. WG2's
+// own numbers differ from WG1's (it crosses the interpolator twice per
+// round trip, not once), so its thresholds are set from WG2's own
+// measurements, not copied from WG1's.
+test('internal energy is approximately preserved (explicit loss disabled) across most of the supported frequency range', () => {
+    // Measured with lagrange3 (the default): fully preserved (no decay to
+    // -60dB within 3s) at every frequency except the extreme top of the
+    // range, where a real, honest residual remains (measured T60 ~1.4s at
+    // 3000Hz) -- still a ~24x improvement over linear's own 3000Hz result
+    // (~0.058s -- see soundlib/models/WG2/knowledge/causal-claims.yaml),
+    // not a complete fix. The floor at 3000Hz catches a regression back
+    // toward that catastrophic linear-era behavior without asserting a
+    // standard lagrange3 doesn't actually meet there.
+    for (const frequency of [55, 110, 220, 440, 880, 1760]) {
+        const measured = internalEnergyT60Seconds(frequency, 2);
+        assert.ok(measured === null, `expected internal energy to stay preserved at ${frequency}Hz, but it decayed to -60dB at ${measured}s`);
+    }
+    const highFreqMeasured = internalEnergyT60Seconds(3000, 2);
+    assert.ok(highFreqMeasured === null || highFreqMeasured > 0.8, `expected 3000Hz's known residual energy loss to stay well above linear's catastrophic ~0.06s floor, got ${highFreqMeasured}`);
+});
+
+test('fundamental-band T60 stays close to nominal across most of the supported frequency range', () => {
+    // Thresholds reflect what's actually measured with lagrange3, not a
+    // uniform guess -- excellent (ratio 0.95-1.01) from 55-880Hz, weaker
+    // at the top of the range (measured ~0.86 at 1760Hz, ~0.33 at
+    // 3000Hz -- a real residual, not a bug; still far better than
+    // linear's own ~0.07-0.41 at those frequencies).
+    const decayTime = 0.5;
+    const expectedT60 = t60(decayTime);
+    const minRatioByFrequency = { 55: 0.85, 110: 0.85, 220: 0.85, 440: 0.85, 880: 0.85, 1760: 0.7, 3000: 0.2 };
+    for (const [frequency, minRatio] of Object.entries(minRatioByFrequency)) {
+        const samples = renderWg2Pluck(SAMPLE_RATE, 7, { frequency: Number(frequency), decayTime }, expectedT60 * 1.4, 0);
+        const measured = fundamentalBandT60Seconds(samples, SAMPLE_RATE, Number(frequency));
+        assert.ok(measured !== null, `expected the fundamental to decay to -60dB within the render at ${frequency}Hz`);
+        const ratio = measured / expectedT60;
+        assert.ok(
+            ratio > minRatio,
+            `expected fundamental-band T60 ratio above ${minRatio} at ${frequency}Hz, got ${ratio.toFixed(3)} (measured ${measured.toFixed(3)}s vs expected ${expectedT60.toFixed(3)}s)`
+        );
+    }
 });

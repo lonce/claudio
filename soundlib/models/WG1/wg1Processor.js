@@ -3,6 +3,7 @@ import { LoopLossFilter } from '../../utilities/LoopLossFilter.js';
 import { RigidTermination } from '../../utilities/RigidTermination.js';
 import { InitialConditionExciter } from '../../utilities/InitialConditionExciter.js';
 import { OutputConditioner } from '../../utilities/OutputConditioner.js';
+import { createInterpolator, DEFAULT_INTERPOLATION_MODE } from '../../utilities/createInterpolator.js';
 import { WG1_CONFIG } from './wg1Config.js';
 
 /**
@@ -47,6 +48,11 @@ class WG1Processor extends AudioWorkletProcessor {
         const processorOptions = options.processorOptions ?? {};
         this.processorSampleRate = processorOptions.sampleRate ?? sampleRate;
         const seed = processorOptions.seed ?? 1;
+        // Construction-time/developer choice, not a user-facing Parameter
+        // -- see createInterpolator.js for why lagrange3 is the default.
+        // One instance for WG1's single self-feedback tap (unlike WG2's
+        // BidirectionalWaveguide, which needs two).
+        this.interpolator = createInterpolator(processorOptions.interpolationMode ?? DEFAULT_INTERPOLATION_MODE);
 
         const maxDelaySamples = Math.ceil(this.processorSampleRate / WG1_CONFIG.frequencyMinHz) + 4;
         this.waveguide = new FractionalDelayWaveguide(maxDelaySamples);
@@ -94,6 +100,7 @@ class WG1Processor extends AudioWorkletProcessor {
             if (command.type === 'reset') {
                 this.waveguide.reset();
                 this.output.reset();
+                this.interpolator.reset();
             } else if (command.type === 'set-excitation-type') {
                 this.excitationType = command.excitationType;
             } else if (command.type === 'pluck') {
@@ -108,7 +115,7 @@ class WG1Processor extends AudioWorkletProcessor {
         }
 
         for (let i = 0; i < channel.length; i++) {
-            const delayed = this.waveguide.read();
+            const delayed = this.waveguide.read(this.interpolator);
             const reflected = this.termination.reflect(delayed);
             const filtered = this.lossFilter.process(reflected);
             this.waveguide.write(filtered);

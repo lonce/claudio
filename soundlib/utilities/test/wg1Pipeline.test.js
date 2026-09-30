@@ -6,7 +6,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { renderWg1Pluck } from '../../models/WG1/wg1PipelineCore.js';
+import { renderWg1Pluck, buildWg1Pipeline } from '../../models/WG1/wg1PipelineCore.js';
 import { t60 } from '../decayMath.js';
 
 const SAMPLE_RATE = 44100;
@@ -52,6 +52,64 @@ function measuredT60Seconds(samples, sampleRate, blockSize = 512) {
         if (rmsOf(start, blockSize) < initialRms / 1000) return start / sampleRate;
     }
     return null;
+}
+
+// Single-frequency-bin DFT magnitude (Goertzel-style) -- isolates the
+// FUNDAMENTAL's own decay from broadband/high-frequency content, which
+// (per the interpolation investigation this test guards against
+// regressing) can decay at a very different rate. See
+// soundlib/models/WG1/knowledge/causal-claims.yaml.
+function fundamentalBandT60Seconds(samples, sampleRate, targetHz, blockSize = 1024) {
+    const magnitudeAt = (start) => {
+        let re = 0;
+        let im = 0;
+        for (let n = 0; n < blockSize; n++) {
+            const angle = (2 * Math.PI * targetHz * n) / sampleRate;
+            re += samples[start + n] * Math.cos(angle);
+            im -= samples[start + n] * Math.sin(angle);
+        }
+        return Math.sqrt(re * re + im * im) / blockSize;
+    };
+    const initial = magnitudeAt(0);
+    for (let start = 0; start + blockSize < samples.length; start += blockSize) {
+        if (magnitudeAt(start) < initial / 1000) return start / sampleRate;
+    }
+    return null;
+}
+
+// Drives the exact same DSP composition as wg1Processor.js's process()
+// loop, but exposes the delay line's own internal stored energy (sum of
+// squares across its active window) rather than only the pickup output --
+// this is what isolates a genuine propagation-energy-loss regression from
+// a pickup-position/interference artifact (see the interpolation
+// investigation this test guards against regressing).
+function internalEnergyNotReachedWithinSeconds(frequency, seconds, sampleRate = SAMPLE_RATE) {
+    const pipeline = buildWg1Pipeline(sampleRate, 7);
+    pipeline.waveguide.setDelaySamples(sampleRate / frequency);
+    // Near-lossless: isolates the interpolator's own effect from the
+    // explicit LoopLossFilter, exactly as the investigation's control did.
+    pipeline.lossFilter.setDecayTime(1e6, sampleRate, pipeline.waveguide.delaySamples);
+    pipeline.exciter.excite(pipeline.waveguide, pipeline.waveguide.delaySamples, 'impulse', 1.0);
+
+    const frameCount = Math.round(sampleRate * seconds);
+    const len = Math.round(pipeline.waveguide.delaySamples);
+    const blockSize = 512;
+    let initialRms = null;
+    let sumSq = 0;
+    for (let i = 0; i < frameCount; i++) {
+        const filtered = pipeline.lossFilter.process(pipeline.termination.reflect(pipeline.waveguide.read(pipeline.interpolator)));
+        pipeline.waveguide.write(filtered);
+        let e = 0;
+        for (let k = 0; k < len; k++) e += pipeline.waveguide.buffer[k] * pipeline.waveguide.buffer[k];
+        sumSq += e;
+        if ((i + 1) % blockSize === 0) {
+            const blockRms = Math.sqrt(sumSq / blockSize);
+            sumSq = 0;
+            if (initialRms === null) initialRms = blockRms;
+            else if (blockRms < initialRms / 1000) return false; // reached -60dB -- energy was NOT preserved
+        }
+    }
+    return true; // never reached -60dB within the render -- energy preserved, as expected
 }
 
 test('silence before any pluck', () => {
@@ -121,13 +179,14 @@ test('loop stays stable (bounded peak) across the full parameter grid', () => {
 });
 
 test('estimated fundamental is within a few percent across the supported frequency range', () => {
-    // Tolerance is not zero: linear interpolation's own smoothing (see
-    // FractionalDelayWaveguide.js) makes tuning exact only when the
-    // requested delay happens to land on an integer sample count --
-    // confirmed empirically, not assumed (measured 0% error at frequencies
-    // whose delaySamples is exactly integral, ~0.2% typically, up to ~2%
-    // at the high end of the range where delaySamples is small enough that
-    // one sample of interpolation smoothing is a larger fraction of it).
+    // Tolerance is not zero: interpolation is only exact when the
+    // requested delay happens to land on an integer sample count.
+    // lagrange3 (the default -- see createInterpolator.js) was chosen
+    // specifically because its tuning error matches plain linear
+    // interpolation's own (already small) error almost exactly, unlike
+    // allpass1, which was rejected for this exact reason (measured up to
+    // -18% tuning error at high frequency -- see
+    // soundlib/models/WG1/knowledge/causal-claims.yaml).
     for (const frequency of [30, 100, 220, 440, 1000, 3000]) {
         const samples = renderWg1Pluck(SAMPLE_RATE, 7, { frequency, decayTime: 3 }, 0.3, 0);
         const window = samples.slice(4000, 12000);
@@ -142,12 +201,14 @@ test('estimated fundamental is within a few percent across the supported frequen
 
 test('increasing decayTime measurably and monotonically lengthens decay', () => {
     // Not checked against the naive tau*ln(1000) prediction exactly --
-    // linear interpolation's smoothing measurably shortens actual decay
-    // below that nominal value (confirmed empirically: exactly matches
-    // the prediction when delaySamples happens to be an integer, ~75% of
-    // it at worst-case interpolation fraction 0.5). The relationship this
-    // test checks -- monotonic, substantial increase -- is what the
-    // spec's own acceptance test (section 16) actually asks for.
+    // even with lagrange3 (the default), interpolation still isn't
+    // perfectly transparent, so actual decay can fall a little short of
+    // the nominal value at some frequencies (dramatically less than
+    // linear's own shortfall -- see the frequency-swept tests below,
+    // which are what actually guard against a regression here). The
+    // relationship this test checks -- monotonic, substantial increase --
+    // is what the spec's own acceptance test (section 16) actually asks
+    // for.
     const decaySteps = [0.2, 1, 5];
     let previousT60 = 0;
     for (const decayTime of decaySteps) {
@@ -173,4 +234,46 @@ test('excitationType (noise vs impulse) produces different renders', () => {
     const noise = renderWg1Pluck(SAMPLE_RATE, 42, { frequency: 220, excitationType: 'noise' }, 0.1, 0);
     const impulse = renderWg1Pluck(SAMPLE_RATE, 42, { frequency: 220, excitationType: 'impulse' }, 0.1, 0);
     assert.notDeepEqual(Array.from(noise), Array.from(impulse));
+});
+
+// The regression-coverage gap the interpolation investigation surfaced:
+// every test above this point only ever checked decay/tuning at 220Hz,
+// which would never have caught linear interpolation's catastrophic
+// high-frequency energy collapse (see
+// soundlib/models/WG1/knowledge/causal-claims.yaml). These sweep the full
+// supported frequency range with the default interpolator (lagrange3),
+// checking both internal stored energy (with explicit loss disabled --
+// isolates the propagation/interpolation effect itself) and the
+// fundamental's own band-specific decay (with normal decayTime -- what a
+// listener would actually perceive as "how long the note rings").
+test('internal energy is approximately preserved (explicit loss disabled) across the supported frequency range', () => {
+    for (const frequency of [55, 220, 440, 880, 1760, 3000]) {
+        const preserved = internalEnergyNotReachedWithinSeconds(frequency, 2);
+        assert.ok(preserved, `expected internal energy to stay close to preserved (near-lossless) at ${frequency}Hz with the default interpolator, but it decayed to -60dB within 2s`);
+    }
+});
+
+test('fundamental-band T60 stays close to nominal across the supported frequency range', () => {
+    // Thresholds reflect what's actually measured with lagrange3 (the
+    // default), not a uniform guess: excellent (ratio 0.95-1.0) across
+    // most of the range, but genuinely weaker at both extremes (measured
+    // ~0.79 at 55Hz, ~0.52 at 3000Hz) -- a real, honest residual, not a
+    // bug (still a large improvement over linear's own extremes, e.g.
+    // ~0.02-0.07 for WG2 at 3000Hz -- see
+    // soundlib/models/WG1/knowledge/causal-claims.yaml). Each threshold
+    // is set with real margin below its own measured value, so this
+    // catches a genuine regression without being so loose it can't.
+    const decayTime = 0.5;
+    const expectedT60 = t60(decayTime);
+    const minRatioByFrequency = { 55: 0.65, 110: 0.85, 220: 0.85, 440: 0.85, 880: 0.85, 1760: 0.85, 3000: 0.4 };
+    for (const [frequency, minRatio] of Object.entries(minRatioByFrequency)) {
+        const samples = renderWg1Pluck(SAMPLE_RATE, 7, { frequency: Number(frequency), decayTime }, expectedT60 * 1.4, 0);
+        const measured = fundamentalBandT60Seconds(samples, SAMPLE_RATE, Number(frequency));
+        assert.ok(measured !== null, `expected the fundamental to decay to -60dB within the render at ${frequency}Hz`);
+        const ratio = measured / expectedT60;
+        assert.ok(
+            ratio > minRatio,
+            `expected fundamental-band T60 ratio above ${minRatio} at ${frequency}Hz, got ${ratio.toFixed(3)} (measured ${measured.toFixed(3)}s vs expected ${expectedT60.toFixed(3)}s)`
+        );
+    }
 });

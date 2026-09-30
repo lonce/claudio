@@ -9,11 +9,12 @@ import { RigidTermination } from '../../utilities/RigidTermination.js';
 import { InitialConditionExciter } from '../../utilities/InitialConditionExciter.js';
 import { PointPickup } from '../../utilities/PointPickup.js';
 import { OutputConditioner } from '../../utilities/OutputConditioner.js';
+import { DEFAULT_INTERPOLATION_MODE } from '../../utilities/createInterpolator.js';
 import { WG2_CONFIG } from './wg2Config.js';
 
-export function buildWg2Pipeline(sampleRate, seed) {
+export function buildWg2Pipeline(sampleRate, seed, interpolationMode = DEFAULT_INTERPOLATION_MODE) {
     const maxRailSamples = Math.ceil(sampleRate / (2 * WG2_CONFIG.frequencyMinHz)) + 4;
-    const waveguide = new BidirectionalWaveguide(maxRailSamples);
+    const waveguide = new BidirectionalWaveguide(maxRailSamples, interpolationMode);
     waveguide.setRailLength(sampleRate / (2 * WG2_CONFIG.frequencyDefaultHz));
     return {
         waveguide,
@@ -30,10 +31,12 @@ export function buildWg2Pipeline(sampleRate, seed) {
 
 // settings: { frequency, energy, decayTime, excitationPosition,
 // pickupPosition, excitationType, pickupType }, all optional, defaulting
-// from WG2_CONFIG. Plucks once at pluckAtSeconds (default 0). blockSize
-// matches the worklet's own per-block k-rate recompute granularity (128
-// samples, the standard Web Audio render quantum).
-export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAtSeconds = 0, blockSize = 128) {
+// from WG2_CONFIG. interpolationMode: 'lagrange3' (default), 'linear', or
+// 'allpass1' -- see createInterpolator.js. Plucks once at pluckAtSeconds
+// (default 0). blockSize matches the worklet's own per-block k-rate
+// recompute granularity (128 samples, the standard Web Audio render
+// quantum).
+export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAtSeconds = 0, blockSize = 128, interpolationMode = DEFAULT_INTERPOLATION_MODE) {
     const {
         frequency = WG2_CONFIG.frequencyDefaultHz,
         energy = WG2_CONFIG.energyDefault,
@@ -44,7 +47,7 @@ export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAt
         pickupType = WG2_CONFIG.pickupTypeDefault
     } = settings;
 
-    const pipeline = buildWg2Pipeline(sampleRate, seed);
+    const pipeline = buildWg2Pipeline(sampleRate, seed, interpolationMode);
     pipeline.excitationType = excitationType;
     pipeline.pickupType = pickupType;
 

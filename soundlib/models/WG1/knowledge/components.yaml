@@ -28,11 +28,129 @@
   affordances:
     - sustained-pitched-resonance
     - continuous-live-retuning
+    - swappable-fractional-delay-interpolation-strategy (readAt()/read()
+      accept any interpolator implementing .read()/.reset(); see
+      component.linear-interpolator, component.allpass1-interpolator,
+      component.lagrange3-interpolator below -- interpolationMode is a
+      construction-time/developer choice, not a user-facing Parameter)
   limitations:
     - single-loop-not-yet-bidirectional-two-rail
     - no-independently-addressable-spatial-position
-    - linear-interpolation-introduces-frequency-dependent-smoothing
+    - residual-frequency-dependent-loss-even-with-the-default-interpolator
+      (much smaller than linear's own effect, but not zero at the
+      supported frequency range's extremes -- see
+      component.lagrange3-interpolator)
   code_ref: soundlib/utilities/FractionalDelayWaveguide.js
+
+- id: component.linear-interpolator
+  name: Linear Interpolator
+  roles:
+    - fractional-delay-interpolation-strategy
+  physical_domain: not-applicable-numerical
+  implementation_family:
+    - fir-interpolation
+  stateful: false
+  linear_regime: linear
+  energy_behavior: mildly-dissipates-at-high-frequency
+  inputs:
+    - delay-line-buffer
+    - fractional-offset
+  outputs:
+    - interpolated-sample
+  parameters: []
+  preconditions: []
+  affordances:
+    - simplest-reference-implementation
+    - zero-per-tap-state-safe-to-share-one-instance-across-every-tap-site
+    - usable-as-a-deliberately-characterized-lo-fi-propagation-behavior
+  limitations:
+    - magnitude-response-rolls-off-toward-nyquist (2-point straight-line
+      fit is a coarse approximation to ideal bandlimited interpolation)
+    - when-used-as-the-fractional-delay-waveguides-loop-tap-this-rolloff-
+      compounds-once-per-round-trip-for-wg1-and-twice-for-wg2 (see
+      soundlib/models/WG1/knowledge/causal-claims.yaml's
+      claim.linear-interpolation-collapses-at-high-frequency and WG2's
+      own claim.two-rail-structure-shortens-decay-more-than-single-loop)
+    - no-longer-the-default-as-of-the-interpolation-strategy-investigation
+      (kept selectable as a reference/regression mode)
+  code_ref: soundlib/utilities/LinearInterpolator.js
+
+- id: component.allpass1-interpolator
+  name: First-Order Allpass Interpolator
+  roles:
+    - fractional-delay-interpolation-strategy
+  physical_domain: not-applicable-numerical
+  implementation_family:
+    - iir-interpolation
+  stateful: true
+  linear_regime: linear
+  energy_behavior: preserves-magnitude-by-construction
+  inputs:
+    - current-sample
+    - fractional-offset
+  outputs:
+    - interpolated-sample
+  parameters: []
+  preconditions:
+    - one-instance-per-tap-site-required (carries persistent state -- NOT
+      safe to share a single instance across multiple taps, unlike
+      component.linear-interpolator/component.lagrange3-interpolator)
+  affordances:
+    - unity-magnitude-response-by-construction (a=(1-frac)/(1+frac),
+      y[n]=a*x[n]+x[n-1]-a*y[n-1])
+  limitations:
+    - frequency-dependent-phase-group-delay-introduces-real-tuning-error
+      (measured up to -18.3% at WG2/3000Hz -- over 2.5 semitones flat --
+      growing with frequency, unlike linear's/lagrange3's small and
+      frequency-stable error)
+    - measurable-inharmonicity-even-at-low-harmonics (-0.5% at harmonics
+      1/3/6 @220Hz, where linear and lagrange3 both showed 0%)
+    - coefficient-change-on-live-retuning-can-produce-a-large-transient
+      (measured ~40x amplitude spike, peak 23.0 vs ~0.5-0.6 for
+      linear/lagrange3, during a live 220->440Hz frequency ramp -- a real
+      risk in this codebase since frequency is continuously live-
+      retunable in every model)
+    - rejected-as-the-default-on-this-evidence (see
+      soundlib/models/WG1/knowledge/causal-claims.yaml's
+      claim.lagrange3-interpolation-resolves-energy-loss-without-tuning-regression
+      for the full 3-way comparison)
+  code_ref: soundlib/utilities/AllpassInterpolator.js
+
+- id: component.lagrange3-interpolator
+  name: 3rd-Order Lagrange Interpolator
+  roles:
+    - fractional-delay-interpolation-strategy
+  physical_domain: not-applicable-numerical
+  implementation_family:
+    - fir-interpolation
+  stateful: false
+  linear_regime: linear
+  energy_behavior: closely-preserves-magnitude
+  inputs:
+    - delay-line-buffer
+    - fractional-offset
+  outputs:
+    - interpolated-sample
+  parameters: []
+  preconditions: []
+  affordances:
+    - default-interpolator-as-of-the-interpolation-strategy-investigation
+    - zero-per-tap-state-safe-to-share-one-instance-across-every-tap-site
+    - fixes-linear's-high-frequency-energy-collapse-without-introducing-
+      allpass1's-tuning-or-transient-regressions (measured -- see
+      soundlib/models/WG1/knowledge/causal-claims.yaml's
+      claim.lagrange3-interpolation-resolves-energy-loss-without-tuning-regression)
+  limitations:
+    - still-not-perfect (WG2 at the extreme top of the supported range,
+      3000Hz, retains a measurable residual -- internal-energy T60 ~1.4s
+      rather than fully preserved, a ~24x improvement over linear's
+      ~0.058s there but not a complete fix)
+    - ~2.2x-the-cpu-cost-of-linear (51ms vs 24ms for a 2,000,000-sample
+      render -- negligible in absolute terms)
+    - 4-point-support-requires-slightly-more-delay-line-history-than-
+      linears-2-point-support (no observed practical impact at the buffer
+      sizes this codebase uses)
+  code_ref: soundlib/utilities/LagrangeInterpolator.js
 
 - id: component.loop-loss-filter
   name: Loop Loss Filter

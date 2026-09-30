@@ -61,16 +61,23 @@
 - id: claim.two-rail-structure-shortens-decay-more-than-single-loop
   subject: component.bidirectional-waveguide
   relation: increasing-tends-to-cause
-  object: feature.shorter-than-WG1s-nominal-decay-shortfall
+  object: feature.shorter-than-WG1s-nominal-fundamental-decay-shortfall
   conditions:
     - static-frequency
-    - linear-interpolation-still-in-use
+    - linear-interpolation-still-in-use (HISTORICAL -- linear was the only
+      interpolator when this claim was first written; lagrange3 is the
+      default as of the interpolation-strategy investigation, see
+      claim.lagrange3-resolves-wg2s-high-frequency-energy-collapse below.
+      Kept because it's still an accurate description of the two-rail
+      structure's effect specifically under linear interpolation, and
+      it's the finding a rigorous follow-up critique demanded be properly
+      isolated -- see that claim for the full isolation.)
   expected_direction: decrease
-  confidence: medium
+  confidence: high
   scope: component.bidirectional-waveguide
   mechanism: each-full-round-trip-now-crosses-two-separate-fractional-interpolation-taps-instead-of-one
   possible_confounds:
-    - specific-frequency-tested-fractional-part-of-rail-length-not-swept-exhaustively
+    - specific-frequency-tested-fractional-part-of-rail-length-not-swept-exhaustively (RESOLVED -- see claim.lagrange3-resolves-wg2s-high-frequency-energy-collapse's frequency-swept isolation, which supersedes this)
   validation:
     method: compare-measured-T60-to-analytical-prediction-at-frequency-220Hz
     metric: measured-T60-to-analytically-predicted-T60-ratio
@@ -78,11 +85,72 @@
       At frequency=220Hz: decayTime=0.5s measured ratio 0.780, decayTime=2s
       measured ratio 0.670 -- both somewhat below WG1's own worst-case
       ~0.75 at the same frequency, consistent with (not proof of) the
-      two-taps-per-trip mechanism. Confidence is "medium," not "high" --
-      unlike WG1's own causal-claims.yaml entry for this same phenomenon,
-      this has not yet been isolated with an exact-integer-railLength
-      control case the way WG1's was; that's a natural follow-up
-      measurement before raising this claim's confidence.
+      two-taps-per-trip mechanism. This was originally recorded at
+      confidence "medium" pending a proper isolation with an exact-
+      integer-railLength control and internal-energy (not just pickup)
+      measurement, exactly as a subsequent rigorous critique demanded --
+      that isolation was carried out (see the next claim) and raised this
+      to "high": at MODERATE frequencies (up to ~440Hz) the fundamental-
+      band decay shortfall for WG2 is close to WG1's own (0.975 vs 0.96 at
+      220Hz, band-specific Goertzel measurement, not broadband RMS) --
+      the two-rail structure's OWN contribution to fundamental-decay
+      shortfall, independent of the interpolator-collapse effect, is
+      small. The dramatic, topology-dependent divergence from WG1 is
+      concentrated at HIGH frequencies and is a broadband/internal-energy
+      effect, not primarily a fundamental-decay effect -- see next claim.
+
+- id: claim.lagrange3-resolves-wg2s-high-frequency-energy-collapse
+  subject: component.lagrange-interpolator
+  relation: replacing-linear-with-tends-to-cause
+  object: feature.wg2-internal-energy-preserved-across-most-of-the-supported-frequency-range
+  conditions: []
+  expected_direction: increase
+  confidence: high
+  scope: component.bidirectional-waveguide
+  mechanism: >
+    WG2's round trip crosses a fractional-delay interpolation tap TWICE
+    (once per rail boundary), vs. WG1's once -- so any per-crossing
+    magnitude rolloff compounds harder in WG2 than WG1. Swapping in an
+    interpolator with a much gentler high-frequency rolloff (lagrange3,
+    a 4-point/3rd-order FIR polynomial interpolator, vs. linear's 2-point
+    straight-line fit) reduces each individual crossing's loss, so the
+    doubled-crossing structure no longer compounds into a collapse.
+  possible_confounds:
+    - explicit-loss-filter-coefficient-bug (RULED OUT -- isolated with
+      explicit loss disabled, decayTime forced near-infinite)
+    - pickup-position-phase-cancellation (RULED OUT -- measured via
+      internal stored energy, sum of squares across BOTH rail buffers,
+      not just the pickup output)
+  validation:
+    method: >
+      Same near-lossless internal-energy isolation technique as WG1's own
+      claim.linear-interpolation-collapses-at-high-frequency, swept across
+      55-3000Hz, compared for linear vs. lagrange3 (and vs. allpass1,
+      which was evaluated and rejected on tuning/transient-stability
+      grounds -- see WG1's own causal-claims.yaml for the full 3-way
+      comparison; WG2-specific numbers recorded here).
+    metric: internal-energy-T60-as-fraction-of-analytical-prediction-or-not-reached
+    result: >
+      Under linear interpolation, WG2 tracked WG1 closely below ~440Hz but
+      collapsed to ~0.06/0.02 of nominal at 1760/3000Hz (vs. WG1's own
+      roughly-constant ~0.72-0.77 across the whole range) -- confirming
+      the doubled-crossing mechanism, not a WG2-specific bug. Under
+      lagrange3, internal energy is fully preserved (T60 "not reached"
+      within the render) at every tested frequency except the very top of
+      the range: at 3000Hz, measured internal-energy T60 was ~1.4s rather
+      than "not reached" -- a ~24x improvement over linear's ~0.058s
+      there, but not a complete fix, and honestly recorded as a residual
+      rather than claimed as fully solved. This matches the general
+      pattern (WG2's doubled crossings make it the harder case, so a
+      residual that's negligible for WG1 remains measurable, if greatly
+      reduced, for WG2). Fundamental-band T60 accuracy across the same
+      sweep stayed close to nominal at every frequency from 55-1760Hz,
+      with a similarly weaker (but non-catastrophic) result at 3000Hz --
+      see soundlib/utilities/test/wg2Pipeline.test.js's per-frequency
+      threshold table for the exact measured ratios this claim is backed
+      by. lagrange3 was selected as WG2's (and WG1's) shared default
+      interpolator on this evidence -- see
+      soundlib/utilities/createInterpolator.js.
 
 - id: claim.pickup-type-changes-observed-signal-character
   subject: parameter.pickup-type

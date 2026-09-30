@@ -7,7 +7,12 @@
 # are unchanged from soundlib/models/WG1/knowledge/components.yaml;
 # InitialConditionExciter gained a second method (exciteAtPosition()),
 # noted in its own entry's affordances/limitations rather than duplicating
-# the whole record.
+# the whole record. Likewise, component.linear-interpolator/
+# component.allpass1-interpolator/component.lagrange3-interpolator (the
+# swappable fractional-delay interpolation strategies BidirectionalWaveguide
+# now accepts, same as FractionalDelayWaveguide) are defined once in WG1's
+# components.yaml, not duplicated here -- they're soundlib/utilities/
+# components shared by both models.
 
 - id: component.bidirectional-waveguide
   name: Bidirectional (Two-Rail) Waveguide
@@ -33,9 +38,19 @@
     - position-dependent-excitation
     - position-dependent-pickup
     - continuous-live-retuning
+    - swappable-fractional-delay-interpolation-strategy (one interpolator
+      instance PER RAIL BOUNDARY tap, not shared, since a stateful
+      strategy like component.allpass1-interpolator carries persistent
+      per-tap state; see soundlib/models/WG1/knowledge/components.yaml
+      for the three available strategies -- interpolationMode is a
+      construction-time/developer choice, not a user-facing Parameter)
   limitations:
-    - still-linear-interpolation-per-rail-frequency-dependent-smoothing
-    - measurably-more-decay-shortfall-than-WG1s-single-loop-see-causal-claims
+    - each-round-trip-crosses-the-interpolation-tap-twice-once-per-rail
+      (vs. FractionalDelayWaveguide's once -- this is why WG2's own
+      residual high-frequency energy shortfall under the default
+      interpolator, though small, is larger than WG1's; see
+      claim.lagrange3-resolves-wg2s-high-frequency-energy-collapse in
+      this model's own causal-claims.yaml)
     - not-yet-dispersive-rigid-terminations-only-phase-c
   code_ref: soundlib/utilities/BidirectionalWaveguide.js
 

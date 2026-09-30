@@ -21,10 +21,21 @@
 //
 // Read/write split (not a single read-modify-write pointer, the classic
 // textbook Karplus-Strong shape): writes always happen at the integer
-// write index; reads are linearly interpolated at a fractional offset
-// behind it. This is the standard way to support a continuously variable,
-// non-integer delay length without ambiguity about where a fractional
-// write should land.
+// write index; reads are interpolated at a fractional offset behind it.
+// This is the standard way to support a continuously variable, non-
+// integer delay length without ambiguity about where a fractional write
+// should land.
+//
+// The interpolation METHOD itself is a swappable strategy (see
+// LinearInterpolator.js/AllpassInterpolator.js), not baked in here --
+// readAt()/read() take an optional interpolator argument, defaulting to
+// the shared stateless linear one for exact backward compatibility. A
+// stateful interpolator (allpass) needs its own instance per tap site,
+// not one shared across the whole waveguide -- see AllpassInterpolator.js's
+// own comment for why, and BidirectionalWaveguide.js for how WG2 owns two
+// separate instances for its two propagation-critical taps.
+
+import { SHARED_LINEAR_INTERPOLATOR } from './LinearInterpolator.js';
 
 export class FractionalDelayWaveguide {
     constructor(maxDelaySamples) {
@@ -45,25 +56,20 @@ export class FractionalDelayWaveguide {
         this.delaySamples = Math.max(1, Math.min(delaySamples, this.buffer.length - 2));
     }
 
-    // Linear-interpolated read at an arbitrary offset behind the write
-    // pointer ("the value written `offsetSamples` samples ago"). Phase
-    // A's stated interpolation choice (spec 5.2) -- introduces frequency-
-    // dependent loss under fast modulation, not mistuning under a static/
-    // slowly-changing delay; isolated here so a higher-quality
-    // interpolator can replace it later without touching any caller.
-    readAt(offsetSamples) {
-        const length = this.buffer.length;
-        const position = (this.writeIndex - offsetSamples + length * 2) % length;
-        const indexA = Math.floor(position);
-        const frac = position - indexA;
-        const indexB = (indexA + 1) % length;
-        return this.buffer[indexA] * (1 - frac) + this.buffer[indexB] * frac;
+    // Interpolated read at an arbitrary offset behind the write pointer
+    // ("the value written `offsetSamples` samples ago"), via whichever
+    // interpolator is passed -- defaults to the shared linear one,
+    // reproducing the exact prior behavior when omitted. Measured,
+    // frequency-dependent tradeoffs of each interpolation strategy are
+    // documented on the interpolator classes themselves, not here.
+    readAt(offsetSamples, interpolator = SHARED_LINEAR_INTERPOLATOR) {
+        return interpolator.read(this.buffer, this.buffer.length, this.writeIndex, offsetSamples);
     }
 
     // this.delaySamples behind the write pointer -- the self-feedback
     // loop shape WG1 uses. Sugar over readAt(); unchanged behavior.
-    read() {
-        return this.readAt(this.delaySamples);
+    read(interpolator = SHARED_LINEAR_INTERPOLATOR) {
+        return this.readAt(this.delaySamples, interpolator);
     }
 
     // Writes directly at an arbitrary offset behind the write pointer,

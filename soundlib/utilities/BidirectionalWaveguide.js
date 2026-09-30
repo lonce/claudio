@@ -29,9 +29,23 @@
 // components without reaching into this class's internals.
 
 import { FractionalDelayWaveguide } from './FractionalDelayWaveguide.js';
+import { createInterpolator, DEFAULT_INTERPOLATION_MODE } from './createInterpolator.js';
 
 export class BidirectionalWaveguide {
-    constructor(maxRailSamples) {
+    // interpolationMode: 'lagrange3' (default), 'linear', or 'allpass1' --
+    // a construction-time/developer choice, not a user-facing Parameter
+    // (see createInterpolator.js for why lagrange3 is the default, and
+    // LinearInterpolator.js/AllpassInterpolator.js/LagrangeInterpolator.js
+    // for each one's own measured tradeoffs). Two SEPARATE interpolator
+    // instances are created, one per propagation-critical tap
+    // (rightGoing's bridge-ward read, leftGoing's nut-ward read) -- a
+    // stateful interpolator's memory belongs to one tap site, not to the
+    // waveguide as a whole; sharing one instance across both taps would
+    // corrupt each tap's own delay-line memory with the other tap's
+    // samples. (lagrange3/linear are stateless, so this only matters for
+    // allpass1, but both taps always get independent instances regardless
+    // of mode, for consistency.)
+    constructor(maxRailSamples, interpolationMode = DEFAULT_INTERPOLATION_MODE) {
         this.rightGoing = new FractionalDelayWaveguide(maxRailSamples);
         this.leftGoing = new FractionalDelayWaveguide(maxRailSamples);
         this.railLength = this.rightGoing.buffer.length - 1;
@@ -39,12 +53,17 @@ export class BidirectionalWaveguide {
         // PointPickup's 'bridgeForce' type, which is inherently a
         // bridge-specific quantity, not a function of pickupPosition.
         this.lastBridgeIncoming = 0;
+
+        this.bridgeTapInterpolator = createInterpolator(interpolationMode);
+        this.nutTapInterpolator = createInterpolator(interpolationMode);
     }
 
     reset() {
         this.rightGoing.reset();
         this.leftGoing.reset();
         this.lastBridgeIncoming = 0;
+        this.bridgeTapInterpolator.reset();
+        this.nutTapInterpolator.reset();
     }
 
     setRailLength(railLength) {
@@ -59,8 +78,8 @@ export class BidirectionalWaveguide {
     // applications match WG1's single full-trip one), and writes the
     // result into the OPPOSITE rail's near end.
     tick(nutTermination, bridgeTermination, lossFilter) {
-        const bridgeIncoming = this.rightGoing.readAt(this.railLength);
-        const nutIncoming = this.leftGoing.readAt(this.railLength);
+        const bridgeIncoming = this.rightGoing.readAt(this.railLength, this.bridgeTapInterpolator);
+        const nutIncoming = this.leftGoing.readAt(this.railLength, this.nutTapInterpolator);
         this.lastBridgeIncoming = bridgeIncoming;
 
         const bridgeReflected = lossFilter.process(bridgeTermination.reflect(bridgeIncoming));

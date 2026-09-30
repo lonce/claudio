@@ -642,10 +642,54 @@ Key protocol details:
   near the interpolator's worst-case 0.5 fractional part, measured T60
   was ~75% of the analytical prediction. This is the concrete, quantified
   version of the spec's own general warning (section 5.2) that linear
-  interpolation "introduces frequency-dependent loss" -- expected, not
-  fixed in Phase A; the spec's own suggested remedy (a higher-quality
-  interpolator, swapped in behind the same read/write interface) is
-  deferred to a later phase, not compensated for here.
+  interpolation "introduces frequency-dependent loss." A follow-up
+  investigation (prompted by a rigorous critique demanding proper
+  isolation rather than accepting a plausible-and-consistent finding as
+  confirmed -- see below) found this same mechanism becomes far more
+  severe at high fundamental frequencies specifically: with the explicit
+  loss filter disabled (a near-lossless control, isolating the
+  interpolator from `LoopLossFilter` entirely) and measuring INTERNAL
+  stored energy (sum of squares across the delay buffer, not just the
+  pickup output -- ruling out pickup-position phase-cancellation as a
+  confound), linear interpolation held roughly steady at ~0.72-0.77 of
+  nominal across the full 55-3000Hz supported range for `WG1`. The
+  fundamental's OWN decay (measured with a band-specific single-bin DFT,
+  not broadband RMS) stays close to nominal at moderate frequencies
+  throughout -- it's specifically BROADBAND/high-frequency content that
+  collapses, which a broadband T60 measurement alone would conflate with
+  the fundamental's own (much smaller) shortfall. **Fractional-delay
+  interpolation is now a swappable per-tap strategy, not baked into
+  `FractionalDelayWaveguide` itself** -- `readAt(offset, interpolator)`/
+  `read(interpolator)` delegate to any object implementing `.read()`/
+  `.reset()` (`soundlib/utilities/{Linear,Allpass,Lagrange}Interpolator.js`
+  + a shared `createInterpolator.js` factory), defaulting to
+  `SHARED_LINEAR_INTERPOLATOR` when omitted -- fully backward compatible,
+  confirmed by re-running the existing suite unchanged. A measured 3-way
+  comparison (linear vs. a first-order allpass vs. a 3rd-order/4-point
+  Lagrange, across energy preservation, fundamental T60, tuning error,
+  upper-partial inharmonicity, WG1-vs-WG2 behavior, live pitch-transition
+  stability, and CPU cost) found allpass1 fixes the energy problem but
+  introduces its own serious regressions -- frequency-growing tuning error
+  (-18.3% for WG2 at 3000Hz), measurable inharmonicity even at low
+  harmonics, and a ~40x transient spike during a live frequency ramp,
+  a real risk given `frequency` is continuously live-retunable in every
+  model here. This is exactly the outcome the investigation's own
+  directive warned to check for, not assume away: "Do not assume that
+  [an allpass interpolator] is automatically superior merely because its
+  magnitude response is unity." Lagrange3 fixes the energy problem nearly
+  as completely (internal energy fully preserved at every tested
+  frequency except a small residual at WG2's extreme top of range) while
+  matching linear's own small, frequency-stable tuning error almost
+  exactly -- no regression there -- and is now the default interpolator
+  for both `WG1` and `WG2` (`createInterpolator.js`'s
+  `DEFAULT_INTERPOLATION_MODE`). `interpolationMode` stays a
+  construction-time/developer choice (passed via `processorOptions`,
+  matching `seed`'s existing precedent), not a user-facing `Parameter`;
+  `linear` remains selectable as a reference/regression mode and a
+  potential deliberately-characterized lo-fi propagation behavior. Full
+  measured comparison recorded in
+  `soundlib/models/WG1/knowledge/causal-claims.yaml`'s
+  `claim.lagrange3-interpolation-resolves-energy-loss-without-tuning-regression`.
 - **Read/write split, not a single read-modify-write pointer** (the
   textbook single-pointer Karplus-Strong shape): writes always land at an
   integer write index; reads are linearly interpolated at a fractional
@@ -761,17 +805,39 @@ are shared.
   same net per-full-loop decay `WG1` has, since the two half-trip
   applications multiply back to the full-trip coefficient -- same
   `decayTime` semantics, directly comparable between `WG1` and `WG2`.
-- **The two-rail structure measurably shortens decay somewhat more than
-  `WG1`'s single loop, consistent with (not yet as rigorously isolated
-  as) the interpolation-smoothing mechanism `WG1`'s own causal-claims
-  record identified.** At 220Hz, measured T60 ran ~67-78% of the
-  analytical prediction (`WG1`'s own worst case at the same frequency was
-  ~75%) -- plausible, since a full round trip now crosses two separate
-  fractional interpolation taps (one per rail) instead of `WG1`'s one, but
-  recorded at `confidence: medium` in `causal-claims.yaml`, not `high` --
-  it hasn't yet been isolated with an exact-integer-`railLength` control
-  case the way `WG1`'s finding was. Don't inflate a plausible-and-
-  consistent measurement into a fully isolated one.
+- **The two-rail structure's decay shortfall relative to `WG1`, properly
+  isolated: a small fundamental-decay effect plus a much larger, topology-
+  dependent broadband/high-frequency effect at high pitches -- not one
+  undifferentiated phenomenon.** The original finding (measured T60 at
+  220Hz running ~67-78% of the analytical prediction, plausibly the same
+  interpolation-smoothing mechanism doubled up) was recorded at
+  `confidence: medium`, explicitly not `high`, pending isolation with an
+  exact-integer-`railLength` control the way `WG1`'s own finding used --
+  and a rigorous follow-up critique demanded exactly that: four matched
+  tests (integer/fractional delay × single-loop/two-rail), internal
+  stored energy alongside pickup output (to separate genuine propagation
+  loss from pickup-position phase-cancellation artifacts), and per-
+  frequency-band decay rather than one broadband T60 number. That
+  isolation found: at MODERATE frequencies (up to ~440Hz), `WG2`'s own
+  fundamental-band decay shortfall is close to `WG1`'s (0.975 vs. 0.96 at
+  220Hz) -- the two-rail structure's own contribution is small. The
+  dramatic divergence is concentrated at HIGH frequencies and is
+  specifically a broadband/internal-energy effect: with explicit loss
+  disabled, `WG2` tracked `WG1` closely below ~440Hz but collapsed to
+  ~0.06/0.02 of nominal at 1760/3000Hz (vs. `WG1`'s steady ~0.72-0.77
+  across the whole range) -- confirming the doubled-interpolation-
+  crossing mechanism (each `WG2` round trip crosses the fractional-delay
+  tap twice, once per rail, vs. `WG1`'s once), not a `WG2`-specific bug.
+  Swapping in `lagrange3` (see the Phase A section above) resolves this
+  for `WG2` too, nearly as completely as for `WG1`: internal energy fully
+  preserved at every tested frequency except one honest residual at the
+  extreme top of the range (3000Hz: internal-energy T60 ~1.4s rather than
+  fully preserved -- a ~24x improvement over linear's ~0.058s there, but
+  not a complete fix). This raised the original claim's confidence to
+  `high` in `causal-claims.yaml`, precisely because the isolation was
+  actually carried out rather than assumed -- see
+  `soundlib/models/WG2/knowledge/causal-claims.yaml`'s
+  `claim.lagrange3-resolves-wg2s-high-frequency-energy-collapse`.
 - **The actual point of Phase B, verified quantitatively, not just "it
   sounds different":** exciting or observing at the string's exact
   midpoint suppresses every even harmonic by 20-330x relative to an

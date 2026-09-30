@@ -20,7 +20,7 @@
   scope: component.loop-loss-filter
   mechanism: per-loop-trip-attenuation-coefficient
   possible_confounds:
-    - linear-interpolation-smoothing (see claim.interpolation-smoothing-shortens-decay)
+    - interpolator-induced-decay-shortfall (see claim.lagrange3-interpolation-resolves-energy-loss-without-tuning-regression -- much smaller with the default interpolator than with linear, but not zero at the frequency range's extremes)
   validation:
     method: pluck-then-measure-time-to-minus-60db-rms
     metric: measured-T60-seconds
@@ -59,7 +59,7 @@
   scope: component.fractional-delay-waveguide
   mechanism: loop-round-trip-time-inverse-of-frequency
   possible_confounds:
-    - linear-interpolation-smoothing-introduces-small-error (see claim.interpolation-smoothing-shortens-decay for the same root cause's effect on decay)
+    - interpolator-choice-affects-tuning-error-magnitude (lagrange3, the default, was chosen partly because its tuning error matches linear's own small error almost exactly -- see claim.lagrange3-interpolation-resolves-energy-loss-without-tuning-regression; allpass1 was rejected specifically because it does NOT share this property)
   validation:
     method: pluck-then-autocorrelation-pitch-estimate
     metric: percent-error-vs-requested-frequency
@@ -68,15 +68,22 @@
       fundamental error stayed under 3%, typically well under 1% except
       near the top of the supported range.
 
-- id: claim.interpolation-smoothing-shortens-decay
-  subject: component.fractional-delay-waveguide
+- id: claim.linear-interpolation-smoothing-shortens-decay
+  subject: component.linear-interpolator
   relation: increasing-tends-to-cause
   object: feature.shorter-than-nominal-decay
   conditions:
     - delay-samples-has-nonzero-fractional-part
+    - interpolationMode-is-linear (HISTORICAL -- linear was Phase A's only
+      interpolator; lagrange3 is the default as of the interpolation-
+      strategy investigation, see claim.lagrange3-interpolation-resolves-
+      energy-loss-without-tuning-regression below. Kept here because it's
+      still an accurate description of LinearInterpolator's own behavior,
+      still selectable, and it's the finding that started the whole
+      investigation.)
   expected_direction: decrease
   confidence: high
-  scope: component.fractional-delay-waveguide
+  scope: component.linear-interpolator
   mechanism: linear-interpolation-acts-as-a-mild-lowpass-per-loop-trip
   possible_confounds: []
   validation:
@@ -98,4 +105,107 @@
       the full account. This is the exact frequency-dependent-loss-under-
       interpolation artifact the spec's section 5.2 predicts in general
       terms; this claim quantifies it for Phase A's specific linear
-      interpolator.
+      interpolator. A LATER, more thorough investigation (prompted by a
+      broadband/high-frequency-specific follow-up) found this same
+      mechanism becomes far more severe at high fundamental frequencies --
+      see the next claim.
+
+- id: claim.linear-interpolation-collapses-at-high-frequency
+  subject: component.linear-interpolator
+  relation: increasing-tends-to-cause
+  object: feature.catastrophic-broadband-energy-loss
+  conditions:
+    - high-fundamental-frequency (roughly above 800Hz)
+    - interpolationMode-is-linear (HISTORICAL, see previous claim)
+  expected_direction: decrease
+  confidence: high
+  scope: component.linear-interpolator
+  mechanism: >
+    Linear interpolation's magnitude response rolls off toward Nyquist.
+    An impulse excitation is broadband, so most of its initial energy sits
+    at high frequencies, not the fundamental. At a high fundamental
+    frequency, round trips happen more often per second, so this rolloff
+    gets applied far more often per second of wall-clock time -- the
+    effect compounds faster the higher the pitch.
+  possible_confounds:
+    - explicit-loss-filter-coefficient-bug (RULED OUT -- see validation)
+    - pickup-position-phase-cancellation (RULED OUT -- see validation)
+  validation:
+    method: >
+      Isolated with explicit loss disabled (decayTime set to an
+      effectively infinite value, so LoopLossFilter's own coefficient is
+      ~1.0) and internal stored energy (sum of squares across the active
+      buffer window) measured directly, not just the pickup output --
+      this distinguishes genuine propagation energy loss from a pickup-
+      position interference artifact, which a broadband pickup-only T60
+      measurement cannot.
+    metric: internal-energy-T60-as-fraction-of-analytical-prediction
+    result: >
+      With the loss filter effectively disabled, internal energy still
+      collapsed by ~14 orders of magnitude within under a second at
+      1760Hz -- ruling out the loss filter entirely. A frequency sweep
+      (55-3000Hz) showed WG1 (one interpolator crossing per round trip)
+      staying roughly constant (~0.72-0.77 of nominal) across the WHOLE
+      range, while WG2 (two crossings per round trip, see WG2's own
+      causal-claims.yaml) tracked WG1 closely below ~440Hz but collapsed
+      to ~0.06/0.02 of nominal at 1760/3000Hz. This directly motivated the
+      interpolation-strategy investigation and the swap to lagrange3 as
+      the default -- see the next claim.
+
+- id: claim.lagrange3-interpolation-resolves-energy-loss-without-tuning-regression
+  subject: component.lagrange-interpolator
+  relation: replacing-linear-with-tends-to-cause
+  object: feature.preserved-energy-and-accurate-tuning
+  conditions: []
+  expected_direction: increase
+  confidence: high
+  scope: component.fractional-delay-waveguide
+  mechanism: >
+    Lagrange3 is a higher-order (4-point) FIR polynomial interpolator --
+    a much closer approximation to ideal bandlimited interpolation than
+    linear's 2-point straight-line fit, so its own magnitude rolloff is
+    far gentler. Being FIR (stateless, no persistent memory), it also
+    cannot introduce the kind of coefficient-change-driven transient an
+    IIR/allpass interpolator can when a live parameter change (like
+    frequency) alters its coefficients mid-stream.
+  possible_confounds:
+    - allpass1-was-the-first-candidate-tried-and-rejected (a genuinely
+      different alternative, evaluated and found worse on tuning and
+      transient-stability grounds -- see the comparison in this claim's
+      validation, not silently skipped)
+  validation:
+    method: >
+      A full measured comparison (linear vs. allpass1 vs. lagrange3)
+      across: internal-energy preservation (explicit loss disabled,
+      55-3000Hz); fundamental tuning error (autocorrelation, 55-3000Hz);
+      fundamental T60 accuracy (band-specific Goertzel, explicit
+      decayTime); upper-partial inharmonicity (harmonics 1/3/6 @220Hz,
+      partial-frequency search, not just magnitude); WG1-vs-WG2 behavior;
+      a live pitch-transition ramp (220->440Hz over 0.5s); and relative
+      CPU cost (2,000,000-sample render, Node process.hrtime).
+    metric: multiple (see result)
+    result: >
+      allpass1 fixed the energy-preservation problem (internal-energy
+      T60 "not reached" at every tested frequency, matching lagrange3
+      there) but introduced two serious, previously-undocumented problems
+      of its own: (1) tuning error that grows with frequency, reaching
+      -18.3% for WG2 at 3000Hz (over 2.5 semitones flat) -- vs. linear's
+      and lagrange3's own small, frequency-stable error (~0.2-2%); (2) a
+      ~40x transient amplitude spike (peak 23.0 vs. ~0.5-0.6 for the other
+      two) during a live 220->440Hz frequency ramp -- a real risk in this
+      codebase specifically, since `frequency` is continuously
+      live-retunable in every model. allpass1 also showed measurable
+      inharmonicity (-0.5%) even at LOW harmonics (1, 3, 6), not just
+      high ones, where linear and lagrange3 both showed 0%. lagrange3, by
+      contrast, matched linear's own tuning error almost exactly (no
+      regression) while fixing the energy-preservation problem nearly as
+      completely as allpass1 (one honest residual: WG2 at the extreme top
+      of the range, 3000Hz, measured internal-energy T60 ~1.4s rather
+      than "not reached" -- still a ~24x improvement over linear's ~0.058s
+      there, not a complete fix -- see WG2's own causal-claims.yaml for
+      the WG2-specific numbers). CPU cost is ~2.2x linear's (51ms vs 24ms
+      for 2M samples, i.e. ~45s of audio) -- negligible in absolute terms.
+      lagrange3 was selected as the default on this evidence (see
+      soundlib/utilities/createInterpolator.js) -- a decision, not a
+      default assumption that a "fancier" interpolator is automatically
+      better.

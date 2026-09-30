@@ -60,8 +60,12 @@ class WG2Processor extends AudioWorkletProcessor {
 
         // Rail length is half the full loop length -- buffer sized for
         // the lowest supported frequency's rail, same margin as WG1.
+        // interpolationMode is a construction-time/developer choice, not
+        // a user-facing Parameter -- see createInterpolator.js for why
+        // lagrange3 is the default (BidirectionalWaveguide's own default
+        // when processorOptions.interpolationMode is undefined).
         const maxRailSamples = Math.ceil(this.processorSampleRate / (2 * WG2_CONFIG.frequencyMinHz)) + 4;
-        this.waveguide = new BidirectionalWaveguide(maxRailSamples);
+        this.waveguide = new BidirectionalWaveguide(maxRailSamples, processorOptions.interpolationMode);
         this.waveguide.setRailLength(this.processorSampleRate / (2 * WG2_CONFIG.frequencyDefaultHz));
 
         this.nutTermination = new RigidTermination(WG2_CONFIG.terminationReflection);
