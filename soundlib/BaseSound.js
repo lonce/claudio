@@ -29,8 +29,8 @@ export class BaseSound {
         this.parameters.set(name, new FloatParameter(this, name, defaultValue, min, max, attackTime, decayTime, preference));
     }
 
-    addStringParameter(name, defaultValue) {
-        this.parameters.set(name, new StringParameter(this, name, defaultValue));
+    addStringParameter(name, defaultValue, choices = null) {
+        this.parameters.set(name, new StringParameter(this, name, defaultValue, choices));
     }
 
     addIntegerParameter(name, defaultValue, min, max, preference = null) {

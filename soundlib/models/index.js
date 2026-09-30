@@ -22,3 +22,4 @@ export { BambooChimes } from './BambooChimes.js';
 export { ChimeVocoder } from './ChimeVocoder.js';
 export { Wind } from './Wind.js';
 export { WG1 } from './WG1.js';
+export { WG2 } from './WG2.js';

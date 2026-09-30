@@ -1,0 +1,106 @@
+# CausalClaim records for WG2 (WaveguideResonator v1, Phase B).
+#
+# Every claim here is backed by an actual measurement from
+# soundlib/models/WG2/wg2PipelineCore.js (via soundlib/utilities/test/
+# wg2Pipeline.test.js and the scratch verification that preceded it), not
+# asserted from physical intuition alone -- same discipline as
+# soundlib/models/WG1/knowledge/causal-claims.yaml. frequency/energy/
+# decayTime's basic behavior is unchanged from WG1's own record; the
+# claims below are specific to what Phase B actually added.
+
+- id: claim.excitation-position-creates-movable-modal-nulls
+  subject: parameter.excitation-position
+  relation: moving-toward-a-harmonics-node-tends-to-cause
+  object: feature.suppressed-strength-of-that-harmonic
+  conditions:
+    - two-rail-bidirectional-waveguide
+  expected_direction: suppress-at-node-present-elsewhere
+  confidence: high
+  scope: component.bidirectional-waveguide
+  mechanism: pluck-at-a-position-cannot-excite-a-harmonic-whose-modal-shape-is-zero-there
+  possible_confounds:
+    - pickup-position-could-independently-null-the-same-harmonic (controlled for in validation by fixing pickup position while varying excitation position)
+  validation:
+    method: pluck-at-string-midpoint-vs-off-center-then-measure-per-harmonic-magnitude-via-single-bin-dft
+    metric: even-harmonic-magnitude-ratio-midpoint-vs-off-center
+    result: >
+      At frequency=220Hz, pickupPosition fixed at 0.31: exciting at the
+      midpoint (0.5) suppressed harmonics 2/4/6/8 by ratios of
+      0.008/0.012/0.050/0.008 relative to exciting at 0.18 (off-center) --
+      i.e. 20x-125x quieter. Odd harmonics 1/3/5/7 were NOT systematically
+      suppressed under the same comparison (ratios 1.0-3.4x, noise-level
+      variation, not a suppression pattern). This is the classic, textbook-
+      predicted plucked-string modal-null behavior (a string plucked
+      exactly at its midpoint cannot excite any even harmonic, since their
+      mode shapes are zero there) -- measured directly, not assumed to
+      follow from the DSP structure.
+
+- id: claim.pickup-position-creates-movable-modal-nulls
+  subject: parameter.pickup-position
+  relation: moving-toward-a-harmonics-node-tends-to-cause
+  object: feature.suppressed-strength-of-that-harmonic
+  conditions:
+    - two-rail-bidirectional-waveguide
+  expected_direction: suppress-at-node-present-elsewhere
+  confidence: high
+  scope: component.point-pickup
+  mechanism: observing-at-a-position-cannot-detect-a-harmonic-whose-modal-shape-is-zero-there
+  possible_confounds:
+    - excitation-position-could-independently-null-the-same-harmonic (controlled for in validation by fixing excitation position while varying pickup position)
+  validation:
+    method: fix-excitation-off-center-vary-pickup-position-then-measure-per-harmonic-magnitude
+    metric: even-harmonic-magnitude-ratio-midpoint-vs-off-center
+    result: >
+      At frequency=220Hz, excitationPosition fixed at 0.18: observing at
+      the midpoint (0.5) suppressed harmonics 2/4/6/8 by ratios of
+      0.003/0.007/0.015/0.006 relative to observing at 0.29 (off-center) --
+      60x-330x quieter. Confirms the null is genuinely a property of
+      *where you observe*, independent of the excitation-position claim
+      above, not just a restatement of it.
+
+- id: claim.two-rail-structure-shortens-decay-more-than-single-loop
+  subject: component.bidirectional-waveguide
+  relation: increasing-tends-to-cause
+  object: feature.shorter-than-WG1s-nominal-decay-shortfall
+  conditions:
+    - static-frequency
+    - linear-interpolation-still-in-use
+  expected_direction: decrease
+  confidence: medium
+  scope: component.bidirectional-waveguide
+  mechanism: each-full-round-trip-now-crosses-two-separate-fractional-interpolation-taps-instead-of-one
+  possible_confounds:
+    - specific-frequency-tested-fractional-part-of-rail-length-not-swept-exhaustively
+  validation:
+    method: compare-measured-T60-to-analytical-prediction-at-frequency-220Hz
+    metric: measured-T60-to-analytically-predicted-T60-ratio
+    result: >
+      At frequency=220Hz: decayTime=0.5s measured ratio 0.780, decayTime=2s
+      measured ratio 0.670 -- both somewhat below WG1's own worst-case
+      ~0.75 at the same frequency, consistent with (not proof of) the
+      two-taps-per-trip mechanism. Confidence is "medium," not "high" --
+      unlike WG1's own causal-claims.yaml entry for this same phenomenon,
+      this has not yet been isolated with an exact-integer-railLength
+      control case the way WG1's was; that's a natural follow-up
+      measurement before raising this claim's confidence.
+
+- id: claim.pickup-type-changes-observed-signal-character
+  subject: parameter.pickup-type
+  relation: changing-value-tends-to-cause
+  object: feature.distinctly-different-waveform
+  conditions: []
+  expected_direction: change
+  confidence: high
+  scope: component.point-pickup
+  mechanism: displacement-is-rail-sum-velocity-is-rail-difference-bridgeForce-is-raw-pre-reflection-bridge-sample
+  possible_confounds: []
+  validation:
+    method: render-same-pluck-under-each-pickup-type-compare-sample-by-sample
+    metric: exact-non-equality-of-rendered-sample-arrays
+    result: >
+      At frequency=220Hz, pickupPosition=0.3: displacement, velocity, and
+      bridgeForce each produced a distinct sample array (no two equal).
+      displacement and velocity had similar RMS (0.0147 vs 0.0147);
+      bridgeForce measurably lower (0.0104) -- expected, since it taps a
+      single rail's raw pre-reflection value rather than a sum/difference
+      of both.

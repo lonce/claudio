@@ -73,8 +73,12 @@ export class IntegerParameter extends Parameter {
 }
 ////////////////////////////////////////////////////////////////////////
 export class StringParameter extends Parameter {
-    constructor(soundModel, name, defaultValue) {
+    constructor(soundModel, name, defaultValue, choices = null) {
         super(soundModel, name, defaultValue, null, null, 0, 0);
+        // Optional array of allowed values -- lets a UI render a fixed
+        // set of choices (e.g. a dropdown) instead of free text. null
+        // means unrestricted free text (e.g. a file URL/ID).
+        this.choices = choices;
     }
 
     set(value) {

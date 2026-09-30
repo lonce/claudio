@@ -17,6 +17,7 @@ export const DECAY_TIME_MAX_SECONDS = 30;
 export const DECAY_TIME_DEFAULT_SECONDS = 2.5;
 
 export const EXCITATION_TYPE_DEFAULT = 'noise';
+export const EXCITATION_TYPE_CHOICES = ['noise', 'impulse'];
 
 // Physically informed: two rigid string ends cancel over one full round
 // trip ((-1)*(-1) = +1) -- see RigidTermination.js's own comment. Not
@@ -39,6 +40,7 @@ export const WG1_CONFIG = {
     decayTimeMaxSeconds: DECAY_TIME_MAX_SECONDS,
     decayTimeDefaultSeconds: DECAY_TIME_DEFAULT_SECONDS,
     excitationTypeDefault: EXCITATION_TYPE_DEFAULT,
+    excitationTypeChoices: EXCITATION_TYPE_CHOICES,
     terminationReflection: TERMINATION_REFLECTION,
     outputGain: OUTPUT_GAIN
 };

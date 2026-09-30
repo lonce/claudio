@@ -1,48 +1,50 @@
 import { BaseSoundWithEvents } from '../BaseSoundWithEvents.js';
-import { WG1_CONFIG } from './WG1/wg1Config.js';
+import { WG2_CONFIG } from './WG2/wg2Config.js';
 
 /**
- * WaveguideResonator v1, Phase A -- a real-time digital-waveguide plucked
- * string: a single fractional-delay feedback loop, seeded noise/impulse
- * excitation, an explicit broadband loop-loss stage, a rigid (near-
- * lossless, non-inverting round-trip) termination, and a fixed pickup.
- * See scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md
- * and docs/MODEL_PATTERNS.md's digital-waveguide archetype.
+ * WaveguideResonator v1, Phase B -- a real-time digital-waveguide plucked
+ * string with genuine spatial meaning: a true bidirectional two-rail
+ * waveguide (not WG1's single lumped loop), so excitation position, pickup
+ * position, and pickup type (displacement/velocity/bridgeForce) are
+ * physically meaningful, not just extra numbers. See
+ * scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md and
+ * docs/MODEL_PATTERNS.md's digital-waveguide archetype.
  *
- * A structurally different propagation primitive from every other
- * resonant model in this library (which all use ResonatorBank's 2-pole
- * IIR topology) -- this is delay-line wave propagation instead.
+ * A genuinely different DSP graph from WG1 (its own worklet, not a WG1
+ * subclass), even though most of the underlying components
+ * (LoopLossFilter, RigidTermination, InitialConditionExciter) are shared.
  *
  * play() starts silent (an unexcited loop) rather than auto-plucking --
- * call pluck() to actually hear anything, same as Maraca.strike().
- * frequency retunes continuously/live ("stable" mode, per the spec's own
- * section 8.3) -- there is no separate discrete retrigger mode in Phase A.
+ * call pluck() to actually hear anything, same as WG1.pluck().
  */
-export class WG1 extends BaseSoundWithEvents {
-    static WORKLET_PATH = new URL('./WG1/wg1Processor.js', import.meta.url).href;
+export class WG2 extends BaseSoundWithEvents {
+    static WORKLET_PATH = new URL('./WG2/wg2Processor.js', import.meta.url).href;
 
     constructor(context, name, options = {}) {
         super(context, name, options.gain ?? 0.6);
 
         this.seed = options.seed ?? 1;
 
-        this.addParameter('frequency', WG1_CONFIG.frequencyDefaultHz, WG1_CONFIG.frequencyMinHz, WG1_CONFIG.frequencyMaxHz, 0, 0);
-        this.addParameter('energy', WG1_CONFIG.energyDefault, 0, 1, 0, 0);
-        this.addParameter('decayTime', WG1_CONFIG.decayTimeDefaultSeconds, WG1_CONFIG.decayTimeMinSeconds, WG1_CONFIG.decayTimeMaxSeconds, 0, 0);
-        this.addStringParameter('excitationType', WG1_CONFIG.excitationTypeDefault, WG1_CONFIG.excitationTypeChoices);
+        this.addParameter('frequency', WG2_CONFIG.frequencyDefaultHz, WG2_CONFIG.frequencyMinHz, WG2_CONFIG.frequencyMaxHz, 0, 0);
+        this.addParameter('energy', WG2_CONFIG.energyDefault, 0, 1, 0, 0);
+        this.addParameter('decayTime', WG2_CONFIG.decayTimeDefaultSeconds, WG2_CONFIG.decayTimeMinSeconds, WG2_CONFIG.decayTimeMaxSeconds, 0, 0);
+        this.addParameter('excitationPosition', WG2_CONFIG.excitationPositionDefault, WG2_CONFIG.excitationPositionMin, WG2_CONFIG.excitationPositionMax, 0, 0);
+        this.addParameter('pickupPosition', WG2_CONFIG.pickupPositionDefault, WG2_CONFIG.pickupPositionMin, WG2_CONFIG.pickupPositionMax, 0, 0);
+        this.addStringParameter('excitationType', WG2_CONFIG.excitationTypeDefault, WG2_CONFIG.excitationTypeChoices);
+        this.addStringParameter('pickupType', WG2_CONFIG.pickupTypeDefault, WG2_CONFIG.pickupTypeChoices);
 
         this.addEvent(
             'pluck',
             () => this._submitPluck(),
-            'Excite the loop with a fresh initial condition (a pluck/strike).'
+            'Excite the string at excitationPosition with a fresh initial condition (a pluck/strike).'
         );
 
-        // Near-instant attack -- same reasoning as Maraca.js/_ChimeStrike.js:
-        // the audible attack of a pluck already comes from the worklet's
-        // own excitation/loop response, not from this outer gain node.
+        // Near-instant attack -- same reasoning as WG1.js/Maraca.js: the
+        // audible attack of a pluck already comes from the worklet's own
+        // excitation/loop response, not from this outer gain node.
         this.getParameter('gain').attackTime = 0.005;
 
-        this.docstringPub = 'Pluck the string!';
+        this.docstringPub = 'Pluck the string -- move excitation and pickup position to hear different overtones.';
 
         this.acceptingPlucks = false;
         this.createNodes();
@@ -50,14 +52,14 @@ export class WG1 extends BaseSoundWithEvents {
 
     play() {
         if (this.isPlaying && this.inDecaySegment) {
-            // Same reasoning as Maraca.js's play() override.
+            // Same reasoning as WG1.js's play() override.
             this.acceptingPlucks = true;
         }
         super.play();
     }
 
     createNodes() {
-        this.workletNode = new AudioWorkletNode(this.context, 'wg1Processor', {
+        this.workletNode = new AudioWorkletNode(this.context, 'wg2Processor', {
             processorOptions: {
                 sampleRate: this.context.sampleRate,
                 seed: this.seed
@@ -81,7 +83,7 @@ export class WG1 extends BaseSoundWithEvents {
         const now = this.context.currentTime;
 
         // Reset all synthesis state explicitly on every play, not just at
-        // construction -- same reasoning as Maraca.js.
+        // construction -- same reasoning as WG1.js/Maraca.js.
         this.workletNode.port.postMessage({ type: 'reset' });
 
         this.acceptingPlucks = true;
@@ -89,7 +91,8 @@ export class WG1 extends BaseSoundWithEvents {
         this.scheduleAttack(this.gainNode);
         this.startTime = now;
 
-        ['frequency', 'energy', 'decayTime', 'excitationType'].forEach((name) => this.updateParameter(name));
+        ['frequency', 'energy', 'decayTime', 'excitationPosition', 'pickupPosition', 'excitationType', 'pickupType']
+            .forEach((name) => this.updateParameter(name));
     }
 
     stopSound(onReleased) {
@@ -108,6 +111,8 @@ export class WG1 extends BaseSoundWithEvents {
             case 'frequency':
             case 'energy':
             case 'decayTime':
+            case 'excitationPosition':
+            case 'pickupPosition':
                 if (this.workletNode) {
                     this.workletNode.parameters.get(name).setValueAtTime(param.get(), now);
                 }
@@ -115,6 +120,11 @@ export class WG1 extends BaseSoundWithEvents {
             case 'excitationType':
                 if (this.workletNode) {
                     this.workletNode.port.postMessage({ type: 'set-excitation-type', excitationType: param.get() });
+                }
+                break;
+            case 'pickupType':
+                if (this.workletNode) {
+                    this.workletNode.port.postMessage({ type: 'set-pickup-type', pickupType: param.get() });
                 }
                 break;
             case 'gain':
@@ -149,4 +159,4 @@ export class WG1 extends BaseSoundWithEvents {
     }
 }
 
-export default WG1;
+export default WG2;

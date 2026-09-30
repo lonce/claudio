@@ -1,0 +1,146 @@
+import { BidirectionalWaveguide } from '../../utilities/BidirectionalWaveguide.js';
+import { LoopLossFilter } from '../../utilities/LoopLossFilter.js';
+import { RigidTermination } from '../../utilities/RigidTermination.js';
+import { InitialConditionExciter } from '../../utilities/InitialConditionExciter.js';
+import { PointPickup } from '../../utilities/PointPickup.js';
+import { OutputConditioner } from '../../utilities/OutputConditioner.js';
+import { WG2_CONFIG } from './wg2Config.js';
+
+/**
+ * WaveguideResonator v1, Phase B ("spatial meaning" -- see
+ * scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md):
+ *
+ *   InitialConditionExciter.exciteAtPosition() -> BidirectionalWaveguide
+ *     (two rails + boundary reflections via RigidTermination/LoopLossFilter)
+ *     -> PointPickup -> OutputConditioner
+ *
+ * A true bidirectional two-rail waveguide, unlike WG1's single lumped
+ * loop -- this is what makes excitationPosition/pickupPosition/pickupType
+ * physically meaningful (see BidirectionalWaveguide.js's own comment).
+ * Not a WG1 subclass at the DSP level despite sharing most components --
+ * a genuinely different propagation structure.
+ */
+class WG2Processor extends AudioWorkletProcessor {
+    static get parameterDescriptors() {
+        return [
+            { name: 'active', defaultValue: 0, minValue: 0, maxValue: 1 },
+            {
+                name: 'frequency',
+                defaultValue: WG2_CONFIG.frequencyDefaultHz,
+                minValue: WG2_CONFIG.frequencyMinHz,
+                maxValue: WG2_CONFIG.frequencyMaxHz
+            },
+            { name: 'energy', defaultValue: WG2_CONFIG.energyDefault, minValue: 0, maxValue: 1 },
+            {
+                name: 'decayTime',
+                defaultValue: WG2_CONFIG.decayTimeDefaultSeconds,
+                minValue: WG2_CONFIG.decayTimeMinSeconds,
+                maxValue: WG2_CONFIG.decayTimeMaxSeconds
+            },
+            {
+                name: 'excitationPosition',
+                defaultValue: WG2_CONFIG.excitationPositionDefault,
+                minValue: WG2_CONFIG.excitationPositionMin,
+                maxValue: WG2_CONFIG.excitationPositionMax
+            },
+            {
+                name: 'pickupPosition',
+                defaultValue: WG2_CONFIG.pickupPositionDefault,
+                minValue: WG2_CONFIG.pickupPositionMin,
+                maxValue: WG2_CONFIG.pickupPositionMax
+            }
+        ];
+    }
+
+    constructor(options) {
+        super();
+        const processorOptions = options.processorOptions ?? {};
+        this.processorSampleRate = processorOptions.sampleRate ?? sampleRate;
+        const seed = processorOptions.seed ?? 1;
+
+        // Rail length is half the full loop length -- buffer sized for
+        // the lowest supported frequency's rail, same margin as WG1.
+        const maxRailSamples = Math.ceil(this.processorSampleRate / (2 * WG2_CONFIG.frequencyMinHz)) + 4;
+        this.waveguide = new BidirectionalWaveguide(maxRailSamples);
+        this.waveguide.setRailLength(this.processorSampleRate / (2 * WG2_CONFIG.frequencyDefaultHz));
+
+        this.nutTermination = new RigidTermination(WG2_CONFIG.terminationReflection);
+        this.bridgeTermination = new RigidTermination(WG2_CONFIG.terminationReflection);
+        // One shared loss filter -- its coefficient only depends on
+        // decayTime/sampleRate/railLength, identical at both boundaries.
+        this.lossFilter = new LoopLossFilter(
+            WG2_CONFIG.decayTimeDefaultSeconds,
+            this.processorSampleRate,
+            this.waveguide.railLength
+        );
+        this.exciter = new InitialConditionExciter(seed);
+        this.pickup = new PointPickup();
+        this.output = new OutputConditioner({ outputGain: WG2_CONFIG.outputGain });
+
+        this.excitationType = WG2_CONFIG.excitationTypeDefault;
+        this.pickupType = WG2_CONFIG.pickupTypeDefault;
+
+        this.pendingCommands = [];
+        this.port.onmessage = ({ data }) => {
+            if (
+                data?.type === 'pluck' ||
+                data?.type === 'reset' ||
+                data?.type === 'set-excitation-type' ||
+                data?.type === 'set-pickup-type'
+            ) {
+                this.pendingCommands.push(data);
+            }
+        };
+    }
+
+    process(inputs, outputs, parameters) {
+        const channel = outputs[0]?.[0];
+        if (!channel) return true;
+
+        const frequency = Math.max(
+            WG2_CONFIG.frequencyMinHz,
+            Math.min(parameters.frequency[0], WG2_CONFIG.frequencyMaxHz)
+        );
+        this.waveguide.setRailLength(this.processorSampleRate / (2 * frequency));
+        this.lossFilter.setDecayTime(parameters.decayTime[0], this.processorSampleRate, this.waveguide.railLength);
+
+        const excitationPosition = parameters.excitationPosition[0];
+        const pickupPosition = parameters.pickupPosition[0];
+
+        for (const command of this.pendingCommands) {
+            if (command.type === 'reset') {
+                this.waveguide.reset();
+                this.output.reset();
+            } else if (command.type === 'set-excitation-type') {
+                this.excitationType = command.excitationType;
+            } else if (command.type === 'set-pickup-type') {
+                this.pickupType = command.pickupType;
+            } else if (command.type === 'pluck') {
+                this.exciter.exciteAtPosition(
+                    this.waveguide.rightGoing,
+                    this.waveguide.leftGoing,
+                    this.waveguide.railLength,
+                    excitationPosition,
+                    this.excitationType,
+                    parameters.energy[0]
+                );
+            }
+        }
+        this.pendingCommands.length = 0;
+
+        if (parameters.active[0] < 0.5) {
+            channel.fill(0);
+            return true;
+        }
+
+        for (let i = 0; i < channel.length; i++) {
+            this.waveguide.tick(this.nutTermination, this.bridgeTermination, this.lossFilter);
+            const observed = this.pickup.observe(this.waveguide, pickupPosition, this.pickupType);
+            channel[i] = this.output.tick(observed);
+        }
+
+        return true;
+    }
+}
+
+registerProcessor('wg2Processor', WG2Processor);

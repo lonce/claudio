@@ -1,5 +1,5 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes, ChimeVocoder, Wind, WG1 } from '/soundlib/models/index.js';
+import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes, ChimeVocoder, Wind, WG1, WG2 } from '/soundlib/models/index.js';
 import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset, WindChimesPreset, MaracaExtendedPreset, WG1Preset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
@@ -86,7 +86,7 @@ async function initApp() {
         const [
             risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN,
             ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube,
-            windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind, wg1,
+            windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind, wg1, wg2,
             hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset,
             grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset,
             windChimesPreset, maracaExtendedPreset, wg1Preset
@@ -124,6 +124,7 @@ async function initApp() {
             audioSystem.createSound(ChimeVocoder, 'Chime Vocoder', 0),
             audioSystem.createSound(Wind, 'Wind', 0),
             audioSystem.createSound(WG1, 'WG1', 0),
+            audioSystem.createSound(WG2, 'WG2', 0),
             audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0),
             audioSystem.createSound(DronePreset, 'Drone preset', 0),
             audioSystem.createSound(RissetPreset, 'Risset preset', 0),
@@ -138,7 +139,7 @@ async function initApp() {
             audioSystem.createSound(WG1Preset, 'WG1 preset', 0)
         ]);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind, wg1, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset, wg1Preset];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind, wg1, wg2, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset, wg1Preset];
 
         console.log('Sounds loaded');
 
@@ -624,7 +625,23 @@ function updateSliderBox() {
         controlRow.className = 'parameter-control-row';
         paramControl.appendChild(controlRow);
 
-        if (param.isStringParameter()) {
+        if (param.isStringParameter() && Array.isArray(param.choices) && param.choices.length > 0) {
+            // Fixed set of allowed values (e.g. WG1/WG2's excitationType,
+            // WG2's pickupType) -- a dropdown, not free text.
+            const select = document.createElement('select');
+            param.choices.forEach(choice => {
+                const option = document.createElement('option');
+                option.value = choice;
+                option.textContent = choice;
+                select.appendChild(option);
+            });
+            select.value = param.get();
+            select.addEventListener('change', () => {
+                currentSound.setParameter(param.name, select.value);
+                updateSliderValues();
+            });
+            controlRow.appendChild(select);
+        } else if (param.isStringParameter()) {
             const input = document.createElement('input');
             input.type = 'text';
             input.value = param.get();
@@ -800,7 +817,10 @@ function updateSliderValues() {
         const paramControl = sliderBox.querySelector(`.parameter-control[data-param-name="${paramName}"]`);
         if (paramControl) {
             const param = control.param;
-            if (param.isStringParameter()) {
+            if (param.isStringParameter() && Array.isArray(param.choices) && param.choices.length > 0) {
+                const select = paramControl.querySelector('select');
+                if (select) select.value = param.get();
+            } else if (param.isStringParameter()) {
                 const input = paramControl.querySelector('input[type="text"]');
                 if (input && input.dataset.editing !== 'true') {
                     input.value = param.get();

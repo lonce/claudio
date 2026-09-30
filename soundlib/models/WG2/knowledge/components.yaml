@@ -1,0 +1,97 @@
+# ComponentType records for WG2 (WaveguideResonator v1, Phase B).
+#
+# Pilot scale, per docs/MODEL_PATTERNS.md's digital-waveguide archetype and
+# scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md
+# section 9.1 -- only the NEW components this phase actually built.
+# RigidTermination, LoopLossFilter, and InitialConditionExciter (excite())
+# are unchanged from soundlib/models/WG1/knowledge/components.yaml;
+# InitialConditionExciter gained a second method (exciteAtPosition()),
+# noted in its own entry's affordances/limitations rather than duplicating
+# the whole record.
+
+- id: component.bidirectional-waveguide
+  name: Bidirectional (Two-Rail) Waveguide
+  roles:
+    - propagation
+  physical_domain: one-dimensional-wave-propagation
+  implementation_family:
+    - digital-waveguide
+  stateful: true
+  linear_regime: linear
+  energy_behavior: stores-and-circulates
+  inputs:
+    - boundary-reflection-inputs
+  outputs:
+    - position-addressable-wave-state
+  parameters:
+    - parameter.frequency
+  preconditions:
+    - rail-length-positive
+    - rail-length-within-buffer-bounds
+  affordances:
+    - independently-addressable-spatial-position
+    - position-dependent-excitation
+    - position-dependent-pickup
+    - continuous-live-retuning
+  limitations:
+    - still-linear-interpolation-per-rail-frequency-dependent-smoothing
+    - measurably-more-decay-shortfall-than-WG1s-single-loop-see-causal-claims
+    - not-yet-dispersive-rigid-terminations-only-phase-c
+  code_ref: soundlib/utilities/BidirectionalWaveguide.js
+
+- id: component.point-pickup
+  name: Point Pickup
+  roles:
+    - pickup
+  physical_domain: wave-observation
+  implementation_family:
+    - traveling-wave-sum-difference
+  stateful: false
+  linear_regime: linear
+  energy_behavior: observes-only-non-invasive
+  inputs:
+    - bidirectional-waveguide-state
+  outputs:
+    - observed-sample
+  parameters:
+    - parameter.pickup-position
+    - parameter.pickup-type
+  preconditions:
+    - pickup-position-within-valid-range
+  affordances:
+    - displacement-observation
+    - velocity-observation-via-traveling-wave-difference
+    - bridge-force-observation
+  limitations:
+    - bridgeForce-ignores-pickupPosition-by-physical-definition
+    - no-spatial-averaging-width-yet-point-only
+  code_ref: soundlib/utilities/PointPickup.js
+
+- id: component.initial-condition-exciter-position-aware
+  name: Initial Condition Exciter (position-aware extension)
+  roles:
+    - exciter
+  physical_domain: energy-injection
+  implementation_family:
+    - buffer-fill
+  stateful: true
+  linear_regime: not-applicable
+  energy_behavior: injects
+  inputs:
+    - trigger-event
+  outputs:
+    - initial-two-rail-state
+  parameters:
+    - parameter.energy
+    - parameter.excitation-type
+    - parameter.excitation-position
+  preconditions:
+    - seeded-random-source-available
+    - excitation-position-within-valid-range
+  affordances:
+    - position-localized-point-excitation-noise-impulse
+    - whole-string-shape-excitation-triangle
+  limitations:
+    - triangle-is-pure-displacement-zero-initial-velocity-no-velocityMix-yet
+    - noise-and-impulse-are-single-sample-point-injections-no-width-yet
+  code_ref: soundlib/utilities/InitialConditionExciter.js (exciteAtPosition method)

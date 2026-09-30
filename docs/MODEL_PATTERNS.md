@@ -44,6 +44,7 @@ library.
 | `ChimeVocoder` | Cross-synthesis / vocoder (hidden PhISEM engine + external-audio carrier filterbank) | `soundlib/models/ChimeVocoder.js` |
 | `Wind` | Continuous noise-excited, simplex-modulated resonant filter | `soundlib/models/Wind.js` |
 | `WG1` | Digital waveguide (delay-line propagation), Phase A | `soundlib/models/WG1.js` |
+| `WG2` | Digital waveguide (delay-line propagation), Phase B (bidirectional two-rail) | `soundlib/models/WG2.js` |
 | `WorkerFM` | Worker-offloaded generation | `soundlib/models/WorkerFM.js` |
 | `WaterFillRNN` | Worker-offloaded generation (ML/ONNX) | `soundlib/models/WaterFillRNN.js` |
 | `WaveTrigger` | File/sample playback (plain) | `soundlib/models/WaveTrigger.js` |
@@ -701,6 +702,96 @@ Key protocol details:
   model that would actually benefit from it. See "Parameter mapping
   classification," below, for a related piece of that proposal adopted
   more generally.
+
+#### Phase B (`WG2`): true bidirectional propagation, confirming the reuse bet
+
+`WG2` (`soundlib/models/WG2.js` / `soundlib/models/WG2/wg2Processor.js`)
+upgrades from `WG1`'s single lumped loop to a true bidirectional two-rail
+waveguide (`soundlib/utilities/BidirectionalWaveguide.js`) -- separate
+rightward/leftward-traveling delay lines, needed because excitation
+position, pickup position, and pickup type have no physical meaning on a
+single loop with no notion of "where along the string." A genuinely
+different top-level model (its own worklet, its own `registerProcessor`
+name), not a `WG1` subclass, even though most of the underlying components
+are shared.
+
+- **The reuse bet from Phase A paid off, concretely, not just in
+  principle.** Phase B needed no new delay-line class -- only
+  `FractionalDelayWaveguide` generalized with `readAt(offset)`/
+  `writeAt(offset, value)` (arbitrary-offset tap/inject, not just its own
+  fixed `delaySamples`), added in a way that left `read()`/`write()`
+  completely unchanged (`WG1`'s existing test suite re-run afterward
+  confirmed zero regression, not assumed). `RigidTermination` and
+  `LoopLossFilter` needed zero code changes at all, just different
+  constructor arguments (see below) -- both already generic enough.
+  `InitialConditionExciter` gained a new method
+  (`exciteAtPosition()`) alongside its existing `excite()`, which `WG1`
+  still uses untouched.
+- **A position `p` (0=nut, 1=bridge) maps directly onto each rail's own
+  existing "how many samples ago" read semantics** -- the sample currently
+  at position `p` on the rightward rail is exactly the one written
+  `p*railLength` samples ago; on the leftward rail, `(1-p)*railLength`
+  samples ago (it started at the bridge). No new lookup algorithm needed,
+  just calling the same primitive with an explicit offset instead of the
+  rail's own fixed length.
+- **Displacement and particle velocity pickups need no separate DSP at
+  all** -- they fall directly out of the sum/difference of the two rails'
+  values at a position (`soundlib/utilities/PointPickup.js`), a standard
+  digital-waveguide identity, not an approximation. `bridgeForce` is
+  inherently bridge-specific (the raw, pre-reflection bridge-incoming
+  sample) and does NOT depend on `pickupPosition` at all -- documented
+  plainly in `PointPickup.js` rather than silently ignoring the parameter
+  for that one pickup type.
+- **`WG1`'s termination reflection value (`+1`) does NOT carry over --
+  each individual boundary needs the physically correct value again.**
+  `WG1`'s single lumped loop used `+1` (non-inverting) specifically
+  because it represented *both* string ends' reflections combined over
+  one full round trip ((-1)×(-1) = +1). With two rails and the boundary
+  reflections now explicit and separate, each one is a proper rigid
+  string end on its own -- sign-inverting, `reflectionCoefficient ≈ -1`,
+  at both nut and bridge. Reusing a component correctly sometimes means
+  reusing the class but NOT its previous configuration -- check what a
+  constant actually represented in its old context before assuming it
+  transfers.
+- **Loss also needed no new component, just one application per boundary
+  instead of one per full loop** -- `LoopLossFilter` was already
+  parameterized generically by "how many samples this application
+  represents" (`WG1`'s own fix, see above); calling it once at each
+  boundary with `railLength` (not the full loop length) gives the exact
+  same net per-full-loop decay `WG1` has, since the two half-trip
+  applications multiply back to the full-trip coefficient -- same
+  `decayTime` semantics, directly comparable between `WG1` and `WG2`.
+- **The two-rail structure measurably shortens decay somewhat more than
+  `WG1`'s single loop, consistent with (not yet as rigorously isolated
+  as) the interpolation-smoothing mechanism `WG1`'s own causal-claims
+  record identified.** At 220Hz, measured T60 ran ~67-78% of the
+  analytical prediction (`WG1`'s own worst case at the same frequency was
+  ~75%) -- plausible, since a full round trip now crosses two separate
+  fractional interpolation taps (one per rail) instead of `WG1`'s one, but
+  recorded at `confidence: medium` in `causal-claims.yaml`, not `high` --
+  it hasn't yet been isolated with an exact-integer-`railLength` control
+  case the way `WG1`'s finding was. Don't inflate a plausible-and-
+  consistent measurement into a fully isolated one.
+- **The actual point of Phase B, verified quantitatively, not just "it
+  sounds different":** exciting or observing at the string's exact
+  midpoint suppresses every even harmonic by 20-330x relative to an
+  off-center comparison, while odd harmonics are NOT systematically
+  suppressed under the same comparison (ratios scattered around 1x, not a
+  pattern) -- the classic, textbook plucked-string modal-null behavior,
+  confirmed independently for both excitation position and pickup
+  position (controlling for the other by holding it fixed), via a simple
+  single-frequency-bin DFT magnitude measurement per harmonic
+  (`soundlib/utilities/test/wg2Pipeline.test.js`) -- no full FFT needed for
+  this kind of targeted check.
+- **A second real model now exists to check the `ComponentType`/
+  `CausalClaim` knowledge-record convention against** -- `WG2`'s own
+  records (`soundlib/models/WG2/knowledge/*.yaml`) stayed pilot-scale too
+  (same two entity types, every claim measured), and cross-reference
+  `WG1`'s entries by name in prose (e.g. `RigidTermination`'s changed
+  configuration, above) rather than through a formal `CompatibilityRule`
+  record -- still not yet the moment to add that entity type; two models'
+  worth of prose cross-references remains cheaper and clearer than
+  formalizing a rule between them for its own sake.
 
 ### 6. Worker-offloaded generation
 
