@@ -43,6 +43,7 @@ library.
 | `BambooChimes` | Worklet audio source (stochastic/physically-informed, PhISEM) | `soundlib/models/BambooChimes.js` |
 | `ChimeVocoder` | Cross-synthesis / vocoder (hidden PhISEM engine + external-audio carrier filterbank) | `soundlib/models/ChimeVocoder.js` |
 | `Wind` | Continuous noise-excited, simplex-modulated resonant filter | `soundlib/models/Wind.js` |
+| `WG1` | Digital waveguide (delay-line propagation), Phase A | `soundlib/models/WG1.js` |
 | `WorkerFM` | Worker-offloaded generation | `soundlib/models/WorkerFM.js` |
 | `WaterFillRNN` | Worker-offloaded generation (ML/ONNX) | `soundlib/models/WaterFillRNN.js` |
 | `WaveTrigger` | File/sample playback (plain) | `soundlib/models/WaveTrigger.js` |
@@ -142,6 +143,31 @@ construction** (e.g. its amplitude/decay constants, built from qualitative
 descriptions because no measured table existed) — say so directly in
 comments rather than presenting a plausible-sounding number as measured
 when it isn't.
+
+**Parameter mapping classification (four categories, not just two)**:
+`scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md`
+(section 7, the design document behind the `WG1`/digital-waveguide
+archetype — see 5.3 below) proposes a more complete version of the
+sourced-fact/informed-construction split above, worth using generally
+going forward, not just for that one model:
+
+- **physical**: derived from a physical quantity or equation (e.g.
+  `BellStrike.js`'s partial ratios).
+- **physically informed**: preserves the expected causal direction but is
+  simplified (e.g. `BellStrike.js`'s amplitude/decay constants; `Wind`'s
+  lowpass-position compensation, exact for the *known* fixed filter it
+  corrects, not a measured physical property).
+- **perceptual macro**: a convenient control over several lower-level
+  parameters (e.g. most PhISEM `systemDecay`/`collisionDensity`-style
+  controls).
+- **synthetic extension**: intentionally exceeds the assumed physical
+  object while remaining stable and causally intelligible (e.g. `Wind`'s
+  `Q_COMPENSATION_EXPONENT`, an empirically-fit correction with no
+  physical-object equivalent — deliberately chosen, not a stand-in for a
+  physical measurement that wasn't done). State which category a mapping
+  falls into directly in its comment; a model-building agent (human or
+  otherwise) should be able to tell a deliberate synthetic choice from a
+  measured physical property without reading the derivation.
 
 ### 3. Meta-model composition
 
@@ -560,6 +586,121 @@ Key protocol details:
   analytical `lowpassMagnitudeAt()` companion, are the concrete
   candidates to promote the moment a second atmospheric/textural model
   (rain, fire, ocean) needs its own noise pre-filter.
+
+### 5.3. Digital waveguide (delay-line propagation)
+
+A structurally different propagation primitive from every other resonant
+archetype above -- 2, 5.1, and 5.2 all use `ResonatorBank`'s 2-pole IIR
+topology (coefficients derived from frequency/decay, feedback via
+`a1*y[n-1] + a2*y[n-2]`); this archetype instead represents propagation as
+literal delay: a fractional-delay circular buffer with feedback, in the
+Karplus-Strong tradition. Canonical: `soundlib/models/WG1.js` /
+`soundlib/models/WG1/wg1Processor.js`, built from
+`scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md`
+("WG1", Phase A only -- a single delay loop representing one full round
+trip, not yet a true bidirectional two-rail waveguide with independently
+addressable spatial positions; later phases add position-dependent
+excitation/pickup, dispersion, bridge filtering, and polarization, none
+of which exist yet).
+
+Key protocol details:
+
+- **The reusable components live in `soundlib/utilities/`
+  (`FractionalDelayWaveguide`, `LoopLossFilter`, `RigidTermination`,
+  `InitialConditionExciter`), not under `soundlib/models/WG1/`** -- a
+  deliberate, up-front exception to this codebase's usual "extract once a
+  second real consumer exists" rule (archetype 5.2's `CascadedLowpass`
+  note, e.g.). The spec's own stated primary goal is components "whose
+  internal parts can later be reused by a model-building agent" -- future
+  bow-friction exciters, hammer/mallet contacts, and tube/bore models are
+  named as intended reuses of these exact propagation/loss/termination
+  pieces. Justified by that stated intent, not a speculative guess at
+  future need.
+- **The loss filter's coefficient is NOT `decayMath.js`'s
+  `perSampleCoefficient()`, despite that looking like an obvious fit --
+  found wrong empirically, not caught by inspection.** An initial version
+  used it directly and measured a decay roughly `delaySamples` times too
+  slow (confirmed by rendering and tracking RMS over time). The reason:
+  in this topology, the loss filter is applied once per LOOP TRIP (every
+  `delaySamples` samples, when a given packet of stored energy comes back
+  around), not once per elapsed sample the way `perSampleCoefficient`
+  assumes -- energy just sits untouched in the delay buffer between
+  trips. The correct coefficient scales by the loop length itself:
+  `exp(-delaySamples / (decaySeconds * sampleRate))`. General lesson worth
+  carrying forward: a helper's docstring describing what it computes is
+  not the same as confirming it's the right primitive for a *new*
+  topology -- that needs a render-and-measure check, same discipline
+  already established for Wind's/ChimeVocoder's gain staging, just
+  applied here to a timing/decay relationship instead of a gain one.
+- **Linear interpolation measurably shortens decay below the naive
+  `decayTime`-derived prediction, and the effect is fully explained by the
+  interpolator, not a separate bug** -- confirmed, not assumed: at a
+  frequency whose `delaySamples` happens to be an exact integer (zero
+  interpolation smoothing), measured T60 matched the analytical
+  prediction exactly (ratio 1.000); at frequencies with `delaySamples`
+  near the interpolator's worst-case 0.5 fractional part, measured T60
+  was ~75% of the analytical prediction. This is the concrete, quantified
+  version of the spec's own general warning (section 5.2) that linear
+  interpolation "introduces frequency-dependent loss" -- expected, not
+  fixed in Phase A; the spec's own suggested remedy (a higher-quality
+  interpolator, swapped in behind the same read/write interface) is
+  deferred to a later phase, not compensated for here.
+- **Read/write split, not a single read-modify-write pointer** (the
+  textbook single-pointer Karplus-Strong shape): writes always land at an
+  integer write index; reads are linearly interpolated at a fractional
+  offset behind it. This is what makes a continuously variable, non-
+  integer delay length (needed for accurate tuning at arbitrary
+  frequencies) unambiguous -- a single read-modify-write pointer has no
+  clean answer for "where does a fractional write go."
+- **The exciter fills the loop's initial state via the SAME `write()` the
+  steady-state feedback loop uses** (`InitialConditionExciter.excite()`
+  just calls `waveguide.write()` `delaySamples` times), rather than a
+  separate buffer-indexing scheme -- one code path that knows how loop
+  positions map to buffer indices, not two that could drift out of sync.
+  This is a one-time state-fill at trigger time, a genuinely different
+  operation from archetype 5.1's `NoiseBurstExciter` (an ongoing
+  per-sample decaying process) despite the surface-level "noise-based
+  exciter" similarity -- don't reach for `NoiseBurstExciter` here.
+- **`RigidTermination`'s default reflection is nowhere near actually
+  lossy (1.0, non-inverting)**, even though a physical string's ends are
+  each near-total, sign-inverting reflectors -- because Phase A's single
+  delay loop already represents a FULL round trip (nut -> bridge -> nut),
+  and two sign-inverting reflections cancel over one full trip
+  ((-1)*(-1) = +1). Loss lives entirely in `LoopLossFilter`, deliberately
+  kept separate (per the spec's own section 5.3 warning against the
+  classic original-Karplus-Strong pitfall of folding loss into a
+  two-point averaging filter, which conflates damping with a slight,
+  inseparable pitch shift) -- `RigidTermination` stays a distinct,
+  swappable component so Phase C's `BridgeTermination` (frequency-
+  dependent, with real state) can replace it without touching
+  `LoopLossFilter` at all.
+- **`frequency` retunes continuously/live by construction, with no extra
+  code for it** -- read every block and fed straight into
+  `waveguide.setDelaySamples()`, exactly like every other model's k-rate
+  parameters. This satisfies the spec's "stable" retuning mode (section
+  8.3) for free; there is no separate discrete "retrigger" mode
+  implemented in Phase A.
+- **Gain staging needed no compensation term at all, unlike Wind** --
+  measured worst-case peak across the full frequency/energy/decayTime/
+  excitationType grid was ~1.08 (`outputGain=1`, `OutputConditioner`'s
+  clamp is 4.0), because a near-unity-gain lossy loop doesn't amplify a
+  bounded excitation the way a high-Q resonator does. Confirms, rather
+  than assumes, that not every worklet audio source needs Wind-style
+  derived compensation -- measure before assuming a model needs it, in
+  either direction.
+- **First test case for this codebase's `ComponentType`/`CausalClaim`
+  knowledge records** (`soundlib/models/WG1/knowledge/*.yaml`, following
+  `scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md`'s
+  proposed schema) -- a structured, queryable form of exactly the kind of
+  causal reasoning this doc already carries in prose (the bullets above
+  are themselves causal claims). Kept model-local and pilot-scale
+  deliberately: only the two entity types with clear immediate payoff
+  (`ComponentType`, `CausalClaim`), each claim backed by an actual
+  `wg1PipelineCore.js` measurement, not the full proposed 9-entity
+  ontology built speculatively ahead of a second physically-grounded
+  model that would actually benefit from it. See "Parameter mapping
+  classification," below, for a related piece of that proposal adopted
+  more generally.
 
 ### 6. Worker-offloaded generation
 

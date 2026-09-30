@@ -1,0 +1,101 @@
+# CausalClaim records for WG1 (WaveguideResonator v1, Phase A).
+#
+# Every claim here is backed by an actual measurement from
+# soundlib/models/WG1/wg1PipelineCore.js (via soundlib/utilities/test/
+# wg1Pipeline.test.js and the scratch verification that preceded it),
+# not asserted from physical intuition alone -- per the spec's section 11
+# ("Each claim should ultimately have an automated sweep and a measured
+# result attached to it") and this project's established "measure, don't
+# assume" discipline (see docs/MODEL_PATTERNS.md's Wind/ChimeVocoder
+# gain-staging notes for prior examples of this same discipline).
+
+- id: claim.decay-time-lengthens-decay
+  subject: parameter.decay-time
+  relation: increasing-tends-to-cause
+  object: feature.longer-ring-out-duration
+  conditions:
+    - fixed-frequency
+  expected_direction: increase
+  confidence: high
+  scope: component.loop-loss-filter
+  mechanism: per-loop-trip-attenuation-coefficient
+  possible_confounds:
+    - linear-interpolation-smoothing (see claim.interpolation-smoothing-shortens-decay)
+  validation:
+    method: pluck-then-measure-time-to-minus-60db-rms
+    metric: measured-T60-seconds
+    result: >
+      Monotonic and substantial across decayTime = [0.1, 0.5, 1, 3, 8, 20]s
+      at frequency=220Hz: measured T60 = [0.60, 2.72, 5.14, 13.71, 31.65,
+      62.58]s. Each step exceeded 1.5x the previous measured T60.
+
+- id: claim.energy-increases-output-level
+  subject: parameter.energy
+  relation: increasing-tends-to-cause
+  object: feature.louder-pluck
+  conditions: []
+  expected_direction: increase
+  confidence: high
+  scope: component.initial-condition-exciter
+  mechanism: proportional-scaling-of-initial-loop-state-amplitude
+  possible_confounds:
+    - excitation-type (noise vs impulse have different peak-to-energy relationships)
+  validation:
+    method: pluck-at-two-energy-levels-compare-peak
+    metric: peak-amplitude-ratio
+    result: >
+      At frequency=220Hz, peak amplitude for energy=1 was more than 2x
+      peak amplitude for energy=0.1 (measured, not merely asserted from
+      the linear excitation-scaling code).
+
+- id: claim.frequency-sets-fundamental
+  subject: parameter.frequency
+  relation: sets
+  object: feature.observed-fundamental
+  conditions:
+    - static-frequency-not-modulating
+  expected_direction: equal
+  confidence: high
+  scope: component.fractional-delay-waveguide
+  mechanism: loop-round-trip-time-inverse-of-frequency
+  possible_confounds:
+    - linear-interpolation-smoothing-introduces-small-error (see claim.interpolation-smoothing-shortens-decay for the same root cause's effect on decay)
+  validation:
+    method: pluck-then-autocorrelation-pitch-estimate
+    metric: percent-error-vs-requested-frequency
+    result: >
+      Across frequency = [30, 100, 220, 440, 1000, 3000]Hz, estimated
+      fundamental error stayed under 3%, typically well under 1% except
+      near the top of the supported range.
+
+- id: claim.interpolation-smoothing-shortens-decay
+  subject: component.fractional-delay-waveguide
+  relation: increasing-tends-to-cause
+  object: feature.shorter-than-nominal-decay
+  conditions:
+    - delay-samples-has-nonzero-fractional-part
+  expected_direction: decrease
+  confidence: high
+  scope: component.fractional-delay-waveguide
+  mechanism: linear-interpolation-acts-as-a-mild-lowpass-per-loop-trip
+  possible_confounds: []
+  validation:
+    method: compare-measured-T60-at-integer-vs-fractional-delaySamples
+    metric: measured-T60-to-analytically-predicted-T60-ratio
+    result: >
+      At frequency=180Hz (44100/180 is an exact integer -- zero
+      interpolation smoothing), measured T60 exactly matched the
+      analytical prediction (ratio 1.000). At frequency=220Hz and 200Hz
+      (fractional parts 0.455 and 0.500, near the interpolator's worst
+      case), measured T60 was ~74-75% of the analytical prediction. This
+      conclusively isolates the discrepancy to the interpolator, not a
+      bug elsewhere in the loss-coefficient derivation -- found empirically
+      during Phase A implementation after an initial (wrong) version of
+      LoopLossFilter used decayMath.js's perSampleCoefficient() directly,
+      which assumes one application per elapsed sample rather than one
+      per loop trip, and measured a decay roughly delaySamples times too
+      slow before being corrected. See LoopLossFilter.js's own comment for
+      the full account. This is the exact frequency-dependent-loss-under-
+      interpolation artifact the spec's section 5.2 predicts in general
+      terms; this claim quantifies it for Phase A's specific linear
+      interpolator.

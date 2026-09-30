@@ -1,6 +1,6 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes, ChimeVocoder, Wind } from '/soundlib/models/index.js';
-import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset, WindChimesPreset, MaracaExtendedPreset } from '/soundlib/models/index_presets.js';
+import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes, ChimeVocoder, Wind, WG1 } from '/soundlib/models/index.js';
+import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset, WindChimesPreset, MaracaExtendedPreset, WG1Preset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
 import { openSavePresetDialog } from './SavePresetDialog.js';
@@ -86,10 +86,10 @@ async function initApp() {
         const [
             risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN,
             ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube,
-            windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind,
+            windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind, wg1,
             hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset,
             grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset,
-            windChimesPreset, maracaExtendedPreset
+            windChimesPreset, maracaExtendedPreset, wg1Preset
         ] = await Promise.all([
             audioSystem.createSound(RissetBasic, 'Risset', 0),
             audioSystem.createSound(DroneModel, 'Drone', 0),
@@ -123,6 +123,7 @@ async function initApp() {
             audioSystem.createSound(BambooChimes, 'Bamboo Chimes', 0),
             audioSystem.createSound(ChimeVocoder, 'Chime Vocoder', 0),
             audioSystem.createSound(Wind, 'Wind', 0),
+            audioSystem.createSound(WG1, 'WG1', 0),
             audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0),
             audioSystem.createSound(DronePreset, 'Drone preset', 0),
             audioSystem.createSound(RissetPreset, 'Risset preset', 0),
@@ -133,10 +134,11 @@ async function initApp() {
             audioSystem.createSound(RendezvousPingerIIPreset, 'RendezvousPingerII preset', 0),
             audioSystem.createSound(ChimeStrikePreset, 'Chime Strike preset', 0),
             audioSystem.createSound(WindChimesPreset, 'Wind Chimes preset', 0),
-            audioSystem.createSound(MaracaExtendedPreset, 'Maraca Extended preset', 0)
+            audioSystem.createSound(MaracaExtendedPreset, 'Maraca Extended preset', 0),
+            audioSystem.createSound(WG1Preset, 'WG1 preset', 0)
         ]);
 
-        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset];
+        const sounds = [risset, drone, waveTrigger, workletClicker, granny, faustClarinet, workerFM, waterFillRNN, ping, chuaOscillator, rendezvousPingerII, rendezvousPingerIII, rendezvousChimes, chimeTube, windChimes, bellStrike, maraca, maracaExtended, cabasa, bambooChimes, chimeVocoder, wind, wg1, hamburgerLadyChua13, dronePreset, rissetPreset, waveTriggerPreset, workletClickerPreset, grannyInteractive, faustClarinetPreset, rendezvousPingerIIPreset, chimeStrikePreset, windChimesPreset, maracaExtendedPreset, wg1Preset];
 
         console.log('Sounds loaded');
 

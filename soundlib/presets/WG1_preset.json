@@ -1,0 +1,37 @@
+{
+  "soundName": "WG1 preset",
+  "soundClass": "WG1",
+  "savedAt": "2026-09-30T12:01:45.878Z",
+  "docstring_pub": "Classic and simplified waveguide (Smith, 1983) model.\nPluck the string, roll for for freq, pitch for energy.",
+  "docstring_private": "based on WG1 core model.",
+  "parameters": {
+    "gain": {
+      "mapping": "slider",
+      "min": 0,
+      "max": 1,
+      "default": 0.6
+    },
+    "frequency": {
+      "mapping": "roll",
+      "min": 40,
+      "max": 1200,
+      "default": 220
+    },
+    "energy": {
+      "mapping": "pitch",
+      "min": 0,
+      "max": 1,
+      "default": 0.6
+    },
+    "decayTime": {
+      "mapping": "slider",
+      "min": 0.05,
+      "max": 30,
+      "default": 2.5
+    },
+    "excitationType": {
+      "mapping": "slider",
+      "value": "noise"
+    }
+  }
+}

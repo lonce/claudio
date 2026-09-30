@@ -13,3 +13,4 @@ export { RendezvousPingerIIPreset } from './RendezvousPinger/RendezvousPingerIIP
 export { ChimeStrikePreset } from './ChimeStrikePreset.js';
 export { WindChimesPreset } from './WindChimes/WindChimesPreset.js';
 export { MaracaExtendedPreset } from './MaracaExtendedPreset.js';
+export { WG1Preset } from './WG1Preset.js';

@@ -1,0 +1,110 @@
+# ComponentType records for WG1 (WaveguideResonator v1, Phase A).
+#
+# Pilot scale, per docs/MODEL_PATTERNS.md's digital-waveguide archetype and
+# scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md
+# section 9.1: only the components Phase A actually built, described from
+# the real implementation, not speculatively ahead of it. Schema follows
+# the spec's own suggested ComponentType shape.
+
+- id: component.fractional-delay-waveguide
+  name: Fractional-Delay Waveguide
+  roles:
+    - propagation
+  physical_domain: one-dimensional-wave-propagation
+  implementation_family:
+    - digital-waveguide
+  stateful: true
+  linear_regime: linear
+  energy_behavior: stores-and-circulates
+  inputs:
+    - feedback-sample
+  outputs:
+    - delayed-sample
+  parameters:
+    - parameter.frequency
+  preconditions:
+    - delay-samples-positive
+    - delay-samples-within-buffer-bounds
+  affordances:
+    - sustained-pitched-resonance
+    - continuous-live-retuning
+  limitations:
+    - single-loop-not-yet-bidirectional-two-rail
+    - no-independently-addressable-spatial-position
+    - linear-interpolation-introduces-frequency-dependent-smoothing
+  code_ref: soundlib/utilities/FractionalDelayWaveguide.js
+
+- id: component.loop-loss-filter
+  name: Loop Loss Filter
+  roles:
+    - loss
+  physical_domain: energy-dissipation
+  implementation_family:
+    - scalar-gain
+  stateful: false
+  linear_regime: linear
+  energy_behavior: dissipates
+  inputs:
+    - sample
+  outputs:
+    - attenuated-sample
+  parameters:
+    - parameter.decay-time
+  preconditions:
+    - decay-time-positive
+    - delay-samples-known-for-current-loop-length
+  affordances:
+    - independently-tunable-broadband-decay
+  limitations:
+    - broadband-only-no-frequency-dependent-loss-yet
+    - coefficient-must-be-rederived-whenever-loop-length-changes-not-just-decayTime
+  code_ref: soundlib/utilities/LoopLossFilter.js
+
+- id: component.rigid-termination
+  name: Rigid Termination
+  roles:
+    - termination
+  physical_domain: boundary-reflection
+  implementation_family:
+    - scalar-gain
+  stateful: false
+  linear_regime: linear
+  energy_behavior: conserves-or-mildly-dissipates
+  inputs:
+    - incident-sample
+  outputs:
+    - reflected-sample
+  parameters: []
+  preconditions: []
+  affordances:
+    - near-lossless-round-trip-reflection
+  limitations:
+    - not-frequency-dependent
+    - fixed-not-user-facing-in-phase-a
+  code_ref: soundlib/utilities/RigidTermination.js
+
+- id: component.initial-condition-exciter
+  name: Initial Condition Exciter
+  roles:
+    - exciter
+  physical_domain: energy-injection
+  implementation_family:
+    - buffer-fill
+  stateful: true
+  linear_regime: not-applicable
+  energy_behavior: injects
+  inputs:
+    - trigger-event
+  outputs:
+    - initial-loop-state
+  parameters:
+    - parameter.energy
+    - parameter.excitation-type
+  preconditions:
+    - seeded-random-source-available
+  affordances:
+    - one-shot-pluck-like-excitation
+  limitations:
+    - phase-a-supports-only-noise-and-impulse-shapes
+    - no-excitation-position-yet-uniform-fill-only
+  code_ref: soundlib/utilities/InitialConditionExciter.js
