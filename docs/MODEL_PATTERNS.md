@@ -918,18 +918,6 @@ suite passing unchanged.
   splitting isn't needed to satisfy any requirement here, so the simpler,
   literature-matching single-insertion design was used instead of an
   unverified half-split.
-- **`stiffness -> B` uses fixed internal constants (`B_MAX`,
-  `SLOPE_EXPONENT`), explicitly as placeholders for future
-  `dispersionKnee`/`dispersionSlope` parameters** -- per the design
-  directive's own instruction, recorded in
-  `soundlib/models/WG2/knowledge/components.yaml`'s `future_affordances`
-  field rather than silently baked in as if permanent. This part of the
-  mapping is **physically informed** (preserves the right causal
-  direction, higher `stiffness` means higher `B` means more stretch, but
-  the exact curve is a judgment call); the `B`-to-`a1` derivation itself
-  **is** the literature's real closed form -- the same sourced-fact-vs-
-  informed-construction distinction archetype 2 establishes, applied here
-  to a single component's two different pieces of its own mapping.
 - **`stiffness = 0` bypasses the filter entirely, not merely drives its
   coefficient toward zero** -- `process()` returns its input unchanged
   and `groupDelaySamplesAt()` returns exactly 0, confirmed by the new
@@ -938,30 +926,6 @@ suite passing unchanged.
   possible reference behavior" at the zero point, and is also why this
   step needed no new top-level model -- the addition is a true no-op
   until actively used.
-- **Measured, not merely "sounds more metallic":** partial 8's frequency
-  increased monotonically across a `stiffness` sweep at 220Hz (1760.55 ->
-  1837.55Hz from `stiffness`=0 to 1); at a fixed `stiffness`=1, stretch
-  amount increased with partial number (partial 2 ~1.3Hz, partial 4
-  ~11Hz, partial 8 ~77.5Hz); measured partial frequencies tracked the
-  theoretical `f_n = n*f0*sqrt(1+B*n^2)` curve within 0.6% across three
-  pitches and two `stiffness` values -- the strongest evidence the
-  closed-form coefficient derivation is correctly implemented here, not
-  just "producing some stretching in roughly the right direction."
-  Internal energy stayed preserved across a `stiffness` sweep with
-  explicit loss disabled (the known, pre-existing 3000Hz/`stiffness`=0
-  residual from the interpolation investigation aside -- unaffected by
-  this feature); `decayTime`'s scaling ratio (~3.9-4.0x for a 4x
-  `decayTime` change) stayed consistent regardless of `stiffness`,
-  confirming the two controls are independent. Stable (finite, bounded)
-  at `stiffness`=1 across the pitch range's extremes and both 44100/
-  48000Hz. A live `stiffness` ramp (block-rate updates, matching every
-  other k-rate parameter in this codebase) showed no excess transient
-  beyond the pluck's own natural onset -- unlike `AllpassInterpolator`'s
-  earlier integer-offset bug (a structurally different kind of
-  discontinuity, a buffer-read-position jump, not present here since only
-  the allpass coefficient itself changes smoothly), no special smoothing
-  or update-rate constraint was needed for v1. CPU cost measured ~1.1x
-  bypassed with 6 sections -- negligible for multi-voice use.
 - **`decayTime`/`brightnessDecay` independence (spec's own acceptance
   framing) is narrowed to `decayTime` only for this step** --
   `brightnessDecay` (frequency-dependent LOSS, as distinct from this
@@ -969,14 +933,94 @@ suite passing unchanged.
   yet; `LoopLossFilter` remains broadband-only. Not a silent drop -- an
   explicit scope note carried into both the plan and
   `wg2Pipeline.test.js`'s own test name.
+
+#### Widening `stiffness`'s creative range: `{amount, knee, slope, polarity, pitchLock}`
+
+The first step's maximum was "too subtle" -- `stiffness=1` gave only
+~75-80 cents of stretch at partial 8. Rather than just raise `B_MAX`,
+the internal target description was restructured into a struct with a
+slot for every dimension the follow-up directive wanted kept
+conceptually separate: `{ amount, knee, slope, polarity, pitchLock }`.
+Only `amount` is actually live this step (driven by `stiffness`); the
+rest stay fixed internal defaults, but are now REAL constructor
+arguments to `DispersionFilter` (not hardcoded module constants) --
+exposing `dispersionKnee` later is "construct with a different value,"
+no filter rewrite. `amount` itself is expressed as **cents of stretch at
+a reference partial (`knee`)**, not `B` directly -- a closed-form
+inversion (`R=2^(amount/600)`, `B=(R-1)/(knee^slope-R)`) of the same
+textbook relation the Rauhala-Valimaki fit targets.
+
+- **The real ceiling was found by measurement, not by raising `B_MAX`
+  and hoping.** Sweeping `B` directly (bypassing `stiffness`) across
+  110-880Hz revealed that fundamental TUNING stays accurate (<1% error)
+  up to `B~0.03-0.04` -- but the partial-4 STRETCH MEASUREMENT ITSELF
+  goes non-monotonic around `B~0.009-0.0105` and clearly breaks (sign-
+  flipped, implausible values) above `B~0.011-0.0115`, consistently
+  across every tested frequency. Tuning accuracy is NOT the limiting
+  factor here -- the Rauhala-Valimaki empirical fit simply stops reliably
+  producing the intended curve once pushed far outside the real-piano-
+  string `B` range it was calibrated against, independent of numerical
+  stability. The new ceiling, `DISPERSION_AMOUNT_MAX_CENTS=100` at
+  `knee=4` (inverts to `B~0.0082`), was chosen with real margin below
+  this measured breakdown zone, not at or past it -- directly following
+  the directive's own instruction to "report that boundary rather than
+  forcing the coefficients further."
+- **`knee=4`, not 8 (used for the first step's own headline numbers) --
+  a measured choice, not arbitrary.** Partial 8 breaks down earlier than
+  partial 4 under the same `B` (approximation error grows with
+  `n^slope`), so anchoring the live `amount` at a lower, more robust
+  partial leaves more usable headroom before the filter's own
+  approximation limits are reached. `slope` (the `n^slope` exponent, the
+  Rauhala-Valimaki fit's own calibration exponent) stays fixed at the
+  literature value, 2 -- unlike `knee`, it is NOT yet safe to vary
+  independently, since the empirical fit itself was derived assuming
+  that specific exponent; exposing `dispersionSlope` later needs the fit
+  re-validated first, not just a parameter wired up.
+- **A genuine, pre-existing limitation surfaced by this widening's own
+  research, not caused by it.** At `f0` near/below ~27.5Hz (A0, the
+  fit's own calibrated floor), fundamental tuning degrades regardless of
+  `B` -- confirmed this already happened at the FIRST step's much
+  smaller `B_MAX=0.0015` too (an isolated check measured ~34% error at
+  20Hz there). Never caught before because the original tuning-accuracy
+  test only used 220Hz. Not fixed in this pass (a separate, nontrivial
+  problem -- the fit's own calibrated domain, not the widening) -- now
+  tested explicitly with an honest, loose bound rather than silently
+  excluded from the sweep, and flagged to the user as a discovered issue.
+- **A second real, reported side effect: absolute `decayTime` grows
+  somewhat with `stiffness`.** Measured T60 at `decayTime=0.5` went from
+  ~3.03s at `stiffness=0` to ~4.21s at `stiffness=1`, ~39% longer -- the
+  near-unity-magnitude allpass cascade isn't perfectly magnitude-neutral
+  in practice. What stays genuinely independent (and is what's actually
+  asserted in `wg2Pipeline.test.js`) is the RATIO between two different
+  `decayTime` settings, which held consistent (~3.86-3.98x for a
+  nominal-4x change) across the whole `stiffness` range -- the absolute-
+  value side effect is reported, not hidden, and not papered over by
+  loosening that independence assertion.
+- **Measured, not merely "sounds more extreme":** at 220Hz, partial 4
+  (the new `knee`) increased monotonically across `stiffness`=[0, 0.25,
+  0.5, 0.75, 1.0] from 880.00Hz to 950.58Hz (~136 cents at
+  `stiffness`=1 -- a ~6x increase in cents over the first step's own
+  knee=8 equivalent). Partial ordering (`p2<p4<p8`) stayed preserved
+  across the whole range. Internal energy stayed preserved with explicit
+  loss disabled at every tested (frequency, `stiffness`) combination.
+  Output stayed finite and bounded even at the Nyquist-approaching
+  combination of high `f0` + `stiffness=1` ("clean handling," per the
+  directive, meaning finite/bounded -- not frequency-accurate, which
+  isn't realistically achievable that close to Nyquist). CPU cost stayed
+  ~1.08-1.09x bypassed at BOTH sample rates and at the new wider range --
+  confirming cost depends on bypassed-vs-active only, not on `amount`'s
+  magnitude. A live `stiffness` ramp re-verified at the new, much larger
+  range showed no excess transient beyond the pluck's own natural onset.
 - See `soundlib/models/WG2/knowledge/causal-claims.yaml` for the full
   measured validation (`claim.stiffness-increases-inharmonicity`,
   `claim.pitchlocked-compensation-keeps-fundamental-in-tune-across-
-  stiffness`) and its explicit dispersion-vs-damping-vs-interpolation-
-  residual-vs-stiffness-mapping distinction, and
+  stiffness`, `claim.dispersion-filter-approximation-limits`,
+  `claim.dispersion-pre-existing-low-frequency-tuning-limitation`) and
+  its explicit dispersion/dispersionAmount/dispersionKnee/dispersionSlope/
+  filter-approximation-limits distinction, and
   `soundlib/models/WG2/knowledge/components.yaml` for the new
-  `component.dispersion-filter` entry's full affordances/limitations/
-  future-affordances/grounding fields.
+  `component.dispersion-filter` entry's full `internal_target_description`/
+  affordances/limitations/future-affordances/grounding fields.
 
 ### 6. Worker-offloaded generation
 

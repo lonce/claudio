@@ -25,7 +25,13 @@ export function buildWg2Pipeline(sampleRate, seed, interpolationMode = DEFAULT_I
         exciter: new InitialConditionExciter(seed),
         pickup: new PointPickup(),
         output: new OutputConditioner({ outputGain: WG2_CONFIG.outputGain }),
-        dispersionFilter: new DispersionFilter(WG2_CONFIG.dispersionSectionCount),
+        dispersionFilter: new DispersionFilter(
+            WG2_CONFIG.dispersionSectionCount,
+            WG2_CONFIG.dispersionKnee,
+            WG2_CONFIG.dispersionSlope,
+            WG2_CONFIG.dispersionAmountMaxCents,
+            WG2_CONFIG.dispersionStiffnessCurveExponent
+        ),
         excitationType: WG2_CONFIG.excitationTypeDefault,
         pickupType: WG2_CONFIG.pickupTypeDefault
     };

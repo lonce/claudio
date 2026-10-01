@@ -87,10 +87,16 @@ class WG2Processor extends AudioWorkletProcessor {
         this.exciter = new InitialConditionExciter(seed);
         this.pickup = new PointPickup();
         this.output = new OutputConditioner({ outputGain: WG2_CONFIG.outputGain });
-        // Phase C, first dispersion step -- see DispersionFilter.js.
-        // Bypassed (stiffness=0) by default, so construction alone adds
-        // no behavior change.
-        this.dispersionFilter = new DispersionFilter(WG2_CONFIG.dispersionSectionCount);
+        // Phase C dispersion -- see DispersionFilter.js. Bypassed
+        // (stiffness=0) by default, so construction alone adds no
+        // behavior change.
+        this.dispersionFilter = new DispersionFilter(
+            WG2_CONFIG.dispersionSectionCount,
+            WG2_CONFIG.dispersionKnee,
+            WG2_CONFIG.dispersionSlope,
+            WG2_CONFIG.dispersionAmountMaxCents,
+            WG2_CONFIG.dispersionStiffnessCurveExponent
+        );
 
         this.excitationType = WG2_CONFIG.excitationTypeDefault;
         this.pickupType = WG2_CONFIG.pickupTypeDefault;

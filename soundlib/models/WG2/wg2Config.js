@@ -67,6 +67,40 @@ export const STIFFNESS_DEFAULT = 0;
 // Valimaki, DAFX-2006) and this value's rationale.
 export const DISPERSION_SECTION_COUNT = 6;
 
+// Phase C, widened-range step -- see DispersionFilter.js's own comment
+// for the full derivation. knee/slope/amountMaxCents/stiffnessCurveExponent
+// are constructor arguments (not hardcoded inside DispersionFilter.js)
+// specifically so a future dispersionKnee/dispersionSlope Parameter is
+// just "pass a different value from here," no filter rewrite needed.
+//
+// knee=4 (not 8, used in the first step's headline numbers): partial 8
+// breaks down earlier than partial 4 under the same B (approximation
+// error grows with n^slope), so anchoring the target amount at a lower,
+// more robust partial leaves more usable headroom before the filter's
+// own approximation limits are reached.
+export const DISPERSION_KNEE = 4;
+// slope=2 matches the literature's own textbook stiff-string exponent
+// (f_n = n*f0*sqrt(1+B*n^2)) -- the Rauhala-Valimaki empirical a1-from-B
+// fit was calibrated assuming this exponent, so it is NOT safe to vary
+// yet; kept fixed until a dispersionSlope control is designed and
+// validated on its own.
+export const DISPERSION_SLOPE = 2;
+// Measured empirically (not guessed): fundamental tuning under
+// pitchLocked stays accurate to B~0.03-0.04, but the partial-4 STRETCH
+// MEASUREMENT ITSELF goes unreliable (non-monotonic, eventually sign-
+// flipped) starting around B~0.009-0.0105 and clearly breaks above
+// B~0.011, consistently across 110/220/440/880Hz. 100 cents at knee=4
+// inverts to B~0.0082 -- a ~5x increase over the first step's effective
+// ceiling (~19-21 cents at partial 4 for the old B_MAX=0.0015), with
+// margin below the measured breakdown zone.
+export const DISPERSION_AMOUNT_MAX_CENTS = 100;
+// stiffness -> amount = amountMaxCents * stiffness^stiffnessCurveExponent.
+// Exponent 3 keeps the lower half of the stiffness range inside "fine
+// control over plausible stiffness" territory (amount at stiffness=0.5 is
+// LESS than the old B_MAX's full-range equivalent) while the upper range
+// ramps steeply into the new, much larger ceiling.
+export const DISPERSION_STIFFNESS_CURVE_EXPONENT = 3;
+
 export const WG2_CONFIG = {
     frequencyMinHz: FREQUENCY_MIN_HZ,
     frequencyMaxHz: FREQUENCY_MAX_HZ,
@@ -90,7 +124,11 @@ export const WG2_CONFIG = {
     stiffnessMin: STIFFNESS_MIN,
     stiffnessMax: STIFFNESS_MAX,
     stiffnessDefault: STIFFNESS_DEFAULT,
-    dispersionSectionCount: DISPERSION_SECTION_COUNT
+    dispersionSectionCount: DISPERSION_SECTION_COUNT,
+    dispersionKnee: DISPERSION_KNEE,
+    dispersionSlope: DISPERSION_SLOPE,
+    dispersionAmountMaxCents: DISPERSION_AMOUNT_MAX_CENTS,
+    dispersionStiffnessCurveExponent: DISPERSION_STIFFNESS_CURVE_EXPONENT
 };
 
 export default WG2_CONFIG;

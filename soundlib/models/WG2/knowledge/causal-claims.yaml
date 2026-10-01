@@ -201,23 +201,31 @@
       CausalClaim validation method, section 9.2)
     metric: measured-partial-frequency-vs-nominal-n-times-f0
     result: >
-      At frequency=220Hz, excitationPosition=0.15, pickupPosition=0.37:
-      partial 8's measured frequency increased monotonically across
-      stiffness=[0, 0.25, 0.5, 0.75, 1.0] (1760.55, 1767.70, 1783.10,
-      1808.95, 1837.55 Hz). At a fixed stiffness=1.0, stretch amount
-      (measured minus nominal) increased with partial number: partial 2
-      stretched ~1.3Hz, partial 4 ~11Hz, partial 8 ~77.5Hz -- the
-      intended physically-informed causal direction (higher stiffness,
-      higher partial number, more stretch), confirmed by direct
-      measurement rather than assumed from the closed-form formula alone.
-      Measured partial frequencies also tracked the textbook target curve
-      f_n = n*f0*sqrt(1+B*n^2)/sqrt(1+B) (for the internally-computed B at
-      a given stiffness) within 0.6% across f0=[110, 220, 880]Hz,
-      stiffness=[0.5, 1.0], partials n=[2, 4, 6] -- this is the strongest
-      evidence the closed-form coefficient derivation (Rauhala & Valimaki,
-      DAFX-2006, as implemented in Faust's misceffects.lib) is actually
-      correctly implemented here, not merely "producing some stretching
-      in roughly the right direction."
+      ORIGINAL (first dispersion step, knee=8 reference, superseded):
+      at frequency=220Hz, partial 8 increased monotonically across
+      stiffness=[0, 0.25, 0.5, 0.75, 1.0] from 1760.55Hz to 1837.55Hz
+      (~77.5Hz stretch at stiffness=1) and matched the textbook target
+      curve within 0.6%.
+
+      WIDENED RANGE (current): the target description was restructured
+      to { amount, knee, slope, polarity, pitchLock }, with amount
+      (cents of stretch at knee=4) now the live quantity driven by
+      stiffness via a steep power curve (amount = 100 * stiffness^3),
+      replacing the old direct stiffness->B mapping. At frequency=220Hz,
+      excitationPosition=0.15, pickupPosition=0.37, partial 4's measured
+      frequency increased monotonically across stiffness=[0, 0.25, 0.5,
+      0.75, 1.0]: 880.00, 881.03, 886.93, 905.15, 950.58 Hz (~70.6Hz /
+      ~136 cents stretch at stiffness=1 -- a ~6x increase in cents over
+      the first step's own knee=8 equivalent, directly satisfying "a
+      substantially more extreme and clearly audible" maximum). At a
+      fixed stiffness=1.0, stretch increased with partial number: partial
+      2 ~28Hz, partial 4 ~70.6Hz, partial 8 ~76Hz -- the ordering holds,
+      though partial 8's own measured value is noticeably less clean/
+      reliable than partial 4's (expected -- see
+      claim.dispersion-filter-approximation-limits below for exactly why
+      knee=4, not 8, was chosen as the live reference point). Partial
+      ordering (p2<p4<p8) was independently confirmed preserved across
+      the full stiffness range at f0=220Hz.
 
 - id: claim.pitchlocked-compensation-keeps-fundamental-in-tune-across-stiffness
   subject: component.dispersion-filter
@@ -251,30 +259,161 @@
     method: autocorrelation-style-peak-search-at-the-fundamental-across-a-stiffness-sweep
     metric: percent-error-vs-requested-frequency
     result: >
-      At frequency=220Hz, across stiffness=[0, 0.1, 0.25, 0.5, 0.75, 1.0]:
-      measured fundamental stayed within ~0.08% of 220Hz at every step
-      (noise-level variation from the peak-search grid's own resolution,
-      not a systematic drift with stiffness) -- confirming the
-      compensation sign convention and formula are correct in this
-      implementation, not merely in the source paper.
+      ORIGINAL (first dispersion step): at frequency=220Hz, across
+      stiffness=[0, 0.1, 0.25, 0.5, 0.75, 1.0], measured fundamental
+      stayed within ~0.08% of 220Hz at every step -- confirming the
+      compensation sign convention and formula are correct, not merely
+      in the source paper.
+
+      WIDENED RANGE (current): re-verified at stiffness=1 (the hardest
+      case) across the FULL mid/usable frequency range, not just 220Hz --
+      measured error stayed under 0.35% from 55Hz through 4000Hz (and
+      exactly 0.00% at 220/440/880/1760/3000/4000Hz). The compensation
+      continues to work correctly at the new, much larger amount ceiling,
+      confirming the pitchLocked architecture generalizes beyond the
+      narrow range it was first validated against. See
+      claim.dispersion-pre-existing-low-frequency-tuning-limitation below
+      for the one real exception (f0 near/below A0=27.5Hz), which is NOT
+      part of this claim's scope -- it is a separate, pre-existing
+      limitation of the underlying empirical fit, not a failure of the
+      compensation architecture itself.
+
+- id: claim.dispersion-filter-approximation-limits
+  subject: component.dispersion-filter
+  relation: increasing-B-beyond-a-measured-point-tends-to-cause
+  object: feature.unreliable-partial-stretch-measurement
+  conditions:
+    - B-pushed-beyond-approximately-0.009-to-0.0105
+  expected_direction: degrade (non-monotonic, eventually sign-flipped/implausible)
+  confidence: high
+  scope: component.dispersion-filter
+  mechanism: >
+    The Rauhala-Valimaki empirical fit (the k1..k3/m1..m4 constants in
+    DispersionFilter.js) was calibrated against real, comparatively small
+    piano-string B values. Pushed far outside that calibrated domain, the
+    fit's own a1-from-B derivation stops reliably producing the intended
+    target curve, independent of whether the resulting a1 itself remains
+    numerically stable (it does, bounded to [-0.999,0.999] by
+    construction).
+  possible_confounds:
+    - peak-search-measurement-error (RULED OUT as the primary cause --
+      narrowing the search window to stay safely within inter-partial
+      spacing, and cross-checking fundamental tuning separately via the
+      SAME render, shows fundamental tuning stays accurate (<1% error)
+      far past the point where the stretch measurement itself goes
+      unreliable -- the breakdown is in what the filter actually produces
+      at the targeted partial, not in how it's measured)
+  validation:
+    method: >
+      Direct B sweep (bypassing stiffness entirely, driving a1 from B
+      directly) at f0=[110, 220, 440, 880]Hz, B from 0.001 to 4.0,
+      tracking partial 4's measured position alongside fundamental tuning
+      error.
+    metric: measured-partial-position-monotonicity-and-plausibility
+    result: >
+      Fundamental tuning stays accurate (<1% error) up to B~0.03-0.04.
+      Partial 4's own measured position, however, grows monotonically and
+      plausibly only up to B~0.009-0.0105 (p4 cents ~13 at B=0.001 to
+      ~140-155 at B~0.0085-0.0105, consistent across 110-440Hz), then
+      becomes non-monotonic (small dips/wobbles starting ~B=0.009-0.0105)
+      and finally clearly breaks (sign-flipped, implausible values) above
+      B~0.011-0.0115 -- consistently across all four tested frequencies.
+      This is the real ceiling for this component, NOT a tuning-accuracy
+      or stability one. DISPERSION_AMOUNT_MAX_CENTS=100 at knee=4 (see
+      wg2Config.js) inverts to B~0.0082 -- chosen specifically to sit
+      with margin below this measured breakdown zone, not at or past it.
+      A secondary, related finding: even well before the hard breakdown,
+      measured achieved stretch increasingly OVERSHOOTS the idealized
+      theoretical target as B grows (e.g. at B=0.02, measured partial-2
+      stretch ran ~1.8x the theoretical prediction) -- the requested
+      `amount` is a useful, monotonic creative dial, not a precise cents
+      promise, and this is recorded as a limitation, not hidden.
+
+- id: claim.dispersion-pre-existing-low-frequency-tuning-limitation
+  subject: component.dispersion-filter
+  relation: operating-near-or-below-A0-tends-to-cause
+  object: feature.degraded-fundamental-tuning-accuracy
+  conditions:
+    - f0-near-or-below-27.5Hz (A0, the lowest piano key)
+  expected_direction: degrade
+  confidence: medium
+  scope: component.dispersion-filter
+  mechanism: >
+    The Rauhala-Valimaki fit's own "Ikey" piano-key-index term
+    (logBase(semitoneRatio, f0*semitoneRatio/A0Hz) in DispersionFilter.js)
+    is calibrated against real piano keys, A0=27.5Hz and up. Below that,
+    Ikey goes negative and the empirical fit extrapolates outside its
+    calibrated domain.
+  possible_confounds:
+    - introduced-by-the-widened-range (RULED OUT -- confirmed this
+      ALREADY happened at the first dispersion step's much smaller
+      B_MAX=0.0015 too, via an isolated direct-B check at f0=20Hz, so
+      this pre-dates and is independent of the amount-widening work)
+  validation:
+    method: fundamental-tuning-measurement-at-the-low-frequency-edge,-both-the-old-and-new-B-range
+    metric: percent-error-vs-requested-frequency
+    result: >
+      At the new widened range (stiffness=1, B~0.0082, via the real
+      end-to-end pipeline): f0=20Hz measured ~7.8% tuning error, f0=30Hz
+      ~5.0%, f0=55Hz and above under 0.4%. A separate, isolated check at
+      the OLD B_MAX=0.0015 (driving a1 from B directly, bypassing
+      stiffness) measured a larger ~34% error at f0=20Hz -- confirming
+      this is not new, though the two measurements used different test
+      harnesses and aren't directly comparable in magnitude, hence
+      `confidence: medium` rather than `high`. NOT fixed in this pass --
+      a different, nontrivial problem (the empirical fit's own calibrated
+      domain) from the amount-widening this step's work was scoped to.
+      Flagged to the user as a discovered, separate issue. Tested
+      explicitly (not excluded from the sweep) in
+      wg2Pipeline.test.js with a deliberately loose bound, specifically so
+      a future change that makes this meaningfully worse gets caught.
 
 # --- Distinguishing dispersion, damping, interpolation residuals, and
 # the stiffness mapping (per the design directive's own explicit request
 # to record this distinction) ---
 #
-# dispersion (this file's two claims above, component.dispersion-filter):
-#   frequency-dependent PROPAGATION TIME/PHASE, intentionally introduced,
-#   zero at stiffness=0 (the filter bypasses entirely, not just a small
-#   coefficient).
+# dispersion / dispersionAmount (this file's claim.stiffness-increases-
+#   inharmonicity and claim.pitchlocked-compensation-keeps-fundamental-
+#   in-tune-across-stiffness, component.dispersion-filter): frequency-
+#   dependent PROPAGATION TIME/PHASE, intentionally introduced, zero at
+#   stiffness=0 (the filter bypasses entirely, not just a small
+#   coefficient). `dispersionAmount` is the more general magnitude/
+#   direction concept `stiffness` maps onto -- positive-only for now (see
+#   dispersionKnee/dispersionSlope below for its other two live-in-
+#   principle dimensions, and components.yaml's future_affordances for
+#   the deferred negative/synthetic-compression direction).
+#
+# dispersionKnee / dispersionSlope (component.dispersion-filter's
+#   internal_target_description, components.yaml): WHERE (knee, a
+#   reference partial amount is anchored at -- fixed default 4) and HOW
+#   FAST (slope, the partial-number exponent -- fixed default 2,
+#   literature-matched) dispersion's strength grows through the partial
+#   series. Both are real constructor arguments already, not hardcoded,
+#   but neither is live yet -- knee could be exposed with no further
+#   validation needed; slope cannot (it's coupled to the Rauhala-Valimaki
+#   fit's own calibration -- see claim.dispersion-filter-approximation-
+#   limits and components.yaml's limitations).
+#
+# filter approximation limits (claim.dispersion-filter-approximation-
+#   limits, new this step): the measured, growing divergence between
+#   requested amount (cents) and actually-achieved stretch as B grows,
+#   and the real ceiling this imposes -- found by direct measurement, not
+#   assumed from the closed-form formula's own idealized prediction.
 #
 # damping (component.loop-loss-filter, soundlib/models/WG1/knowledge/
 #   causal-claims.yaml's claim.decay-time-lengthens-decay): frequency-
 #   independent (still broadband-only -- brightnessDecay, a frequency-
 #   dependent loss control, remains unbuilt future Phase C work) MAGNITUDE
 #   loss, controlled by decayTime, orthogonal to stiffness -- confirmed
-#   independent by direct measurement (decayTime's T60-doubling-ish
-#   scaling ratio stayed consistent, ~3.9-4.0x, across stiffness=0/0.5/1.0
-#   in wg2Pipeline.test.js).
+#   independent by direct measurement (decayTime's T60-scaling ratio
+#   stayed consistent, ~3.9-4.0x, across stiffness=0/0.5/1.0 even at the
+#   widened range, in wg2Pipeline.test.js). One honest caveat: ABSOLUTE
+#   T60 at a fixed decayTime does grow somewhat with stiffness (measured
+#   ~3.03s -> ~4.21s at decayTime=0.5, stiffness=0 to 1, ~39% longer) --
+#   the near-unity-magnitude allpass cascade isn't perfectly magnitude-
+#   neutral in practice. This is a real, reported side effect, not
+#   asserted against by any test, and distinct from the RATIO independence
+#   that IS asserted.
 #
 # interpolation residuals (component.lagrange-interpolator, this file's
 #   claim.lagrange3-resolves-wg2s-high-frequency-energy-collapse and
@@ -288,11 +427,17 @@
 #   pre-existing baseline, confirming the two effects are not conflated:
 #   the dispersion filter adds a NEW, deliberate, measured effect on top
 #   of an unchanged numerical baseline, not a rebranding of the same
-#   residual.
+#   residual. The LOW-FREQUENCY limitation (claim.dispersion-pre-existing-
+#   low-frequency-tuning-limitation) is a THIRD, separate category again --
+#   not an interpolation residual at all, but the dispersion filter's own
+#   empirical fit extrapolating outside its calibrated domain.
 #
-# stiffness (parameter.stiffness): the public, physically-informed macro
-#   control mapped onto the dispersion model's internal target
-#   inharmonicity coefficient B -- see components.yaml's "grounding"
-#   field for exactly which part of this mapping is physical (the
-#   B-to-allpass-coefficient derivation) vs. physically informed (the
-#   stiffness-to-B curve itself).
+# stiffness (parameter.stiffness): the public, positive, physically-
+#   motivated MACRO control -- the only thing actually live and user-
+#   facing. Maps onto `dispersionAmount` (above) via a steep power curve
+#   (amount = amountMaxCents * stiffness^stiffnessCurveExponent) chosen so
+#   the lower part of the range keeps fine control over plausible string
+#   stiffness while the upper part explores strongly inharmonic,
+#   physically-inspired-but-not-physical territory -- see components.yaml's
+#   "grounding" field for exactly which part of the full mapping chain
+#   (stiffness->amount->B->a1) is physical vs. physically informed.

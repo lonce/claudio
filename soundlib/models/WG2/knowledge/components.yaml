@@ -130,37 +130,105 @@
     - phase-delayed-sample
     - group-delay-at-f0 (a SEPARATE pure-function output, not part of the
       per-sample signal path -- see "affordances" below)
+    - target-description (getTargetDescription(), diagnostic/reporting
+      only -- see "internal target description" below)
   parameters:
     - parameter.stiffness
   preconditions:
     - section-coefficient-a1-bounded-away-from-plus-minus-one
+  internal_target_description:
+    # Widened-range step: stiffness no longer maps directly to an opaque
+    # allpass coefficient -- it maps to { amount, knee, slope, polarity,
+    # pitchLock }, a struct with a slot for each dimension the design
+    # directive asked to keep conceptually separate. Only `amount` is
+    # actually live this step; the rest are fixed internal defaults, BUT
+    # all four are real constructor arguments (not hardcoded module
+    # constants), so exposing dispersionKnee/dispersionSlope later is
+    # "construct with a different value," not a filter rewrite.
+    amount: "live -- cents of stretch TARGETED at partial `knee`, driven by stiffness via amount = amountMaxCents * stiffness^stiffnessCurveExponent (see parameter mapping below). An AUDIBLE quantity, not B directly, per the explicit design goal."
+    knee: "fixed default 4 (a partial index, the reference point `amount` is anchored at) -- see 'Why knee=4, not 8' below"
+    slope: "fixed default 2 -- the partial-number exponent in the generalized stiff-string relation f_n=n*f0*sqrt((1+B*n^slope)/(1+B)); matches the Rauhala-Valimaki empirical a1-from-B fit's OWN calibration exponent, so it is not yet safe to vary independently (see limitations)"
+    polarity: "fixed 'positive' -- only this value has any code path; see 'Negative dispersion, deferred' below"
+    pitchLock: "fixed true -- the only mode implemented; see affordances for how lengthLocked would be added without touching this class"
   affordances:
     - measured-monotonic-controllable-partial-stretching (higher stiffness
-      -> higher target inharmonicity B -> more stretch; higher partial
-      number -> more stretch at a fixed stiffness -- both confirmed by
-      direct measurement, not assumed from the formula alone; see
-      claim.stiffness-increases-inharmonicity)
+      -> higher target amount (cents) -> higher derived B -> more stretch;
+      higher partial number -> more stretch at a fixed stiffness -- both
+      confirmed by direct measurement, not assumed from the formula alone;
+      see claim.stiffness-increases-inharmonicity)
+    - widened-creative-range-with-a-measured-not-guessed-ceiling (new
+      default AMOUNT_MAX_CENTS=100 at knee=4, ~5x the first step's
+      effective ceiling, chosen with margin below the empirically-found
+      point where the Rauhala-Valimaki fit's own approximation goes
+      unreliable -- see causal-claims.yaml for the full sweep)
+    - target-amount-expressed-audibly (cents of stretch at a reference
+      partial, not an opaque filter coefficient -- a closed-form
+      inversion, B=(R-1)/(knee^slope-R) with R=2^(amount/600), derives B
+      from the requested amount)
     - bypasses-entirely-at-stiffness-near-zero (process() returns its
       input unchanged, groupDelaySamplesAt() returns 0 -- not merely a
       near-zero coefficient, giving stiffness=0 the cleanest possible
-      reference behavior, identical to the component's own absence)
+      reference behavior, identical to the component's own absence;
+      confirmed byte-identical to omitting stiffness entirely)
     - dispersion-phase-and-tuning-compensation-are-separate-methods
       (process() vs. groupDelaySamplesAt() -- the caller decides whether/
       how to use the compensation value; a future lengthLocked mode
       simply stops using it, without touching this class or process() at
-      all -- confirmed working, the pitchLocked default keeps the
-      fundamental within ~2% across the full stiffness range, see
+      all -- confirmed working even at the widened range, the pitchLocked
+      default keeps the fundamental within ~0.35% from 55Hz-4000Hz at
+      stiffness=1, see causal-claims.yaml)
+    - cpu-cost-is-modest-and-flat (~1.08-1.09x bypassed at BOTH the
+      original and the widened range, measured with 6 sections -- cost
+      depends on bypassed-vs-active only, not on amount's magnitude, see
       causal-claims.yaml)
-    - cpu-cost-is-modest (~1.1x bypassed, measured with 6 sections -- see
-      causal-claims.yaml)
+    - requested-vs-achieved-reporting (getTargetDescription() exposes the
+      most recently requested target so a caller/test can compare it
+      against what it independently measures was actually achieved --
+      the directive's own explicit request; this class has no notion of
+      "partials" itself, so measurement is always the caller's job)
   limitations:
     - sectionCount-fixed-at-construction-not-yet-a-parameter (M=6 for
       WG2, chosen as a starting point within the source paper's own
       "8 typical, keep below 20" range, not re-derived from first
       principles)
-    - stiffness-to-B-mapping-uses-FIXED-internal-knee-slope-stand-ins
-      (B_MAX, SLOPE_EXPONENT -- physically informed, not physical; see
-      "Future affordances" below)
+    - slope-is-NOT-yet-safely-variable (unlike knee/amountMaxCents/
+      stiffnessCurveExponent, slope is coupled to the Rauhala-Valimaki
+      empirical fit's OWN calibration -- that fit was derived assuming
+      the textbook n^2 exponent specifically; varying slope independently
+      without re-deriving or re-validating the fit could silently produce
+      a curve the a1-from-B derivation no longer actually delivers. Kept
+      fixed at 2 for this reason, not merely "not exposed yet")
+    - filter-approximation-limits-found-empirically-not-assumed (sweeping
+      B far beyond the chosen ceiling -- fundamental TUNING stays accurate
+      to B~0.03-0.04, but the partial-4 STRETCH MEASUREMENT ITSELF goes
+      non-monotonic around B~0.009-0.0105 and clearly breaks (sign-
+      flipped, implausible values) above B~0.011 -- consistent across
+      110/220/440/880Hz. The new ceiling (AMOUNT_MAX_CENTS=100, B~0.0082)
+      sits with margin below this, not at or past it -- see
+      causal-claims.yaml for the full sweep table)
+    - requested-amount-increasingly-UNDERSTATES-achieved-stretch-as-B-
+      grows (the idealized continuous formula and the REAL 6-section
+      cascade's actual behavior diverge increasingly as B grows -- even
+      well before the hard breakdown point, measured achieved stretch
+      runs higher than the theoretical target. The requested `amount` is
+      a useful, monotonic control dial, not a precise promise of exactly
+      that many cents)
+    - pre-existing-low-frequency-domain-limitation-NOT-introduced-by-this-
+      widening (the Rauhala-Valimaki fit's own "Ikey" piano-key-index
+      term is calibrated for f0 >= A0 = 27.5Hz; below that it
+      extrapolates badly. Confirmed this ALREADY happened at the
+      first step's much smaller B_MAX too -- not something the wider
+      range caused. Never caught before because the first step's own
+      tuning-accuracy test only used f0=220Hz; now tested explicitly, see
+      causal-claims.yaml)
+    - absolute-T60-grows-somewhat-with-stiffness (a real, measured side
+      effect -- at decayTime=0.5, T60 measured ~3.03s at stiffness=0 vs.
+      ~4.21s at stiffness=1, ~39% longer -- the near-unity-magnitude
+      allpass cascade isn't perfectly magnitude-neutral in practice. The
+      RATIO between two decayTime settings stays independent of
+      stiffness, which is what's actually asserted in
+      wg2Pipeline.test.js; the absolute-value side effect is reported,
+      not hidden, not asserted against)
     - applied-ONCE-per-round-trip-at-the-bridge-boundary-only-not-split-
       across-both-boundaries (a deliberate v1 simplification matching the
       source paper's own single-lumped-loop insertion point, not an
@@ -169,6 +237,9 @@
       C subsection)
     - no-lengthLocked-mode-exposed-yet (the architecture supports it --
       see affordances above -- but only pitchLocked is wired up)
+    - no-negative-dispersion-yet (polarity is fixed 'positive'; no code
+      path exists for a negative/synthetic-compression branch -- see
+      "Negative dispersion, deferred" below)
     - no-brightnessDecay-yet (frequency-dependent LOSS, as distinct from
       this component's frequency-dependent PHASE, remains future
       Phase C work -- LoopLossFilter is still broadband-only)
@@ -176,16 +247,24 @@
     # Explicitly recorded per the design directive's own instruction --
     # these are NOT yet implemented, just designed to not require
     # restructuring this component when they are.
-    - dispersionKnee -- would replace/parameterize the fixed B_MAX-shaped
-      curve's inflection point (the frequency/partial region where
-      stretching becomes prominent)
-    - dispersionSlope -- would replace/parameterize SLOPE_EXPONENT (how
-      rapidly dispersion increases above the knee)
+    - dispersionKnee -- would expose the already-real `knee` constructor
+      argument as a live Parameter (the partial `amount` is anchored at)
+    - dispersionSlope -- would expose `slope`, but ONLY after the
+      Rauhala-Valimaki fit's own slope-dependence is re-derived/validated
+      (see limitations -- this is NOT a trivial "just wire it up" the way
+      dispersionKnee is)
     - lengthLocked -- an alternative to the current pitchLocked default,
       would simply stop subtracting groupDelaySamplesAt()'s result from
       the rail length in wg2Processor.js, letting the fundamental itself
       move as stiffness changes while the geometric string length stays
       fixed -- no change to DispersionFilter itself
+    - negative/synthetic dispersion -- per the design directive, explicitly
+      NOT "pass a negative B into the same formula" -- would need its own
+      bounded target curve and validation, represented as a genuinely
+      different `polarity` value and code path, not a sign flip of the
+      existing positive-stiffness math. The struct already has a
+      `polarity` slot so this doesn't require restructuring the target
+      description itself, only adding the new branch
   grounding:
     # Per docs/MODEL_PATTERNS.md's "grounding a physically-informed model
     # in real data" discipline -- distinguishing sourced fact from
@@ -199,11 +278,21 @@
       authored by Julius O. Smith III) -- verified against the real
       source at
       https://github.com/grame-cncm/faustlibraries/blob/master/misceffects.lib,
-      not transcribed from a secondary summary.
+      not transcribed from a secondary summary. The amount-to-B inversion
+      (B=(R-1)/(knee^slope-R), R=2^(amount/600)) is a closed-form
+      algebraic inversion of the SAME textbook stiff-string relation this
+      fit targets, not a new physical claim.
     physically_informed: >
-      The stiffness (0-1) -> B mapping (B_MAX, SLOPE_EXPONENT in
-      DispersionFilter.js) preserves the correct causal direction but is
-      a judgment call, not derived from one particular physical string --
-      a deliberate stand-in for the future dispersionKnee/dispersionSlope
-      parameters above.
+      The stiffness-to-amount mapping (amount = amountMaxCents *
+      stiffness^stiffnessCurveExponent in DispersionFilter.js) preserves
+      the correct causal direction but the specific curve shape is a
+      judgment call. The CEILING (amountMaxCents=100) is not purely a
+      judgment call, though -- it was calibrated empirically against
+      where the Rauhala-Valimaki fit's own approximation stays reliable
+      (see limitations above and causal-claims.yaml's sweep), which is a
+      harder constraint than aesthetic preference alone would have given.
+      knee=4 (not 8, used for the first step's own headline numbers) is
+      similarly a measured choice, not arbitrary: partial 8 breaks down
+      earlier than partial 4 under the same B, so anchoring `amount` at a
+      lower partial leaves more usable headroom.
   code_ref: soundlib/utilities/DispersionFilter.js

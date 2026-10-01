@@ -37,15 +37,40 @@
 // per-sample filtering. A future lengthLocked mode simply stops using
 // that value; this class and process() don't change at all.
 //
-// `stiffness` (0-1, the public control surface) maps to B via a FIXED
-// internal curve (B_MAX, SLOPE_EXPONENT below) -- a deliberate,
-// documented stand-in for future dispersionKnee/dispersionSlope
-// parameters (see this model's knowledge/components.yaml), not itself
-// part of the Rauhala-Valimaki paper. This part of the mapping is
-// PHYSICALLY INFORMED, not physical: it preserves the right causal
-// direction (higher stiffness -> higher B -> more stretching) but the
-// specific curve/B_MAX is a judgment call, not derived from one
-// particular physical string.
+// `stiffness` (0-1, the public control surface) maps onto an internal
+// TARGET DESCRIPTION -- { amount, knee, slope, polarity, pitchLock } --
+// rather than directly onto an opaque allpass coefficient. This is the
+// widened-range step: only `amount` is actually live (driven by
+// `stiffness`); `knee`/`slope`/`polarity`/`pitchLock` stay fixed internal
+// defaults this step, but are REAL constructor arguments (not hardcoded
+// module constants) specifically so a future dispersionKnee/
+// dispersionSlope Parameter is just "construct with a different value,"
+// no restructuring of this class needed. `polarity`/`pitchLock` stay
+// simple internal constants (not constructor args) for now -- they're
+// flags, not curve-shape numbers -- but DO appear in the struct returned
+// by getTargetDescription(), so the data model already accommodates them.
+//
+// `amount` is expressed in an AUDIBLE quantity -- cents of stretch at
+// partial `knee` -- not B directly, per the explicit design goal of
+// keeping the public-facing concept legible rather than an opaque
+// coefficient. Inverting the generalized stiff-string relation
+// f_n = n*f0*sqrt((1+B*n^slope)/(1+B)) for B given a target
+// cents(knee)=amount:
+//   R = 2^(amount/600)
+//   B = (R-1) / (knee^slope - R)
+// This is a closed-form inversion of the SAME textbook relation the
+// Rauhala-Valimaki empirical fit targets (slope fixed at 2, their own
+// calibration exponent -- see the slope default below), not a new
+// physical claim of its own.
+//
+// This part of the mapping (stiffness -> amount, and amount -> B via the
+// inversion above) is PHYSICALLY INFORMED, not physical: it preserves
+// the right causal direction (higher stiffness -> higher amount -> higher
+// B -> more stretching) but the specific curve shape/ceiling is a
+// judgment call, calibrated empirically against where the Rauhala-
+// Valimaki fit's own approximation stays reliable (see wg2Config.js's
+// DISPERSION_AMOUNT_MAX_CENTS comment for the measurement), not derived
+// from one particular physical string.
 //
 // At stiffness below a small epsilon, the filter BYPASSES entirely
 // (process() returns its input unchanged, groupDelaySamplesAt() returns
@@ -53,9 +78,17 @@
 // what gives stiffness=0 the cleanest possible reference behavior,
 // identical to not having this component in the signal path at all.
 
-const B_MAX = 0.0015;
-const SLOPE_EXPONENT = 2;
 const STIFFNESS_EPSILON = 1e-6;
+const POLARITY_DEFAULT = 'positive'; // only 'positive' is implemented -- see module comment above the class
+const PITCH_LOCK_DEFAULT = true; // the only mode implemented -- a future lengthLocked mode is a caller-side choice, not a DispersionFilter change
+
+// Closed-form inversion: target cents of stretch at partial `knee` ->
+// the inharmonicity coefficient B that (per the idealized continuous
+// formula) produces it. See module comment above for the derivation.
+function bFromTargetAmount(amountCents, knee, slope) {
+    const R = Math.pow(2, amountCents / 600);
+    return (R - 1) / (Math.pow(knee, slope) - R);
+}
 
 // Empirical fit constants from Rauhala & Valimaki (2006), as corrected in
 // the Faust misceffects.lib implementation (an erratum in the original
@@ -83,12 +116,21 @@ function sectionGroupDelay(a, omegaT) {
 }
 
 export class DispersionFilter {
-    constructor(sectionCount) {
+    // knee/slope/amountMaxCents/stiffnessCurveExponent: see wg2Config.js's
+    // DISPERSION_* constants for the measured/documented defaults and
+    // their rationale -- passed in here (not hardcoded) so a future
+    // dispersionKnee/dispersionSlope control needs no change to this file.
+    constructor(sectionCount, knee, slope, amountMaxCents, stiffnessCurveExponent) {
         this.sectionCount = sectionCount;
+        this.knee = knee;
+        this.slope = slope;
+        this.amountMaxCents = amountMaxCents;
+        this.stiffnessCurveExponent = stiffnessCurveExponent;
         this.xPrev = new Float64Array(sectionCount);
         this.yPrev = new Float64Array(sectionCount);
         this.a1 = 0;
         this.bypassed = true;
+        this.lastTarget = null; // set by setStiffness(); see getTargetDescription()
     }
 
     reset() {
@@ -96,19 +138,39 @@ export class DispersionFilter {
         this.yPrev.fill(0);
     }
 
+    // Requested-vs-achieved reporting: the target description setStiffness()
+    // computed most recently (null when bypassed). Callers measure the
+    // ACTUAL achieved stretch themselves (this class has no notion of
+    // "partials," it just filters samples) and compare against this.
+    getTargetDescription() {
+        return this.lastTarget;
+    }
+
     // Recomputes the shared section coefficient from stiffness (0-1) and
     // the current fundamental -- called once per block, same cadence as
     // every other live k-rate parameter in this codebase (frequency,
-    // decayTime, ...).
+    // decayTime, ...). Two steps: stiffness -> target description (amount
+    // live, knee/slope/polarity/pitchLock fixed) -> B (closed-form
+    // inversion) -> a1 (the existing, unchanged Rauhala-Valimaki fit).
     setStiffness(stiffness, f0Hz, sampleRate) {
         if (stiffness <= STIFFNESS_EPSILON) {
             this.bypassed = true;
             this.a1 = 0;
+            this.lastTarget = null;
             return;
         }
         this.bypassed = false;
 
-        const B = B_MAX * Math.pow(stiffness, SLOPE_EXPONENT);
+        const amount = this.amountMaxCents * Math.pow(stiffness, this.stiffnessCurveExponent);
+        this.lastTarget = {
+            amount,
+            knee: this.knee,
+            slope: this.slope,
+            polarity: POLARITY_DEFAULT,
+            pitchLock: PITCH_LOCK_DEFAULT
+        };
+
+        const B = bFromTargetAmount(amount, this.knee, this.slope);
         const Bc = Math.max(B, 0.000001);
         const logBc = Math.log(Bc);
 
