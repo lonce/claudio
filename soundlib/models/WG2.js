@@ -30,6 +30,7 @@ export class WG2 extends BaseSoundWithEvents {
         this.addParameter('decayTime', WG2_CONFIG.decayTimeDefaultSeconds, WG2_CONFIG.decayTimeMinSeconds, WG2_CONFIG.decayTimeMaxSeconds, 0, 0);
         this.addParameter('excitationPosition', WG2_CONFIG.excitationPositionDefault, WG2_CONFIG.excitationPositionMin, WG2_CONFIG.excitationPositionMax, 0, 0);
         this.addParameter('pickupPosition', WG2_CONFIG.pickupPositionDefault, WG2_CONFIG.pickupPositionMin, WG2_CONFIG.pickupPositionMax, 0, 0);
+        this.addParameter('stiffness', WG2_CONFIG.stiffnessDefault, WG2_CONFIG.stiffnessMin, WG2_CONFIG.stiffnessMax, 0, 0);
         this.addStringParameter('excitationType', WG2_CONFIG.excitationTypeDefault, WG2_CONFIG.excitationTypeChoices);
         this.addStringParameter('pickupType', WG2_CONFIG.pickupTypeDefault, WG2_CONFIG.pickupTypeChoices);
 
@@ -91,7 +92,7 @@ export class WG2 extends BaseSoundWithEvents {
         this.scheduleAttack(this.gainNode);
         this.startTime = now;
 
-        ['frequency', 'energy', 'decayTime', 'excitationPosition', 'pickupPosition', 'excitationType', 'pickupType']
+        ['frequency', 'energy', 'decayTime', 'excitationPosition', 'pickupPosition', 'stiffness', 'excitationType', 'pickupType']
             .forEach((name) => this.updateParameter(name));
     }
 
@@ -113,6 +114,7 @@ export class WG2 extends BaseSoundWithEvents {
             case 'decayTime':
             case 'excitationPosition':
             case 'pickupPosition':
+            case 'stiffness':
                 if (this.workletNode) {
                     this.workletNode.parameters.get(name).setValueAtTime(param.get(), now);
                 }

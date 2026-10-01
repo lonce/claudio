@@ -172,3 +172,127 @@
       bridgeForce measurably lower (0.0104) -- expected, since it taps a
       single rail's raw pre-reflection value rather than a sum/difference
       of both.
+
+- id: claim.stiffness-increases-inharmonicity
+  subject: parameter.stiffness
+  relation: increasing-tends-to-cause
+  object: feature.partial-inharmonicity
+  conditions:
+    - dispersion-filter-enabled (i.e. stiffness above the bypass epsilon)
+  expected_direction: increase
+  confidence: high
+  scope: component.dispersion-filter
+  mechanism: frequency-dependent-phase-delay-from-a-cascade-of-first-order-allpass-sections
+  possible_confounds:
+    - coupled-resonators (not applicable here -- WG2 has no coupled
+      second polarization yet)
+    - interpolation-residual-phase-error (RULED OUT as the source of this
+      effect specifically -- see "Distinguishing dispersion from
+      interpolation residuals," below; stiffness=0's own measured tuning
+      error matches the pre-existing, already-documented lagrange3
+      baseline exactly, confirming this claim's effect is additional to,
+      not a restatement of, that baseline)
+    - analysis-resolution (the peak-search method's own frequency grid
+      has finite resolution -- mitigated by using a dense 400-point
+      search per measurement, not a fixed FFT bin)
+  validation:
+    method: partial-tracking-sweep (direct extension of this project's
+      "measure, don't assume" discipline to the spec's own suggested
+      CausalClaim validation method, section 9.2)
+    metric: measured-partial-frequency-vs-nominal-n-times-f0
+    result: >
+      At frequency=220Hz, excitationPosition=0.15, pickupPosition=0.37:
+      partial 8's measured frequency increased monotonically across
+      stiffness=[0, 0.25, 0.5, 0.75, 1.0] (1760.55, 1767.70, 1783.10,
+      1808.95, 1837.55 Hz). At a fixed stiffness=1.0, stretch amount
+      (measured minus nominal) increased with partial number: partial 2
+      stretched ~1.3Hz, partial 4 ~11Hz, partial 8 ~77.5Hz -- the
+      intended physically-informed causal direction (higher stiffness,
+      higher partial number, more stretch), confirmed by direct
+      measurement rather than assumed from the closed-form formula alone.
+      Measured partial frequencies also tracked the textbook target curve
+      f_n = n*f0*sqrt(1+B*n^2)/sqrt(1+B) (for the internally-computed B at
+      a given stiffness) within 0.6% across f0=[110, 220, 880]Hz,
+      stiffness=[0.5, 1.0], partials n=[2, 4, 6] -- this is the strongest
+      evidence the closed-form coefficient derivation (Rauhala & Valimaki,
+      DAFX-2006, as implemented in Faust's misceffects.lib) is actually
+      correctly implemented here, not merely "producing some stretching
+      in roughly the right direction."
+
+- id: claim.pitchlocked-compensation-keeps-fundamental-in-tune-across-stiffness
+  subject: component.dispersion-filter
+  relation: subtracting-groupDelaySamplesAt-from-rail-length-tends-to-cause
+  object: feature.fundamental-frequency-stable-across-stiffness
+  conditions:
+    - pitchLocked-mode (the only mode implemented -- see
+      components.yaml's future_affordances for lengthLocked)
+  expected_direction: stable (near-zero additional drift as stiffness
+    increases)
+  confidence: high
+  scope: component.dispersion-filter
+  mechanism: >
+    DispersionFilter.groupDelaySamplesAt(f0, sampleRate) returns the
+    whole M-section cascade's own group delay at the fundamental, for the
+    filter's current stiffness state; wg2Processor.js subtracts this from
+    the geometric rail length each block, so total loop delay at f0
+    (geometric + dispersion-filter-contributed) stays matched to the
+    requested period regardless of how much extra phase the dispersion
+    filter itself is adding.
+  possible_confounds:
+    - sign-convention-error-in-the-compensation-formula (a REAL risk
+      flagged during implementation -- the source paper's own Faust
+      reference exposes a pre-negated output tailored to ITS pipeline's
+      own +(totalDelay) usage; DispersionFilter.js's groupDelaySamplesAt()
+      deliberately uses a different, plain-positive convention matching
+      its own name and this model's own subtraction usage. Confirmed
+      correct by direct measurement on the FIRST implementation attempt,
+      not assumed -- see validation.)
+  validation:
+    method: autocorrelation-style-peak-search-at-the-fundamental-across-a-stiffness-sweep
+    metric: percent-error-vs-requested-frequency
+    result: >
+      At frequency=220Hz, across stiffness=[0, 0.1, 0.25, 0.5, 0.75, 1.0]:
+      measured fundamental stayed within ~0.08% of 220Hz at every step
+      (noise-level variation from the peak-search grid's own resolution,
+      not a systematic drift with stiffness) -- confirming the
+      compensation sign convention and formula are correct in this
+      implementation, not merely in the source paper.
+
+# --- Distinguishing dispersion, damping, interpolation residuals, and
+# the stiffness mapping (per the design directive's own explicit request
+# to record this distinction) ---
+#
+# dispersion (this file's two claims above, component.dispersion-filter):
+#   frequency-dependent PROPAGATION TIME/PHASE, intentionally introduced,
+#   zero at stiffness=0 (the filter bypasses entirely, not just a small
+#   coefficient).
+#
+# damping (component.loop-loss-filter, soundlib/models/WG1/knowledge/
+#   causal-claims.yaml's claim.decay-time-lengthens-decay): frequency-
+#   independent (still broadband-only -- brightnessDecay, a frequency-
+#   dependent loss control, remains unbuilt future Phase C work) MAGNITUDE
+#   loss, controlled by decayTime, orthogonal to stiffness -- confirmed
+#   independent by direct measurement (decayTime's T60-doubling-ish
+#   scaling ratio stayed consistent, ~3.9-4.0x, across stiffness=0/0.5/1.0
+#   in wg2Pipeline.test.js).
+#
+# interpolation residuals (component.lagrange-interpolator, this file's
+#   claim.lagrange3-resolves-wg2s-high-frequency-energy-collapse and
+#   claim.two-rail-structure-shortens-decay-more-than-single-loop above):
+#   UNINTENTIONAL numerical phase/magnitude error from the delay-line
+#   implementation itself, present even at stiffness=0 -- already
+#   measured and documented as its own, separate, pre-existing baseline
+#   BEFORE this dispersion work began. stiffness=0's own measured tuning
+#   error (claim.pitchlocked-compensation-keeps-fundamental-in-tune-
+#   across-stiffness's own stiffness=0 data point, ~0.08%) matches this
+#   pre-existing baseline, confirming the two effects are not conflated:
+#   the dispersion filter adds a NEW, deliberate, measured effect on top
+#   of an unchanged numerical baseline, not a rebranding of the same
+#   residual.
+#
+# stiffness (parameter.stiffness): the public, physically-informed macro
+#   control mapped onto the dispersion model's internal target
+#   inharmonicity coefficient B -- see components.yaml's "grounding"
+#   field for exactly which part of this mapping is physical (the
+#   B-to-allpass-coefficient derivation) vs. physically informed (the
+#   stiffness-to-B curve itself).

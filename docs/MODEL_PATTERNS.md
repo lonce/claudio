@@ -44,7 +44,7 @@ library.
 | `ChimeVocoder` | Cross-synthesis / vocoder (hidden PhISEM engine + external-audio carrier filterbank) | `soundlib/models/ChimeVocoder.js` |
 | `Wind` | Continuous noise-excited, simplex-modulated resonant filter | `soundlib/models/Wind.js` |
 | `WG1` | Digital waveguide (delay-line propagation), Phase A | `soundlib/models/WG1.js` |
-| `WG2` | Digital waveguide (delay-line propagation), Phase B (bidirectional two-rail) | `soundlib/models/WG2.js` |
+| `WG2` | Digital waveguide (delay-line propagation), Phase B (bidirectional two-rail) + Phase C (dispersion) | `soundlib/models/WG2.js` |
 | `WorkerFM` | Worker-offloaded generation | `soundlib/models/WorkerFM.js` |
 | `WaterFillRNN` | Worker-offloaded generation (ML/ONNX) | `soundlib/models/WaterFillRNN.js` |
 | `WaveTrigger` | File/sample playback (plain) | `soundlib/models/WaveTrigger.js` |
@@ -858,6 +858,125 @@ are shared.
   record -- still not yet the moment to add that entity type; two models'
   worth of prose cross-references remains cheaper and clearer than
   formalizing a rule between them for its own sake.
+
+#### Phase C (dispersion): `DispersionFilter` and `stiffness`
+
+The first Phase C step -- a `stiffness` parameter and
+`soundlib/utilities/DispersionFilter.js`, added directly onto the
+existing `WG2` model (no new top-level model) since dispersion is an
+additional filter stage inside the already-correct two-rail propagation
+structure, not a change to that structure itself, unlike the `WG1`->`WG2`
+jump. `stiffness` defaults to 0, which bypasses the filter entirely --
+strict backward compatibility, confirmed by the full pre-existing test
+suite passing unchanged.
+
+- **Grounded in the real literature, not an invented mapping** -- the
+  closed-form design of Rauhala & Valimaki, "Dispersion Modeling in
+  Waveguide Piano Synthesis Using Tunable Allpass Filters" (DAFX-2006,
+  pp. 71-76), as implemented in Faust's standard library
+  (`misceffects.lib`'s `piano_dispersion_filter`, authored by Julius O.
+  Smith III) -- verified against the real source directly (`curl`'d from
+  GitHub, not transcribed from a secondary summary or search-result
+  paraphrase, which on a first pass introduced a plausible-looking but
+  unverifiable variable name). `M` identical first-order allpass sections
+  (`(a1+z^-1)/(1+a1*z^-1)`, the SAME transfer-function family already
+  implemented in `AllpassInterpolator.js`'s single section -- a different
+  purpose here: that one minimizes its own phase error as a side effect
+  to approximate a flat fractional delay, this one deliberately
+  introduces phase error as the actual goal), coefficient `a1` derived
+  from a target inharmonicity coefficient `B` (the textbook stiff-string
+  relation `f_n = n*f0*sqrt(1+B*n^2)`) via an empirical fit.
+- **The source design already separates dispersion phase from tuning
+  compensation** -- confirming, not just satisfying, the spec's own
+  requirement (section 5.4: "tuning compensation measured or
+  approximated") to keep these "conceptually separate." The whole
+  cascade's own group delay at the fundamental
+  (`DispersionFilter.groupDelaySamplesAt(f0, sampleRate)`) is a pure
+  function, entirely separate from `process()`'s own per-sample
+  filtering -- `wg2Processor.js` subtracts it from the geometric rail
+  length each block (`pitchLocked`, the only mode implemented so far). A
+  future `lengthLocked` mode would simply stop using that value, touching
+  neither `DispersionFilter` nor `process()` at all.
+- **A real sign-convention bug, caught by measurement, not inspection.**
+  The Faust reference's own exposed output is pre-negated
+  (`-Df0*M`), tailored to its own pipeline's `+(totalDelay)` usage;
+  `groupDelaySamplesAt()` deliberately returns the plain-positive
+  convention instead, matching its own name and `wg2Processor.js`'s own
+  subtraction. Which sign is actually correct in THIS implementation was
+  confirmed empirically (fundamental stayed within ~0.08% of target
+  across a full `stiffness` sweep, on the first implementation attempt)
+  rather than assumed from matching the paper's own usage pattern by eye.
+- **Applied once per round trip, at the bridge boundary only -- not split
+  across both boundaries.** Every full nut->bridge->nut cycle crosses the
+  bridge boundary exactly once, giving exactly one pass through the
+  cascade per round trip, matching the source paper's own single-lumped-
+  loop insertion point. This is deliberately NOT the same shape as
+  `LoopLossFilter`'s per-boundary split (`railLength`, not the full loop
+  length, applied at each boundary) -- that split works because a scalar
+  gain multiplies exactly and losslessly across two half-trips; an
+  allpass cascade's phase doesn't obviously split the same way, and
+  splitting isn't needed to satisfy any requirement here, so the simpler,
+  literature-matching single-insertion design was used instead of an
+  unverified half-split.
+- **`stiffness -> B` uses fixed internal constants (`B_MAX`,
+  `SLOPE_EXPONENT`), explicitly as placeholders for future
+  `dispersionKnee`/`dispersionSlope` parameters** -- per the design
+  directive's own instruction, recorded in
+  `soundlib/models/WG2/knowledge/components.yaml`'s `future_affordances`
+  field rather than silently baked in as if permanent. This part of the
+  mapping is **physically informed** (preserves the right causal
+  direction, higher `stiffness` means higher `B` means more stretch, but
+  the exact curve is a judgment call); the `B`-to-`a1` derivation itself
+  **is** the literature's real closed form -- the same sourced-fact-vs-
+  informed-construction distinction archetype 2 establishes, applied here
+  to a single component's two different pieces of its own mapping.
+- **`stiffness = 0` bypasses the filter entirely, not merely drives its
+  coefficient toward zero** -- `process()` returns its input unchanged
+  and `groupDelaySamplesAt()` returns exactly 0, confirmed by the new
+  `stiffness=0` render being byte-identical to omitting `stiffness`
+  altogether. This is what gives the directive's own required "cleanest
+  possible reference behavior" at the zero point, and is also why this
+  step needed no new top-level model -- the addition is a true no-op
+  until actively used.
+- **Measured, not merely "sounds more metallic":** partial 8's frequency
+  increased monotonically across a `stiffness` sweep at 220Hz (1760.55 ->
+  1837.55Hz from `stiffness`=0 to 1); at a fixed `stiffness`=1, stretch
+  amount increased with partial number (partial 2 ~1.3Hz, partial 4
+  ~11Hz, partial 8 ~77.5Hz); measured partial frequencies tracked the
+  theoretical `f_n = n*f0*sqrt(1+B*n^2)` curve within 0.6% across three
+  pitches and two `stiffness` values -- the strongest evidence the
+  closed-form coefficient derivation is correctly implemented here, not
+  just "producing some stretching in roughly the right direction."
+  Internal energy stayed preserved across a `stiffness` sweep with
+  explicit loss disabled (the known, pre-existing 3000Hz/`stiffness`=0
+  residual from the interpolation investigation aside -- unaffected by
+  this feature); `decayTime`'s scaling ratio (~3.9-4.0x for a 4x
+  `decayTime` change) stayed consistent regardless of `stiffness`,
+  confirming the two controls are independent. Stable (finite, bounded)
+  at `stiffness`=1 across the pitch range's extremes and both 44100/
+  48000Hz. A live `stiffness` ramp (block-rate updates, matching every
+  other k-rate parameter in this codebase) showed no excess transient
+  beyond the pluck's own natural onset -- unlike `AllpassInterpolator`'s
+  earlier integer-offset bug (a structurally different kind of
+  discontinuity, a buffer-read-position jump, not present here since only
+  the allpass coefficient itself changes smoothly), no special smoothing
+  or update-rate constraint was needed for v1. CPU cost measured ~1.1x
+  bypassed with 6 sections -- negligible for multi-voice use.
+- **`decayTime`/`brightnessDecay` independence (spec's own acceptance
+  framing) is narrowed to `decayTime` only for this step** --
+  `brightnessDecay` (frequency-dependent LOSS, as distinct from this
+  component's frequency-dependent PHASE) doesn't exist in this codebase
+  yet; `LoopLossFilter` remains broadband-only. Not a silent drop -- an
+  explicit scope note carried into both the plan and
+  `wg2Pipeline.test.js`'s own test name.
+- See `soundlib/models/WG2/knowledge/causal-claims.yaml` for the full
+  measured validation (`claim.stiffness-increases-inharmonicity`,
+  `claim.pitchlocked-compensation-keeps-fundamental-in-tune-across-
+  stiffness`) and its explicit dispersion-vs-damping-vs-interpolation-
+  residual-vs-stiffness-mapping distinction, and
+  `soundlib/models/WG2/knowledge/components.yaml` for the new
+  `component.dispersion-filter` entry's full affordances/limitations/
+  future-affordances/grounding fields.
 
 ### 6. Worker-offloaded generation
 

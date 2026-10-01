@@ -51,7 +51,8 @@
       interpolator, though small, is larger than WG1's; see
       claim.lagrange3-resolves-wg2s-high-frequency-energy-collapse in
       this model's own causal-claims.yaml)
-    - not-yet-dispersive-rigid-terminations-only-phase-c
+    - terminations-remain-rigid-frequency-independent-boundary-filtering-
+      (BridgeTermination) is still unbuilt-future-phase-c-work
   code_ref: soundlib/utilities/BidirectionalWaveguide.js
 
 - id: component.point-pickup
@@ -110,3 +111,99 @@
     - triangle-is-pure-displacement-zero-initial-velocity-no-velocityMix-yet
     - noise-and-impulse-are-single-sample-point-injections-no-width-yet
   code_ref: soundlib/utilities/InitialConditionExciter.js (exciteAtPosition method)
+
+- id: component.dispersion-filter
+  name: Dispersion Filter
+  roles:
+    - dispersion
+  physical_domain: frequency-dependent-phase-propagation
+  implementation_family:
+    - cascaded-first-order-allpass
+  stateful: true
+  linear_regime: linear
+  energy_behavior: approximately-magnitude-preserving
+  inputs:
+    - sample
+    - stiffness (0-1, control-rate)
+    - current-fundamental-frequency
+  outputs:
+    - phase-delayed-sample
+    - group-delay-at-f0 (a SEPARATE pure-function output, not part of the
+      per-sample signal path -- see "affordances" below)
+  parameters:
+    - parameter.stiffness
+  preconditions:
+    - section-coefficient-a1-bounded-away-from-plus-minus-one
+  affordances:
+    - measured-monotonic-controllable-partial-stretching (higher stiffness
+      -> higher target inharmonicity B -> more stretch; higher partial
+      number -> more stretch at a fixed stiffness -- both confirmed by
+      direct measurement, not assumed from the formula alone; see
+      claim.stiffness-increases-inharmonicity)
+    - bypasses-entirely-at-stiffness-near-zero (process() returns its
+      input unchanged, groupDelaySamplesAt() returns 0 -- not merely a
+      near-zero coefficient, giving stiffness=0 the cleanest possible
+      reference behavior, identical to the component's own absence)
+    - dispersion-phase-and-tuning-compensation-are-separate-methods
+      (process() vs. groupDelaySamplesAt() -- the caller decides whether/
+      how to use the compensation value; a future lengthLocked mode
+      simply stops using it, without touching this class or process() at
+      all -- confirmed working, the pitchLocked default keeps the
+      fundamental within ~2% across the full stiffness range, see
+      causal-claims.yaml)
+    - cpu-cost-is-modest (~1.1x bypassed, measured with 6 sections -- see
+      causal-claims.yaml)
+  limitations:
+    - sectionCount-fixed-at-construction-not-yet-a-parameter (M=6 for
+      WG2, chosen as a starting point within the source paper's own
+      "8 typical, keep below 20" range, not re-derived from first
+      principles)
+    - stiffness-to-B-mapping-uses-FIXED-internal-knee-slope-stand-ins
+      (B_MAX, SLOPE_EXPONENT -- physically informed, not physical; see
+      "Future affordances" below)
+    - applied-ONCE-per-round-trip-at-the-bridge-boundary-only-not-split-
+      across-both-boundaries (a deliberate v1 simplification matching the
+      source paper's own single-lumped-loop insertion point, not an
+      unverified half-split the way LoopLossFilter's scalar coefficient
+      exactly and losslessly splits -- see docs/MODEL_PATTERNS.md's Phase
+      C subsection)
+    - no-lengthLocked-mode-exposed-yet (the architecture supports it --
+      see affordances above -- but only pitchLocked is wired up)
+    - no-brightnessDecay-yet (frequency-dependent LOSS, as distinct from
+      this component's frequency-dependent PHASE, remains future
+      Phase C work -- LoopLossFilter is still broadband-only)
+  future_affordances:
+    # Explicitly recorded per the design directive's own instruction --
+    # these are NOT yet implemented, just designed to not require
+    # restructuring this component when they are.
+    - dispersionKnee -- would replace/parameterize the fixed B_MAX-shaped
+      curve's inflection point (the frequency/partial region where
+      stretching becomes prominent)
+    - dispersionSlope -- would replace/parameterize SLOPE_EXPONENT (how
+      rapidly dispersion increases above the knee)
+    - lengthLocked -- an alternative to the current pitchLocked default,
+      would simply stop subtracting groupDelaySamplesAt()'s result from
+      the rail length in wg2Processor.js, letting the fundamental itself
+      move as stiffness changes while the geometric string length stays
+      fixed -- no change to DispersionFilter itself
+  grounding:
+    # Per docs/MODEL_PATTERNS.md's "grounding a physically-informed model
+    # in real data" discipline -- distinguishing sourced fact from
+    # informed construction within this one component.
+    physical: >
+      The allpass-coefficient derivation (a1 from B, f0, sampleRate, and
+      sectionCount) is the real closed-form method of Rauhala & Valimaki,
+      "Dispersion Modeling in Waveguide Piano Synthesis Using Tunable
+      Allpass Filters" (DAFX-2006, pp. 71-76), as implemented in Faust's
+      standard library (misceffects.lib's piano_dispersion_filter,
+      authored by Julius O. Smith III) -- verified against the real
+      source at
+      https://github.com/grame-cncm/faustlibraries/blob/master/misceffects.lib,
+      not transcribed from a secondary summary.
+    physically_informed: >
+      The stiffness (0-1) -> B mapping (B_MAX, SLOPE_EXPONENT in
+      DispersionFilter.js) preserves the correct causal direction but is
+      a judgment call, not derived from one particular physical string --
+      a deliberate stand-in for the future dispersionKnee/dispersionSlope
+      parameters above.
+  code_ref: soundlib/utilities/DispersionFilter.js

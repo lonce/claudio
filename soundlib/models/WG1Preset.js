@@ -34,9 +34,14 @@ export class WG1Preset extends WG1 {
 
         const decayTimeParam = this.getParameter('decayTime');
         decayTimeParam.min = 0.05;
-        decayTimeParam.max = 30;
-        decayTimeParam.value = 2.5;
-        decayTimeParam.defaultValue = 2.5;
+        // Clamped to match WG1_CONFIG's own current max (2, lowered from
+        // 30 for more usable control resolution) -- the underlying
+        // worklet's AudioParam would silently clamp anything above that
+        // anyway, so this preset's displayed range must track it rather
+        // than claim a wider range than the engine actually honors.
+        decayTimeParam.max = 2;
+        decayTimeParam.value = 2;
+        decayTimeParam.defaultValue = 2;
 
         const excitationTypeParam = this.getParameter('excitationType');
         excitationTypeParam.value = 'noise';

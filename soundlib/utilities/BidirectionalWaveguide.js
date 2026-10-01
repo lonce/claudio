@@ -77,12 +77,24 @@ export class BidirectionalWaveguide {
     // loop length, is the right argument here so two half-trip
     // applications match WG1's single full-trip one), and writes the
     // result into the OPPOSITE rail's near end.
-    tick(nutTermination, bridgeTermination, lossFilter) {
+    //
+    // dispersionFilter (optional, Phase C): applied ONCE per full round
+    // trip, at the bridge boundary only -- every nut->bridge->nut cycle
+    // crosses the bridge boundary exactly once, so this gives exactly one
+    // pass through the filter per round trip, matching the literature's
+    // own single-lumped-loop insertion point (see DispersionFilter.js)
+    // rather than an unverified split across both boundaries the way
+    // lossFilter's scalar coefficient exactly (and losslessly) splits.
+    // Order matches the spec's own conceptual pipeline (section 4):
+    // reflect -> loss -> dispersion. Defaults to null so this stays fully
+    // backward compatible for any non-dispersive caller.
+    tick(nutTermination, bridgeTermination, lossFilter, dispersionFilter = null) {
         const bridgeIncoming = this.rightGoing.readAt(this.railLength, this.bridgeTapInterpolator);
         const nutIncoming = this.leftGoing.readAt(this.railLength, this.nutTapInterpolator);
         this.lastBridgeIncoming = bridgeIncoming;
 
-        const bridgeReflected = lossFilter.process(bridgeTermination.reflect(bridgeIncoming));
+        let bridgeReflected = lossFilter.process(bridgeTermination.reflect(bridgeIncoming));
+        if (dispersionFilter) bridgeReflected = dispersionFilter.process(bridgeReflected);
         const nutReflected = lossFilter.process(nutTermination.reflect(nutIncoming));
 
         this.leftGoing.write(bridgeReflected);

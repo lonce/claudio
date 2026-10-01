@@ -132,7 +132,7 @@ test('different seeds diverge for noise excitation', () => {
 test('no NaN or Infinity across the full parameter grid, including corners', () => {
     const frequencies = [20, 220, 4000];
     const energies = [0, 0.5, 1];
-    const decayTimes = [0.05, 2.5, 30];
+    const decayTimes = [0.05, 1, 2];
     const excitationTypes = ['noise', 'impulse'];
     for (const frequency of frequencies) {
         for (const energy of energies) {
@@ -154,7 +154,7 @@ test('no NaN or Infinity across the full parameter grid, including corners', () 
 test('loop stays stable (bounded peak) across the full parameter grid', () => {
     const frequencies = [20, 220, 4000];
     const energies = [0, 0.5, 1];
-    const decayTimes = [0.05, 2.5, 30];
+    const decayTimes = [0.05, 1, 2];
     const excitationTypes = ['noise', 'impulse'];
     let worstPeak = 0;
     let worstParams = null;

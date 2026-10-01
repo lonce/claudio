@@ -14,8 +14,13 @@ export const FREQUENCY_DEFAULT_HZ = 220;
 export const ENERGY_DEFAULT = 0.6;
 
 export const DECAY_TIME_MIN_SECONDS = 0.05;
-export const DECAY_TIME_MAX_SECONDS = 30;
-export const DECAY_TIME_DEFAULT_SECONDS = 2.5;
+// Lowered from 30 to 2 for more usable control resolution over a good
+// perceptual range -- decayTime is tau (the 1/e time constant), not T60
+// (time to -60dB, which is tau*ln(1000) ~= 6.9x longer), and the measured
+// T60 at this max is already well over 10s at moderate frequencies. "At
+// least for now" -- revisit if 30s decays turn out to be wanted later.
+export const DECAY_TIME_MAX_SECONDS = 2;
+export const DECAY_TIME_DEFAULT_SECONDS = 1.0;
 
 export const EXCITATION_TYPE_DEFAULT = 'noise';
 export const EXCITATION_TYPE_CHOICES = ['noise', 'impulse', 'triangle'];
@@ -47,6 +52,21 @@ export const TERMINATION_REFLECTION = -1.0;
 // ChimeVocoder.
 export const OUTPUT_GAIN = 1;
 
+// Phase C, first dispersion step -- see soundlib/utilities/DispersionFilter.js
+// and docs/MODEL_PATTERNS.md's digital-waveguide archetype. 0 = no effect
+// at all (the filter bypasses entirely), chosen as the default for strict
+// backward compatibility: a freshly-added parameter changes nothing about
+// today's WG2 sound until turned up.
+export const STIFFNESS_MIN = 0;
+export const STIFFNESS_MAX = 1;
+export const STIFFNESS_DEFAULT = 0;
+
+// Number of identical first-order allpass sections in the dispersion
+// cascade -- a structural/CPU-cost choice, not itself part of `stiffness`.
+// See DispersionFilter.js's own comment for the source (Rauhala &
+// Valimaki, DAFX-2006) and this value's rationale.
+export const DISPERSION_SECTION_COUNT = 6;
+
 export const WG2_CONFIG = {
     frequencyMinHz: FREQUENCY_MIN_HZ,
     frequencyMaxHz: FREQUENCY_MAX_HZ,
@@ -66,7 +86,11 @@ export const WG2_CONFIG = {
     pickupTypeDefault: PICKUP_TYPE_DEFAULT,
     pickupTypeChoices: PICKUP_TYPE_CHOICES,
     terminationReflection: TERMINATION_REFLECTION,
-    outputGain: OUTPUT_GAIN
+    outputGain: OUTPUT_GAIN,
+    stiffnessMin: STIFFNESS_MIN,
+    stiffnessMax: STIFFNESS_MAX,
+    stiffnessDefault: STIFFNESS_DEFAULT,
+    dispersionSectionCount: DISPERSION_SECTION_COUNT
 };
 
 export default WG2_CONFIG;

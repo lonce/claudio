@@ -13,8 +13,13 @@ export const FREQUENCY_DEFAULT_HZ = 220;
 export const ENERGY_DEFAULT = 0.6;
 
 export const DECAY_TIME_MIN_SECONDS = 0.05;
-export const DECAY_TIME_MAX_SECONDS = 30;
-export const DECAY_TIME_DEFAULT_SECONDS = 2.5;
+// Lowered from 30 to 2 for more usable control resolution over a good
+// perceptual range -- decayTime is tau (the 1/e time constant), not T60
+// (time to -60dB, which is tau*ln(1000) ~= 6.9x longer), and the measured
+// T60 at this max is already well over 10s at moderate frequencies. "At
+// least for now" -- revisit if 30s decays turn out to be wanted later.
+export const DECAY_TIME_MAX_SECONDS = 2;
+export const DECAY_TIME_DEFAULT_SECONDS = 1.0;
 
 export const EXCITATION_TYPE_DEFAULT = 'noise';
 export const EXCITATION_TYPE_CHOICES = ['noise', 'impulse'];

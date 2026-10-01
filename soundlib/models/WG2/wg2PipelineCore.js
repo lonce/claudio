@@ -9,6 +9,7 @@ import { RigidTermination } from '../../utilities/RigidTermination.js';
 import { InitialConditionExciter } from '../../utilities/InitialConditionExciter.js';
 import { PointPickup } from '../../utilities/PointPickup.js';
 import { OutputConditioner } from '../../utilities/OutputConditioner.js';
+import { DispersionFilter } from '../../utilities/DispersionFilter.js';
 import { DEFAULT_INTERPOLATION_MODE } from '../../utilities/createInterpolator.js';
 import { WG2_CONFIG } from './wg2Config.js';
 
@@ -24,18 +25,19 @@ export function buildWg2Pipeline(sampleRate, seed, interpolationMode = DEFAULT_I
         exciter: new InitialConditionExciter(seed),
         pickup: new PointPickup(),
         output: new OutputConditioner({ outputGain: WG2_CONFIG.outputGain }),
+        dispersionFilter: new DispersionFilter(WG2_CONFIG.dispersionSectionCount),
         excitationType: WG2_CONFIG.excitationTypeDefault,
         pickupType: WG2_CONFIG.pickupTypeDefault
     };
 }
 
 // settings: { frequency, energy, decayTime, excitationPosition,
-// pickupPosition, excitationType, pickupType }, all optional, defaulting
-// from WG2_CONFIG. interpolationMode: 'lagrange3' (default), 'linear', or
-// 'allpass1' -- see createInterpolator.js. Plucks once at pluckAtSeconds
-// (default 0). blockSize matches the worklet's own per-block k-rate
-// recompute granularity (128 samples, the standard Web Audio render
-// quantum).
+// pickupPosition, excitationType, pickupType, stiffness }, all optional,
+// defaulting from WG2_CONFIG. interpolationMode: 'lagrange3' (default),
+// 'linear', or 'allpass1' -- see createInterpolator.js. Plucks once at
+// pluckAtSeconds (default 0). blockSize matches the worklet's own
+// per-block k-rate recompute granularity (128 samples, the standard Web
+// Audio render quantum).
 export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAtSeconds = 0, blockSize = 128, interpolationMode = DEFAULT_INTERPOLATION_MODE) {
     const {
         frequency = WG2_CONFIG.frequencyDefaultHz,
@@ -44,7 +46,8 @@ export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAt
         excitationPosition = WG2_CONFIG.excitationPositionDefault,
         pickupPosition = WG2_CONFIG.pickupPositionDefault,
         excitationType = WG2_CONFIG.excitationTypeDefault,
-        pickupType = WG2_CONFIG.pickupTypeDefault
+        pickupType = WG2_CONFIG.pickupTypeDefault,
+        stiffness = WG2_CONFIG.stiffnessDefault
     } = settings;
 
     const pipeline = buildWg2Pipeline(sampleRate, seed, interpolationMode);
@@ -56,7 +59,15 @@ export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAt
     const samples = new Float64Array(frameCount);
 
     const clampedFrequency = Math.max(WG2_CONFIG.frequencyMinHz, Math.min(frequency, WG2_CONFIG.frequencyMaxHz));
-    pipeline.waveguide.setRailLength(sampleRate / (2 * clampedFrequency));
+    // Matches wg2Processor.js's own per-block ordering: dispersion state
+    // first, then the pitchLocked-compensated rail length derived from it,
+    // then the loss filter (which depends on the now-compensated rail
+    // length). A static settings object means this only needs computing
+    // once here, unlike the real worklet's per-block recompute.
+    pipeline.dispersionFilter.setStiffness(stiffness, clampedFrequency, sampleRate);
+    const compensationSamples = pipeline.dispersionFilter.groupDelaySamplesAt(clampedFrequency, sampleRate);
+    const railLength = Math.max(1, (sampleRate / clampedFrequency - compensationSamples) / 2);
+    pipeline.waveguide.setRailLength(railLength);
     pipeline.lossFilter.setDecayTime(decayTime, sampleRate, pipeline.waveguide.railLength);
 
     let i = 0;
@@ -77,7 +88,7 @@ export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAt
         }
 
         for (let j = 0; j < blockLength; j++) {
-            pipeline.waveguide.tick(pipeline.nutTermination, pipeline.bridgeTermination, pipeline.lossFilter);
+            pipeline.waveguide.tick(pipeline.nutTermination, pipeline.bridgeTermination, pipeline.lossFilter, pipeline.dispersionFilter);
             const observed = pipeline.pickup.observe(pipeline.waveguide, pickupPosition, pipeline.pickupType);
             samples[i + j] = pipeline.output.tick(observed);
         }

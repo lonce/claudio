@@ -4,6 +4,7 @@ import { RigidTermination } from '../../utilities/RigidTermination.js';
 import { InitialConditionExciter } from '../../utilities/InitialConditionExciter.js';
 import { PointPickup } from '../../utilities/PointPickup.js';
 import { OutputConditioner } from '../../utilities/OutputConditioner.js';
+import { DispersionFilter } from '../../utilities/DispersionFilter.js';
 import { WG2_CONFIG } from './wg2Config.js';
 
 /**
@@ -48,6 +49,12 @@ class WG2Processor extends AudioWorkletProcessor {
                 defaultValue: WG2_CONFIG.pickupPositionDefault,
                 minValue: WG2_CONFIG.pickupPositionMin,
                 maxValue: WG2_CONFIG.pickupPositionMax
+            },
+            {
+                name: 'stiffness',
+                defaultValue: WG2_CONFIG.stiffnessDefault,
+                minValue: WG2_CONFIG.stiffnessMin,
+                maxValue: WG2_CONFIG.stiffnessMax
             }
         ];
     }
@@ -80,6 +87,10 @@ class WG2Processor extends AudioWorkletProcessor {
         this.exciter = new InitialConditionExciter(seed);
         this.pickup = new PointPickup();
         this.output = new OutputConditioner({ outputGain: WG2_CONFIG.outputGain });
+        // Phase C, first dispersion step -- see DispersionFilter.js.
+        // Bypassed (stiffness=0) by default, so construction alone adds
+        // no behavior change.
+        this.dispersionFilter = new DispersionFilter(WG2_CONFIG.dispersionSectionCount);
 
         this.excitationType = WG2_CONFIG.excitationTypeDefault;
         this.pickupType = WG2_CONFIG.pickupTypeDefault;
@@ -105,7 +116,18 @@ class WG2Processor extends AudioWorkletProcessor {
             WG2_CONFIG.frequencyMinHz,
             Math.min(parameters.frequency[0], WG2_CONFIG.frequencyMaxHz)
         );
-        this.waveguide.setRailLength(this.processorSampleRate / (2 * frequency));
+
+        // Phase C, pitchLocked (the only mode implemented so far): the
+        // dispersion filter's own group delay at the fundamental is
+        // subtracted from the geometric rail length, so the fundamental
+        // stays in tune as stiffness changes -- this per-block computation
+        // IS the entirety of pitchLocked behavior for v1 (see
+        // DispersionFilter.js's own comment). A future lengthLocked mode
+        // would just skip the subtraction here, touching nothing else.
+        this.dispersionFilter.setStiffness(parameters.stiffness[0], frequency, this.processorSampleRate);
+        const compensationSamples = this.dispersionFilter.groupDelaySamplesAt(frequency, this.processorSampleRate);
+        const railLength = Math.max(1, (this.processorSampleRate / frequency - compensationSamples) / 2);
+        this.waveguide.setRailLength(railLength);
         this.lossFilter.setDecayTime(parameters.decayTime[0], this.processorSampleRate, this.waveguide.railLength);
 
         const excitationPosition = parameters.excitationPosition[0];
@@ -115,6 +137,7 @@ class WG2Processor extends AudioWorkletProcessor {
             if (command.type === 'reset') {
                 this.waveguide.reset();
                 this.output.reset();
+                this.dispersionFilter.reset();
             } else if (command.type === 'set-excitation-type') {
                 this.excitationType = command.excitationType;
             } else if (command.type === 'set-pickup-type') {
@@ -138,7 +161,7 @@ class WG2Processor extends AudioWorkletProcessor {
         }
 
         for (let i = 0; i < channel.length; i++) {
-            this.waveguide.tick(this.nutTermination, this.bridgeTermination, this.lossFilter);
+            this.waveguide.tick(this.nutTermination, this.bridgeTermination, this.lossFilter, this.dispersionFilter);
             const observed = this.pickup.observe(this.waveguide, pickupPosition, this.pickupType);
             channel[i] = this.output.tick(observed);
         }
