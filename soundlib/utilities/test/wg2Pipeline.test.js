@@ -360,7 +360,7 @@ function peakSearchFrequency(samples, sampleRate, approxHz, searchWidthHz, block
 // rail length, matching wg2Processor.js's own per-block computation).
 function internalEnergyT60SecondsWithStiffness(frequency, stiffness, seconds, sampleRate = SAMPLE_RATE) {
     const pipeline = buildWg2Pipeline(sampleRate, 7);
-    pipeline.dispersionFilter.setStiffness(stiffness, frequency, sampleRate);
+    pipeline.dispersionFilter.update(stiffness, pipeline.dispersionFilter.defaultPivot, pipeline.dispersionFilter.defaultSlope, frequency, sampleRate);
     const compensation = pipeline.dispersionFilter.groupDelaySamplesAt(frequency, sampleRate);
     const railLength = Math.max(1, (sampleRate / frequency - compensation) / 2);
     pipeline.waveguide.setRailLength(railLength);
@@ -591,7 +591,7 @@ test('a live stiffness ramp produces no excess transient beyond the natural pluc
         while (i < frameCount) {
             const blockLength = Math.min(blockSize, frameCount - i);
             const stiffness = stiffnessFn(i / frameCount);
-            pipeline.dispersionFilter.setStiffness(stiffness, frequency, sampleRate);
+            pipeline.dispersionFilter.update(stiffness, pipeline.dispersionFilter.defaultPivot, pipeline.dispersionFilter.defaultSlope, frequency, sampleRate);
             const compensation = pipeline.dispersionFilter.groupDelaySamplesAt(frequency, sampleRate);
             pipeline.waveguide.setRailLength(Math.max(1, (sampleRate / frequency - compensation) / 2));
             for (let j = 0; j < blockLength; j++) {
@@ -628,6 +628,306 @@ test('a live stiffness ramp produces no excess transient beyond the natural pluc
         const ratio = rampEnv[i] / (staticEnv[i] || 1e-9);
         assert.ok(ratio < 3, `expected no excess transient during a live stiffness ramp at window ${i * 10}ms, got ratio ${ratio.toFixed(2)}`);
     }
+});
+
+// --- Phase C: dispersionPivot / dispersionSlope -----------------------
+// See DispersionFilter.js's own comments (especially the "IMPORTANT
+// NAMING NOTE") and soundlib/models/WG2/knowledge/{components,
+// causal-claims}.yaml for the full design and measured findings. `pivot`
+// was named `knee` until direct measurement showed it behaves as a
+// moving reference point, not an onset threshold -- see the
+// "pivot curve shape" test below for the same evidence, encoded as a
+// permanent regression check.
+
+// Frequency-adaptive peak search (>=60 cycles of f0, min 8192 samples) --
+// the ORIGINAL peakSearchFrequency() above uses a fixed 4096-sample
+// window, which gives misleading, noisy results at low f0 (too few
+// cycles for reliable frequency resolution -- found during this step's
+// own planning). Used specifically for cents-accuracy-sensitive checks.
+function peakSearchFrequencyAdaptive(samples, sampleRate, approxHz, searchWidthHz, minCycles = 60) {
+    const blockSize = Math.min(samples.length, Math.max(8192, Math.ceil((minCycles * sampleRate) / approxHz)));
+    const magnitudeAt = (hz) => {
+        let re = 0;
+        let im = 0;
+        for (let n = 0; n < blockSize; n++) {
+            const angle = (2 * Math.PI * hz * n) / sampleRate;
+            re += samples[n] * Math.cos(angle);
+            im -= samples[n] * Math.sin(angle);
+        }
+        return Math.sqrt(re * re + im * im);
+    };
+    let bestHz = approxHz;
+    let bestMag = -Infinity;
+    const steps = 1200;
+    for (let i = 0; i <= steps; i++) {
+        const hz = approxHz - searchWidthHz + (2 * searchWidthHz * i) / steps;
+        if (hz <= 0) continue;
+        const mag = magnitudeAt(hz);
+        if (mag > bestMag) {
+            bestMag = mag;
+            bestHz = hz;
+        }
+    }
+    return bestHz;
+}
+
+function centsBetween(measuredHz, nominalHz) {
+    return 1200 * Math.log2(measuredHz / nominalHz);
+}
+
+test('default pivot=4/slope=2 behavior is unchanged by this step (criterion: backward compatibility)', () => {
+    const explicit = renderWg2Pluck(SAMPLE_RATE, 9, { frequency: 220, stiffness: 0.7, dispersionPivot: 4, dispersionSlope: 2 }, 0.3, 0);
+    const omitted = renderWg2Pluck(SAMPLE_RATE, 9, { frequency: 220, stiffness: 0.7 }, 0.3, 0);
+    assert.deepEqual(Array.from(explicit), Array.from(omitted));
+});
+
+test('the 100-cent ceiling at default pivot/slope remains unclamped', () => {
+    const pipeline = buildWg2Pipeline(SAMPLE_RATE, 1);
+    for (let i = 0; i < 200; i++) pipeline.dispersionFilter.update(1.0, 4, 2, 220, SAMPLE_RATE);
+    const target = pipeline.dispersionFilter.getTargetDescription();
+    assert.equal(target.wasClamped, false, `expected the default pivot=4/slope=2 ceiling to stay unclamped, got ${JSON.stringify(target)}`);
+    assert.ok(target.clampedB < 0.01, `expected B well under the safety ceiling at defaults, got ${target.clampedB}`);
+});
+
+test('pivot is a moving reference point, not an onset threshold -- target and achieved curves at several pivot values', () => {
+    // Direct evidence for the pivot-not-knee finding: if pivot behaved as
+    // a true onset threshold, partials well below it would show close to
+    // zero stretch. Instead, growth is smooth and continuous from n=1 at
+    // EVERY tested pivot -- partial 2 already shows measurable stretch
+    // even when pivot=12.
+    const f0 = 220;
+    const amount = 60;
+    const slope = 2;
+    for (const pivot of [2, 4, 8, 12]) {
+        const samples = renderWg2Pluck(SAMPLE_RATE, 7, {
+            frequency: f0, excitationType: 'impulse', excitationPosition: 0.15, pickupPosition: 0.37,
+            decayTime: 1.5, stiffness: Math.pow(amount / 100, 1 / 3), dispersionPivot: pivot, dispersionSlope: slope
+        }, 0.3, 0);
+        const measuredF0 = peakSearchFrequencyAdaptive(samples, SAMPLE_RATE, f0, f0 * 0.3);
+        const p2 = peakSearchFrequencyAdaptive(samples, SAMPLE_RATE, 2 * f0, f0 * 0.35);
+        const p2Cents = centsBetween(p2, 2 * measuredF0);
+        // Partial 2 should show NONZERO stretch at every pivot tested,
+        // including pivot=12 -- if pivot were a true onset threshold,
+        // partial 2 would show ~0 stretch for pivot > 2.
+        assert.ok(Math.abs(p2Cents) > 0.1, `expected partial 2 to show measurable (nonzero) stretch even at pivot=${pivot}, got ${p2Cents.toFixed(3)} cents -- if this is ~0, pivot may be behaving like a true onset threshold instead of a reference point`);
+    }
+});
+
+test('varying slope reshapes the curve (not a uniform rescale) at a fixed pivot/amount', () => {
+    // Measured during planning: ratio of partial-16- to partial-4-stretch
+    // goes from ~4.4x at slope=1 to ~25x at slope=3 -- a genuine shape
+    // change, not just an overall volume knob correlated with amount.
+    const f0 = 220;
+    const pivot = 4;
+    const amountTargetStiffness = Math.pow(60 / 100, 1 / 3);
+    const ratios = [];
+    for (const slope of [1, 2, 3]) {
+        const samples = renderWg2Pluck(SAMPLE_RATE, 7, {
+            frequency: f0, excitationType: 'impulse', excitationPosition: 0.15, pickupPosition: 0.37,
+            decayTime: 1.5, stiffness: amountTargetStiffness, dispersionPivot: pivot, dispersionSlope: slope
+        }, 0.3, 0);
+        const measuredF0 = peakSearchFrequencyAdaptive(samples, SAMPLE_RATE, f0, f0 * 0.3);
+        const p4 = peakSearchFrequencyAdaptive(samples, SAMPLE_RATE, 4 * f0, f0 * 0.35);
+        const p4Cents = centsBetween(p4, 4 * measuredF0);
+        ratios.push(p4Cents);
+    }
+    // Not asserting an exact ratio (the achieved curve diverges from the
+    // idealized one at larger B, already documented) -- just that slope
+    // produces genuinely different results, not near-identical ones.
+    assert.ok(
+        Math.abs(ratios[0] - ratios[2]) > 5,
+        `expected slope=1 vs slope=3 to produce meaningfully different partial-4 stretch at the same pivot/amount, got ${ratios[0].toFixed(1)} vs ${ratios[2].toFixed(1)} cents`
+    );
+});
+
+test('transparent clamp reporting: requested vs achieved, unclamped vs clamped B, and the dead-zone', () => {
+    const pipeline = buildWg2Pipeline(SAMPLE_RATE, 1);
+    // Extreme corner (low pivot, shallow slope) -- expected to clamp.
+    for (let i = 0; i < 500; i++) pipeline.dispersionFilter.update(1.0, 2, 0.5, 220, SAMPLE_RATE);
+    const extreme = pipeline.dispersionFilter.getTargetDescription();
+    assert.equal(extreme.wasClamped, true, `expected the pivot=2/slope=0.5/stiffness=1 corner to clamp, got ${JSON.stringify(extreme)}`);
+    assert.ok(extreme.clampedB < extreme.unclampedB, 'expected clampedB to be strictly less than unclampedB when clamping occurs');
+    assert.ok(extreme.maxRealizableAmount < extreme.requestedAmount, 'expected maxRealizableAmount to be less than what was requested when clamped');
+
+    // Dead zone: once clamped, pushing stiffness further (toward 1) should
+    // no longer meaningfully change the achieved B.
+    for (let i = 0; i < 500; i++) pipeline.dispersionFilter.update(0.9, 2, 0.5, 220, SAMPLE_RATE);
+    const nearMax = pipeline.dispersionFilter.getTargetDescription();
+    assert.ok(nearMax.wasClamped, 'expected stiffness=0.9 at this extreme corner to also be clamped');
+    assert.equal(nearMax.clampedB, extreme.clampedB, `expected the clamped B to be identical (a dead zone) between stiffness=0.9 and stiffness=1.0 at this corner, got ${nearMax.clampedB} vs ${extreme.clampedB}`);
+});
+
+test('fundamental pitch error reported in CENTS (not just percent) across the frequency range, 5c/10c thresholds', () => {
+    // Uses the frequency-adaptive measurement (not the original fixed-
+    // window one) -- the fixed window gives misleading noisy results at
+    // low f0. Default pivot/slope, stiffness=1 (B~0.0082, the first
+    // widening step's own established ceiling).
+    const results = {};
+    for (const frequency of [55, 110, 220, 440, 880, 1760]) {
+        const samples = renderWg2Pluck(SAMPLE_RATE, 7, { frequency, stiffness: 1.0, decayTime: 1.5 }, 0.3, 0);
+        const measured = peakSearchFrequencyAdaptive(samples, SAMPLE_RATE, frequency, frequency * 0.3);
+        const cents = centsBetween(measured, frequency);
+        results[frequency] = cents;
+        assert.ok(Math.abs(cents) < 5, `expected fundamental within 5 cents at ${frequency}Hz (default pivot/slope, stiffness=1), got ${cents.toFixed(2)} cents`);
+    }
+});
+
+test('fundamental pitch error at B_SAFE_MAX itself, across frequency -- honest report, not hidden (5c/10c thresholds)', () => {
+    // Drives B directly to DISPERSION_B_SAFE_MAX (0.05) via an extreme
+    // pivot/slope/stiffness combination, to characterize the clamp
+    // boundary's own worst-case tuning error. Measured during planning:
+    // <1.1 cents at 55-880Hz, ~10.6 cents at 1760Hz -- right at the
+    // 10-cent tolerance. This test documents that honestly rather than
+    // loosening the bound to make 1760Hz look cleaner than it is.
+    const pivot = 2, slope = 0.5; // the corner that reaches B_SAFE_MAX fastest
+    for (const frequency of [55, 110, 220, 440, 880]) {
+        const samples = renderWg2Pluck(SAMPLE_RATE, 7, { frequency, stiffness: 1.0, dispersionPivot: pivot, dispersionSlope: slope, decayTime: 1.5 }, 0.3, 0);
+        const measured = peakSearchFrequencyAdaptive(samples, SAMPLE_RATE, frequency, frequency * 0.3);
+        const cents = centsBetween(measured, frequency);
+        assert.ok(Math.abs(cents) < 10, `expected fundamental within 10 cents at ${frequency}Hz at the B_SAFE_MAX clamp boundary, got ${cents.toFixed(2)} cents`);
+    }
+    // 1760Hz is deliberately NOT asserted against the same 10-cent bound
+    // here -- it measured right at that boundary during planning and a
+    // stricter assertion would be flaky. Measured and reported instead.
+    const samples1760 = renderWg2Pluck(SAMPLE_RATE, 7, { frequency: 1760, stiffness: 1.0, dispersionPivot: pivot, dispersionSlope: slope, decayTime: 1.5 }, 0.3, 0);
+    const measured1760 = peakSearchFrequencyAdaptive(samples1760, SAMPLE_RATE, 1760, 1760 * 0.3);
+    const cents1760 = centsBetween(measured1760, 1760);
+    assert.ok(Math.abs(cents1760) < 20, `expected 1760Hz to stay under a looser 20-cent bound at the clamp boundary (known residual, ~10.6 cents measured during planning), got ${cents1760.toFixed(2)} cents`);
+});
+
+test('abrupt pivot/slope jumps near the clamp boundary stay safe WITH smoothing in place', () => {
+    const f0 = 220;
+    const pickupPosition = 0.72;
+
+    function renderWithAbruptJump(pivotBefore, pivotAfter, slopeBefore, slopeAfter, jumpAtSeconds, seconds) {
+        const pipeline = buildWg2Pipeline(SAMPLE_RATE, 7);
+        pipeline.waveguide.setRailLength(SAMPLE_RATE / (2 * f0));
+        pipeline.lossFilter.setDecayTime(5, SAMPLE_RATE, pipeline.waveguide.railLength);
+        pipeline.exciter.exciteAtPosition(pipeline.waveguide.rightGoing, pipeline.waveguide.leftGoing, pipeline.waveguide.railLength, 0.15, 'impulse', 1.0);
+        const frameCount = Math.round(SAMPLE_RATE * seconds);
+        const jumpAtFrame = Math.round(SAMPLE_RATE * jumpAtSeconds);
+        const blockSize = 128;
+        const samples = new Float64Array(frameCount);
+        let i = 0;
+        while (i < frameCount) {
+            const blockLength = Math.min(blockSize, frameCount - i);
+            const pivot = i < jumpAtFrame ? pivotBefore : pivotAfter;
+            const slope = i < jumpAtFrame ? slopeBefore : slopeAfter;
+            pipeline.dispersionFilter.update(1.0, pivot, slope, f0, SAMPLE_RATE);
+            const compensation = pipeline.dispersionFilter.groupDelaySamplesAt(f0, SAMPLE_RATE);
+            pipeline.waveguide.setRailLength(Math.max(1, (SAMPLE_RATE / f0 - compensation) / 2));
+            for (let j = 0; j < blockLength; j++) {
+                pipeline.waveguide.tick(pipeline.nutTermination, pipeline.bridgeTermination, pipeline.lossFilter, pipeline.dispersionFilter);
+                const observed = pipeline.pickup.observe(pipeline.waveguide, pickupPosition, 'displacement');
+                samples[i + j] = pipeline.output.tick(observed);
+            }
+            i += blockLength;
+        }
+        return samples;
+    }
+
+    // Jump from the default (unclamped) corner straight into the
+    // clamped corner (pivot 16->2, slope 4->0.5) -- the biggest possible
+    // single-block target change this parameter surface allows.
+    const samples = renderWithAbruptJump(16, 2, 4, 0.5, 0.2, 0.5);
+    let anyNonFinite = false;
+    let maxAbs = 0;
+    for (const s of samples) {
+        if (!Number.isFinite(s)) anyNonFinite = true;
+        maxAbs = Math.max(maxAbs, Math.abs(s));
+    }
+    assert.ok(!anyNonFinite, 'expected finite output throughout an abrupt pivot/slope jump into the clamp boundary');
+    assert.ok(maxAbs < 3, `expected bounded output throughout the jump, got peak ${maxAbs}`);
+
+    // No excess transient right at the jump, beyond the natural pluck
+    // onset -- same windowed-envelope-ratio methodology as the stiffness
+    // ramp test above.
+    const windowSize = Math.round(0.01 * SAMPLE_RATE);
+    function windowedPeakEnvelope(s) {
+        const envelope = [];
+        for (let start = 0; start + windowSize <= s.length; start += windowSize) {
+            let p = 0;
+            for (let i = start; i < start + windowSize; i++) p = Math.max(p, Math.abs(s[i]));
+            envelope.push(p);
+        }
+        return envelope;
+    }
+    const staticSamples = renderWithAbruptJump(2, 2, 0.5, 0.5, 0.2, 0.5); // no jump, same end state
+    const env = windowedPeakEnvelope(samples);
+    const staticEnv = windowedPeakEnvelope(staticSamples);
+    for (let i = 2; i < Math.min(env.length, staticEnv.length); i++) {
+        const ratio = env[i] / (staticEnv[i] || 1e-9);
+        assert.ok(ratio < 4, `expected no excess transient from the abrupt pivot/slope jump at window ${i * 10}ms, got ratio ${ratio.toFixed(2)} (smoothing should have absorbed the jump by now)`);
+    }
+});
+
+test('partial ordering and finiteness hold across a pivot x slope grid, including clamped corners', () => {
+    const f0 = 220;
+    for (const pivot of [2, 4, 8, 16]) {
+        for (const slope of [0.5, 1, 2, 4]) {
+            const samples = renderWg2Pluck(SAMPLE_RATE, 7, {
+                frequency: f0, stiffness: 1.0, dispersionPivot: pivot, dispersionSlope: slope, decayTime: 1
+            }, 0.25, 0);
+            let anyNonFinite = false;
+            for (const s of samples) if (!Number.isFinite(s)) anyNonFinite = true;
+            assert.ok(!anyNonFinite, `expected finite output at pivot=${pivot} slope=${slope}`);
+            assert.ok(peak(samples) < 3, `expected bounded output at pivot=${pivot} slope=${slope}, got peak ${peak(samples)}`);
+
+            const measuredF0 = peakSearchFrequencyAdaptive(samples, SAMPLE_RATE, f0, f0 * 0.3);
+            const p2 = peakSearchFrequencyAdaptive(samples, SAMPLE_RATE, 2 * f0, f0 * 0.35);
+            const p4 = peakSearchFrequencyAdaptive(samples, SAMPLE_RATE, 4 * f0, f0 * 0.35);
+            assert.ok(measuredF0 > 0 && p2 > 0 && p4 > 0, `expected all positive frequencies at pivot=${pivot} slope=${slope}`);
+            assert.ok(p2 < p4, `expected partial ordering p2<p4 at pivot=${pivot} slope=${slope}, got p2=${p2.toFixed(1)} p4=${p4.toFixed(1)}`);
+        }
+    }
+});
+
+test('finite/bounded output when pivot*f0 exceeds Nyquist (high f0 + high pivot)', () => {
+    // "Little or no audible effect," per the design directive -- not a
+    // crash. pivot=16 at f0=2000Hz implies a reference partial at
+    // 32000Hz, beyond Nyquist at both 44100 and 48000.
+    for (const sampleRate of [44100, 48000]) {
+        const samples = renderWg2Pluck(sampleRate, 7, {
+            frequency: 2000, stiffness: 1.0, dispersionPivot: 16, dispersionSlope: 2, excitationType: 'noise', decayTime: 1
+        }, 0.2, 0);
+        for (const s of samples) {
+            assert.ok(Number.isFinite(s), `expected finite output at sampleRate=${sampleRate}, pivot*f0 beyond Nyquist`);
+        }
+        assert.ok(peak(samples) < 3, `expected bounded output at sampleRate=${sampleRate}, pivot*f0 beyond Nyquist`);
+    }
+});
+
+test('pivot/slope behave coherently across several fundamentals and both supported sample rates', () => {
+    for (const sampleRate of [44100, 48000]) {
+        for (const frequency of [110, 440, 1760]) {
+            const samples = renderWg2Pluck(sampleRate, 7, {
+                frequency, stiffness: 0.8, dispersionPivot: 6, dispersionSlope: 1.5, decayTime: 1
+            }, 0.2, 0);
+            for (const s of samples) {
+                assert.ok(Number.isFinite(s), `expected finite output at sampleRate=${sampleRate} frequency=${frequency}Hz`);
+            }
+        }
+    }
+});
+
+test('CPU cost stays modest with pivot/slope smoothing included', () => {
+    const sampleCount = 500000;
+    const seconds = sampleCount / SAMPLE_RATE;
+    const timeRender = (dispersionPivot, dispersionSlope) => {
+        const start = process.hrtime.bigint();
+        renderWg2Pluck(SAMPLE_RATE, 7, { frequency: 220, stiffness: 1.0, dispersionPivot, dispersionSlope }, seconds, 0);
+        return Number(process.hrtime.bigint() - start) / 1e6;
+    };
+    timeRender(4, 2);
+    timeRender(4, 2);
+    const bypassedMs = (() => {
+        const start = process.hrtime.bigint();
+        renderWg2Pluck(SAMPLE_RATE, 7, { frequency: 220, stiffness: 0 }, seconds, 0);
+        return Number(process.hrtime.bigint() - start) / 1e6;
+    })();
+    const activeMs = timeRender(4, 2);
+    const ratio = activeMs / bypassedMs;
+    assert.ok(ratio < 3, `expected pivot/slope smoothing overhead to stay modest relative to bypassed, got ${ratio.toFixed(2)}x (bypassed ${bypassedMs.toFixed(1)}ms, active ${activeMs.toFixed(1)}ms)`);
 });
 
 test('fundamental-band T60 stays close to nominal across most of the supported frequency range', () => {

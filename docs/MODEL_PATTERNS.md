@@ -1022,6 +1022,102 @@ textbook relation the Rauhala-Valimaki fit targets.
   `component.dispersion-filter` entry's full `internal_target_description`/
   affordances/limitations/future-affordances/grounding fields.
 
+#### Exposing `dispersionPivot`/`dispersionSlope`: a naming question checked by measurement, not assumed
+
+Before exposing the widening step's internal `knee`/`slope` as public
+`Parameter`s, the user asked a semantic question worth recording as its
+own worked example of this project's discipline: does `knee` actually
+behave like a knee (an onset threshold, flat below/rising above), or is
+it better described as a moving reference/pivot? This was checked
+directly against the real filter's own measured output, not settled by
+discussion of the math alone.
+
+- **`knee` was renamed to `pivot` after direct measurement showed it has
+  no onset behavior at all.** Rendering the achieved stretch curve at
+  several reference-partial values (2, 4, 8, 12, fixed amount=60,
+  slope=2, f0=220Hz) showed smooth, continuous growth from partial 1 at
+  EVERY value tested -- at reference=4, partial 2 (immediately next to
+  the fundamental) already shows real stretch (12.3 target/16.1 measured
+  cents); at reference=12, even partial 2 shows a small but nonzero
+  effect. There is no flat "below-knee" region at any tested value --
+  moving this parameter rescales where the target `amount` lands on the
+  SAME smooth power-law curve, it does not shift a boundary. **The
+  response was the smaller, bounded one**: rename, don't build a separate
+  true onset-threshold mechanism (which would need a fundamentally
+  different, non-power-law curve shape -- a bigger, declined change) --
+  matching the explicit instruction not to undertake "a large filter
+  rewrite merely to satisfy terminology." A genuine onset-threshold knee
+  remains a possible, separate future design.
+- **Both `dispersionPivot` and `dispersionSlope` are now live,
+  control-rate `Parameter`s** (ranges `[2,16]` default 4, `[0.5,4]`
+  default 2 respectively) -- `stiffness` remains the PRIMARY control per
+  explicit instruction. Confirmed by direct measurement (not assumed from
+  the formula) that both are genuine, independent shape controls rather
+  than three correlated ways of adjusting one overall inharmonicity knob
+  -- e.g. at a fixed pivot/amount, the ratio of partial-16- to
+  partial-4-stretch goes from ~4.4x at `slope=1` to ~25x at `slope=3`, a
+  real reshaping, not a uniform rescale. One measured nuance worth
+  knowing: because both parameters' entire effect runs through which `B`
+  coefficient gets selected, two DIFFERENT `(pivot, slope)` pairs that
+  happen to resolve to the same `B` produce IDENTICAL achieved curves --
+  `pivot`/`slope` are two different ways of SELECTING a `B`, not two
+  independently-expressive axes once a specific `B` is reached by either
+  route.
+- **The safety clamp (`B_SAFE_MAX=0.05`) is re-examined with a corrected,
+  cents-accurate measurement, and kept transparent rather than silent.**
+  An initial percent-based sweep used a fixed 4096-sample DFT window,
+  which at low f0 (55-110Hz) captures too few cycles for reliable
+  frequency resolution and gave misleading, noisy cents figures --
+  caught by a B=0 sanity check (should read exactly 0 cents everywhere;
+  didn't, with the old window) before trusting the corrected,
+  frequency-adaptive method's own results. With that fix: tuning stays
+  under ~1.1 cents from 55-880Hz through `B=0.05`, but reaches ~10.6
+  cents at 1760Hz at that same `B` -- right at the stated 10-cent
+  tolerance, reported honestly (a separate, looser test bound at that one
+  frequency) rather than hidden by a uniform threshold. Framed, per
+  explicit instruction, as "the current limit of reliable pitch
+  compensation, not a stability or final expressive limit" -- large `B`
+  stays finite/stable/correctly-ordered far beyond this clamp (tested to
+  `B=0.2`). `getTargetDescription()` now reports `requestedAmount`,
+  `unclampedB`, `clampedB`, `wasClamped`, and `maxRealizableAmount`
+  (computed directly from the forward formula, not searched for) on every
+  call -- clamping is never invisible, and a "dead zone" (pushing
+  `stiffness` further produces no additional change once clamped) is
+  directly detectable and was confirmed by a dedicated regression test,
+  not just documented as a goal.
+- **A second, distinct limitation, kept separate from the tuning
+  clamp**: even well under `B_SAFE_MAX` (e.g. `B=0.0245`, from
+  `pivot=2`/`amount=60`), stretch accuracy AT PARTIALS BEYOND THE PIVOT
+  can already be unreliable (partial 4 measured -182 cents against a
+  +265 target in one such case) -- the already-documented per-partial
+  approximation limits from the amount-widening step, re-confirmed here
+  as orthogonal to the tuning-focused `B_SAFE_MAX` clamp, not folded into
+  it.
+- **Live `pivot`/`slope` are smoothed; `stiffness` stays unsmoothed.** An
+  abrupt (unsmoothed) `pivot`/`slope` jump was measured during design to
+  produce a real, if modest, sample-level discontinuity (~2-2.5x the
+  local baseline delta) -- not severe, but real and specifically called
+  out by the design directive. A one-pole smoother (`DISPERSION_
+  SMOOTHING_SECONDS`, ~30ms starting point) is applied to `pivot`/`slope`
+  before use each block; `stiffness` itself needs none, matching its own
+  already-validated finding from the amount-widening step. Re-verified
+  safe even for a jump landing directly in the clamp boundary (the
+  biggest single-block target change the exposed ranges allow).
+- A recorded, NOT pursued, future task: **direct phase-based tuning
+  compensation** -- a bounded numerical solve choosing the base delay so
+  total round-trip phase (delay + interpolation + dispersion +
+  termination) at the requested fundamental equals the required multiple
+  of `2*pi`, as a possible way to extend the reliable `pitchLocked` range
+  beyond the current empirical-formula-derived ceiling. Explicitly out of
+  scope for this step.
+- See `soundlib/models/WG2/knowledge/causal-claims.yaml`'s
+  `claim.pivot-is-a-reference-point-not-an-onset-threshold`,
+  `claim.slope-reshapes-not-just-rescales`,
+  `claim.b-safe-max-characterized-in-cents`, and
+  `claim.clamping-is-transparent-and-detects-dead-zones` for the full
+  measured validation, and `components.yaml`'s `pivot_vs_knee` field for
+  the naming decision's own write-up.
+
 ### 6. Worker-offloaded generation
 
 DSP computation happens off the audio-render thread entirely, in a Web

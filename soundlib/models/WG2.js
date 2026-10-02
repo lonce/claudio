@@ -31,6 +31,8 @@ export class WG2 extends BaseSoundWithEvents {
         this.addParameter('excitationPosition', WG2_CONFIG.excitationPositionDefault, WG2_CONFIG.excitationPositionMin, WG2_CONFIG.excitationPositionMax, 0, 0);
         this.addParameter('pickupPosition', WG2_CONFIG.pickupPositionDefault, WG2_CONFIG.pickupPositionMin, WG2_CONFIG.pickupPositionMax, 0, 0);
         this.addParameter('stiffness', WG2_CONFIG.stiffnessDefault, WG2_CONFIG.stiffnessMin, WG2_CONFIG.stiffnessMax, 0, 0);
+        this.addParameter('dispersionPivot', WG2_CONFIG.dispersionPivotDefault, WG2_CONFIG.dispersionPivotMin, WG2_CONFIG.dispersionPivotMax, 0, 0);
+        this.addParameter('dispersionSlope', WG2_CONFIG.dispersionSlopeDefault, WG2_CONFIG.dispersionSlopeMin, WG2_CONFIG.dispersionSlopeMax, 0, 0);
         this.addStringParameter('excitationType', WG2_CONFIG.excitationTypeDefault, WG2_CONFIG.excitationTypeChoices);
         this.addStringParameter('pickupType', WG2_CONFIG.pickupTypeDefault, WG2_CONFIG.pickupTypeChoices);
 
@@ -92,7 +94,7 @@ export class WG2 extends BaseSoundWithEvents {
         this.scheduleAttack(this.gainNode);
         this.startTime = now;
 
-        ['frequency', 'energy', 'decayTime', 'excitationPosition', 'pickupPosition', 'stiffness', 'excitationType', 'pickupType']
+        ['frequency', 'energy', 'decayTime', 'excitationPosition', 'pickupPosition', 'stiffness', 'dispersionPivot', 'dispersionSlope', 'excitationType', 'pickupType']
             .forEach((name) => this.updateParameter(name));
     }
 
@@ -115,6 +117,8 @@ export class WG2 extends BaseSoundWithEvents {
             case 'excitationPosition':
             case 'pickupPosition':
             case 'stiffness':
+            case 'dispersionPivot':
+            case 'dispersionSlope':
                 if (this.workletNode) {
                     this.workletNode.parameters.get(name).setValueAtTime(param.get(), now);
                 }

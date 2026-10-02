@@ -55,6 +55,18 @@ class WG2Processor extends AudioWorkletProcessor {
                 defaultValue: WG2_CONFIG.stiffnessDefault,
                 minValue: WG2_CONFIG.stiffnessMin,
                 maxValue: WG2_CONFIG.stiffnessMax
+            },
+            {
+                name: 'dispersionPivot',
+                defaultValue: WG2_CONFIG.dispersionPivotDefault,
+                minValue: WG2_CONFIG.dispersionPivotMin,
+                maxValue: WG2_CONFIG.dispersionPivotMax
+            },
+            {
+                name: 'dispersionSlope',
+                defaultValue: WG2_CONFIG.dispersionSlopeDefault,
+                minValue: WG2_CONFIG.dispersionSlopeMin,
+                maxValue: WG2_CONFIG.dispersionSlopeMax
             }
         ];
     }
@@ -92,10 +104,12 @@ class WG2Processor extends AudioWorkletProcessor {
         // behavior change.
         this.dispersionFilter = new DispersionFilter(
             WG2_CONFIG.dispersionSectionCount,
-            WG2_CONFIG.dispersionKnee,
-            WG2_CONFIG.dispersionSlope,
+            WG2_CONFIG.dispersionPivotDefault,
+            WG2_CONFIG.dispersionSlopeDefault,
             WG2_CONFIG.dispersionAmountMaxCents,
-            WG2_CONFIG.dispersionStiffnessCurveExponent
+            WG2_CONFIG.dispersionStiffnessCurveExponent,
+            WG2_CONFIG.dispersionBSafeMax,
+            WG2_CONFIG.dispersionSmoothingSeconds
         );
 
         this.excitationType = WG2_CONFIG.excitationTypeDefault;
@@ -130,7 +144,13 @@ class WG2Processor extends AudioWorkletProcessor {
         // IS the entirety of pitchLocked behavior for v1 (see
         // DispersionFilter.js's own comment). A future lengthLocked mode
         // would just skip the subtraction here, touching nothing else.
-        this.dispersionFilter.setStiffness(parameters.stiffness[0], frequency, this.processorSampleRate);
+        this.dispersionFilter.update(
+            parameters.stiffness[0],
+            parameters.dispersionPivot[0],
+            parameters.dispersionSlope[0],
+            frequency,
+            this.processorSampleRate
+        );
         const compensationSamples = this.dispersionFilter.groupDelaySamplesAt(frequency, this.processorSampleRate);
         const railLength = Math.max(1, (this.processorSampleRate / frequency - compensationSamples) / 2);
         this.waveguide.setRailLength(railLength);

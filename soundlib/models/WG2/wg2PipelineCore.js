@@ -27,10 +27,12 @@ export function buildWg2Pipeline(sampleRate, seed, interpolationMode = DEFAULT_I
         output: new OutputConditioner({ outputGain: WG2_CONFIG.outputGain }),
         dispersionFilter: new DispersionFilter(
             WG2_CONFIG.dispersionSectionCount,
-            WG2_CONFIG.dispersionKnee,
-            WG2_CONFIG.dispersionSlope,
+            WG2_CONFIG.dispersionPivotDefault,
+            WG2_CONFIG.dispersionSlopeDefault,
             WG2_CONFIG.dispersionAmountMaxCents,
-            WG2_CONFIG.dispersionStiffnessCurveExponent
+            WG2_CONFIG.dispersionStiffnessCurveExponent,
+            WG2_CONFIG.dispersionBSafeMax,
+            WG2_CONFIG.dispersionSmoothingSeconds
         ),
         excitationType: WG2_CONFIG.excitationTypeDefault,
         pickupType: WG2_CONFIG.pickupTypeDefault
@@ -38,12 +40,12 @@ export function buildWg2Pipeline(sampleRate, seed, interpolationMode = DEFAULT_I
 }
 
 // settings: { frequency, energy, decayTime, excitationPosition,
-// pickupPosition, excitationType, pickupType, stiffness }, all optional,
-// defaulting from WG2_CONFIG. interpolationMode: 'lagrange3' (default),
-// 'linear', or 'allpass1' -- see createInterpolator.js. Plucks once at
-// pluckAtSeconds (default 0). blockSize matches the worklet's own
-// per-block k-rate recompute granularity (128 samples, the standard Web
-// Audio render quantum).
+// pickupPosition, excitationType, pickupType, stiffness, dispersionPivot,
+// dispersionSlope }, all optional, defaulting from WG2_CONFIG.
+// interpolationMode: 'lagrange3' (default), 'linear', or 'allpass1' --
+// see createInterpolator.js. Plucks once at pluckAtSeconds (default 0).
+// blockSize matches the worklet's own per-block k-rate recompute
+// granularity (128 samples, the standard Web Audio render quantum).
 export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAtSeconds = 0, blockSize = 128, interpolationMode = DEFAULT_INTERPOLATION_MODE) {
     const {
         frequency = WG2_CONFIG.frequencyDefaultHz,
@@ -53,7 +55,9 @@ export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAt
         pickupPosition = WG2_CONFIG.pickupPositionDefault,
         excitationType = WG2_CONFIG.excitationTypeDefault,
         pickupType = WG2_CONFIG.pickupTypeDefault,
-        stiffness = WG2_CONFIG.stiffnessDefault
+        stiffness = WG2_CONFIG.stiffnessDefault,
+        dispersionPivot = WG2_CONFIG.dispersionPivotDefault,
+        dispersionSlope = WG2_CONFIG.dispersionSlopeDefault
     } = settings;
 
     const pipeline = buildWg2Pipeline(sampleRate, seed, interpolationMode);
@@ -65,12 +69,23 @@ export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAt
     const samples = new Float64Array(frameCount);
 
     const clampedFrequency = Math.max(WG2_CONFIG.frequencyMinHz, Math.min(frequency, WG2_CONFIG.frequencyMaxHz));
+    // This helper treats settings as constant for the whole render (same
+    // simplification already applied to frequency/decayTime, which don't
+    // ramp up here either) -- so dispersionPivot/dispersionSlope are
+    // pre-set onto the smoother's own state directly, as if a user had
+    // already dialed them in before pressing play, rather than letting a
+    // single update() call only partially smooth toward them from the
+    // construction default. Tests that specifically want to exercise the
+    // live smoothing transition drive the pipeline block-by-block
+    // themselves (see wg2Pipeline.test.js) instead of using this helper.
+    pipeline.dispersionFilter.smoothedPivot = dispersionPivot;
+    pipeline.dispersionFilter.smoothedSlope = dispersionSlope;
     // Matches wg2Processor.js's own per-block ordering: dispersion state
     // first, then the pitchLocked-compensated rail length derived from it,
     // then the loss filter (which depends on the now-compensated rail
     // length). A static settings object means this only needs computing
     // once here, unlike the real worklet's per-block recompute.
-    pipeline.dispersionFilter.setStiffness(stiffness, clampedFrequency, sampleRate);
+    pipeline.dispersionFilter.update(stiffness, dispersionPivot, dispersionSlope, clampedFrequency, sampleRate);
     const compensationSamples = pipeline.dispersionFilter.groupDelaySamplesAt(clampedFrequency, sampleRate);
     const railLength = Math.max(1, (sampleRate / clampedFrequency - compensationSamples) / 2);
     pipeline.waveguide.setRailLength(railLength);

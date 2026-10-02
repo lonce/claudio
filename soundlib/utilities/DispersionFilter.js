@@ -1,9 +1,9 @@
 // Plain, framework-agnostic dispersion filter for waveguide-family models
 // -- see FractionalDelayWaveguide.js for the shared-placement rationale
 // (reuse by future bow/hammer/other waveguide models, per the spec's own
-// stated intent). WaveguideResonator v1 Phase C (dispersion/stiffness),
-// first step -- see docs/MODEL_PATTERNS.md's digital-waveguide archetype
-// and scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md
+// stated intent). WaveguideResonator v1 Phase C (dispersion/stiffness)
+// -- see docs/MODEL_PATTERNS.md's digital-waveguide archetype and
+// scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md
 // section 5.4.
 //
 // A cascade of `sectionCount` identical first-order allpass sections --
@@ -25,9 +25,9 @@
 // coefficient B (the textbook stiff-string relation f_n = n*f0*sqrt(1 +
 // B*n^2)) and the current fundamental f0 to a single coefficient `a1`
 // shared by all M sections, via an empirical fit (the k1..k3/m1..m4
-// constants below). This is a PHYSICAL/physically-informed mapping (per
-// docs/MODEL_PATTERNS.md's four-category classification) -- a real
-// published closed form, not invented for this codebase.
+// constants below), calibrated assuming exponent 2 specifically -- a
+// DIFFERENT "2" from the live `slope` exponent below (see `update()`'s
+// own comment for why these must not be conflated).
 //
 // Critically, the source design ALREADY separates the dispersion phase
 // itself from tuning compensation: the group delay the whole cascade
@@ -38,39 +38,51 @@
 // that value; this class and process() don't change at all.
 //
 // `stiffness` (0-1, the public control surface) maps onto an internal
-// TARGET DESCRIPTION -- { amount, knee, slope, polarity, pitchLock } --
-// rather than directly onto an opaque allpass coefficient. This is the
-// widened-range step: only `amount` is actually live (driven by
-// `stiffness`); `knee`/`slope`/`polarity`/`pitchLock` stay fixed internal
-// defaults this step, but are REAL constructor arguments (not hardcoded
-// module constants) specifically so a future dispersionKnee/
-// dispersionSlope Parameter is just "construct with a different value,"
-// no restructuring of this class needed. `polarity`/`pitchLock` stay
-// simple internal constants (not constructor args) for now -- they're
-// flags, not curve-shape numbers -- but DO appear in the struct returned
-// by getTargetDescription(), so the data model already accommodates them.
+// TARGET DESCRIPTION -- { amount, pivot, slope, polarity, pitchLock }.
+// `amount` (cents of stretch at partial `pivot`) is the audible quantity
+// stiffness actually drives; `pivot` and `slope` are themselves live,
+// smoothed parameters (see update()); `polarity`/`pitchLock` stay fixed
+// internal constants, present in the struct so the data model already
+// accommodates them without restructuring later.
+//
+// IMPORTANT NAMING NOTE, resolved by direct measurement (not assumed):
+// `pivot` was named `knee` in an earlier version of this file. Rendering
+// the real filter's achieved stretch curve at several reference-partial
+// values showed smooth, continuous growth from n=1 at EVERY value tested
+// -- there is no flat "below-knee" region at any of them; moving `pivot`
+// simply rescales where the SAME smooth power-law curve lands, it does
+// not shift an onset boundary. `pivot` is an accurate name for what this
+// parameter does; `knee` was not, and renaming (not building a separate
+// true onset-threshold mechanism) was the deliberately bounded response
+// -- see docs/MODEL_PATTERNS.md's Phase C section and
+// soundlib/models/WG2/knowledge/causal-claims.yaml for the measurement.
 //
 // `amount` is expressed in an AUDIBLE quantity -- cents of stretch at
-// partial `knee` -- not B directly, per the explicit design goal of
-// keeping the public-facing concept legible rather than an opaque
-// coefficient. Inverting the generalized stiff-string relation
-// f_n = n*f0*sqrt((1+B*n^slope)/(1+B)) for B given a target
-// cents(knee)=amount:
+// partial `pivot` -- not B directly. Inverting the generalized stiff-
+// string relation f_n = n*f0*sqrt((1+B*n^slope)/(1+B)) for B given a
+// target cents(pivot)=amount:
 //   R = 2^(amount/600)
-//   B = (R-1) / (knee^slope - R)
+//   B = (R-1) / (pivot^slope - R)
 // This is a closed-form inversion of the SAME textbook relation the
-// Rauhala-Valimaki empirical fit targets (slope fixed at 2, their own
-// calibration exponent -- see the slope default below), not a new
-// physical claim of its own.
+// Rauhala-Valimaki empirical fit targets, not a new physical claim.
 //
-// This part of the mapping (stiffness -> amount, and amount -> B via the
-// inversion above) is PHYSICALLY INFORMED, not physical: it preserves
-// the right causal direction (higher stiffness -> higher amount -> higher
-// B -> more stretching) but the specific curve shape/ceiling is a
-// judgment call, calibrated empirically against where the Rauhala-
-// Valimaki fit's own approximation stays reliable (see wg2Config.js's
-// DISPERSION_AMOUNT_MAX_CENTS comment for the measurement), not derived
-// from one particular physical string.
+// SAFETY CLAMP, measured not guessed: the resulting B is clamped to
+// [tiny-positive-floor, bSafeMax] (a constructor argument -- see
+// wg2Config.js's DISPERSION_B_SAFE_MAX comment for the cents-accurate
+// measurement this was chosen from). This protects FUNDAMENTAL TUNING
+// specifically -- large B stays finite/stable/correctly-ordered far
+// beyond this clamp (tested to B=0.2), so this is NOT a stability limit,
+// it is "the current limit of reliable pitch compensation" (the user's
+// own framing). It does NOT protect stretch accuracy at partials beyond
+// `pivot` itself, which has its own, separate, lower, per-partial
+// breakdown points (see causal-claims.yaml) -- two different limitations,
+// not conflated into one clamp.
+//
+// Clamping is never invisible: getTargetDescription() reports
+// requestedAmount, the unclamped and clamped B, whether clamping
+// occurred, and maxRealizableAmount (what B=bSafeMax itself produces at
+// the current pivot/slope) -- so a caller can tell when further movement
+// of `stiffness` has entered a "dead zone" where it stops mattering.
 //
 // At stiffness below a small epsilon, the filter BYPASSES entirely
 // (process() returns its input unchanged, groupDelaySamplesAt() returns
@@ -79,15 +91,24 @@
 // identical to not having this component in the signal path at all.
 
 const STIFFNESS_EPSILON = 1e-6;
-const POLARITY_DEFAULT = 'positive'; // only 'positive' is implemented -- see module comment above the class
+const POLARITY_DEFAULT = 'positive'; // only 'positive' is implemented -- see module comment above
 const PITCH_LOCK_DEFAULT = true; // the only mode implemented -- a future lengthLocked mode is a caller-side choice, not a DispersionFilter change
+const MIN_B = 0.000001; // tiny-positive floor, defends against the inversion's denominator going non-positive (not expected within the documented pivot/slope/amount ranges -- see wg2Config.js -- but guarded regardless, fail-toward-safety)
+const ASSUMED_BLOCK_SAMPLES = 128; // the standard Web Audio render quantum this whole codebase assumes elsewhere; used only to size the per-block smoothing coefficient
 
-// Closed-form inversion: target cents of stretch at partial `knee` ->
+// Closed-form inversion: target cents of stretch at partial `pivot` ->
 // the inharmonicity coefficient B that (per the idealized continuous
 // formula) produces it. See module comment above for the derivation.
-function bFromTargetAmount(amountCents, knee, slope) {
+function bFromTargetAmount(amountCents, pivot, slope) {
     const R = Math.pow(2, amountCents / 600);
-    return (R - 1) / (Math.pow(knee, slope) - R);
+    return (R - 1) / (Math.pow(pivot, slope) - R);
+}
+
+// The idealized continuous-formula cents stretch at partial n, for a
+// given B/slope -- used both to derive bFromTargetAmount's inverse and
+// to compute maxRealizableAmount (the forward direction, at B=bSafeMax).
+function idealCentsAt(B, n, slope) {
+    return 600 * Math.log2((1 + B * Math.pow(n, slope)) / (1 + B));
 }
 
 // Empirical fit constants from Rauhala & Valimaki (2006), as corrected in
@@ -116,43 +137,80 @@ function sectionGroupDelay(a, omegaT) {
 }
 
 export class DispersionFilter {
-    // knee/slope/amountMaxCents/stiffnessCurveExponent: see wg2Config.js's
-    // DISPERSION_* constants for the measured/documented defaults and
-    // their rationale -- passed in here (not hardcoded) so a future
-    // dispersionKnee/dispersionSlope control needs no change to this file.
-    constructor(sectionCount, knee, slope, amountMaxCents, stiffnessCurveExponent) {
+    // pivot/slope: initial values AND the smoother's reset target (see
+    // reset()). amountMaxCents/stiffnessCurveExponent: shape the
+    // stiffness->amount mapping. bSafeMax: the tuning-safety clamp (see
+    // module comment). smoothingSeconds: one-pole time constant applied
+    // to pivot/slope specifically (stiffness/amount stay unsmoothed,
+    // matching that control's own already-validated finding that it
+    // needs none). All passed in, not hardcoded, so future exposure of
+    // any of these needs no change to this file -- see wg2Config.js for
+    // the measured/documented values actually used.
+    constructor(sectionCount, pivot, slope, amountMaxCents, stiffnessCurveExponent, bSafeMax, smoothingSeconds) {
         this.sectionCount = sectionCount;
-        this.knee = knee;
-        this.slope = slope;
+        this.defaultPivot = pivot;
+        this.defaultSlope = slope;
         this.amountMaxCents = amountMaxCents;
         this.stiffnessCurveExponent = stiffnessCurveExponent;
+        this.bSafeMax = bSafeMax;
+        this.smoothingSeconds = smoothingSeconds;
+
+        this.smoothedPivot = pivot;
+        this.smoothedSlope = slope;
+
         this.xPrev = new Float64Array(sectionCount);
         this.yPrev = new Float64Array(sectionCount);
         this.a1 = 0;
         this.bypassed = true;
-        this.lastTarget = null; // set by setStiffness(); see getTargetDescription()
+        this.lastTarget = null; // set by update(); see getTargetDescription()
     }
 
     reset() {
         this.xPrev.fill(0);
         this.yPrev.fill(0);
+        this.smoothedPivot = this.defaultPivot;
+        this.smoothedSlope = this.defaultSlope;
     }
 
-    // Requested-vs-achieved reporting: the target description setStiffness()
-    // computed most recently (null when bypassed). Callers measure the
-    // ACTUAL achieved stretch themselves (this class has no notion of
-    // "partials," it just filters samples) and compare against this.
+    // Requested-vs-achieved reporting: the full target description
+    // update() computed most recently (null when bypassed). Callers
+    // measure the ACTUAL achieved stretch themselves (this class has no
+    // notion of "partials," it just filters samples) and compare against
+    // this -- but unclampedB/clampedB/wasClamped/maxRealizableAmount are
+    // already enough to know WHETHER a given request will be honored
+    // before measuring anything.
     getTargetDescription() {
         return this.lastTarget;
     }
 
-    // Recomputes the shared section coefficient from stiffness (0-1) and
-    // the current fundamental -- called once per block, same cadence as
-    // every other live k-rate parameter in this codebase (frequency,
-    // decayTime, ...). Two steps: stiffness -> target description (amount
-    // live, knee/slope/polarity/pitchLock fixed) -> B (closed-form
-    // inversion) -> a1 (the existing, unchanged Rauhala-Valimaki fit).
-    setStiffness(stiffness, f0Hz, sampleRate) {
+    // Recomputes the shared section coefficient from stiffness (0-1),
+    // pivot, and slope (both live, smoothed -- see class comment), and
+    // the current fundamental. Called once per block, same cadence as
+    // every other live k-rate parameter in this codebase.
+    //
+    // pivot/slope are smoothed toward their raw targets with a one-pole
+    // filter BEFORE use -- an abrupt (unsmoothed) jump in either was
+    // measured during design to produce a real, if modest, sample-level
+    // discontinuity (~2-2.5x the local baseline delta); smoothing
+    // avoids this the same way live-adjustable parameters are smoothed
+    // elsewhere in Web Audio (setTargetAtTime-style). `stiffness` itself
+    // is NOT smoothed here -- a live stiffness ramp was already measured
+    // safe without it (see the amount-widening step's own findings).
+    //
+    // NOTE on `slope`: this is the exponent in the amount-to-B
+    // INVERSION (how pivot/amount combine to choose a B). It is a
+    // different "2" from the one baked into the Rauhala-Valimaki a1-
+    // from-B empirical fit below, which assumes exponent 2 for its OWN
+    // calibration regardless of what `slope` is live-set to -- varying
+    // `slope` changes which B gets chosen, not the fit's own internal
+    // assumption. See the module comment's "IMPORTANT NAMING NOTE" and
+    // this file's own history for why this distinction matters.
+    update(stiffness, pivot, slope, f0Hz, sampleRate) {
+        const blockDurationSeconds = ASSUMED_BLOCK_SAMPLES / sampleRate;
+        const smoothingCoefficient = Math.exp(-blockDurationSeconds / this.smoothingSeconds);
+        this.smoothedPivot += (pivot - this.smoothedPivot) * (1 - smoothingCoefficient);
+        this.smoothedSlope += (slope - this.smoothedSlope) * (1 - smoothingCoefficient);
+
         if (stiffness <= STIFFNESS_EPSILON) {
             this.bypassed = true;
             this.a1 = 0;
@@ -162,16 +220,23 @@ export class DispersionFilter {
         this.bypassed = false;
 
         const amount = this.amountMaxCents * Math.pow(stiffness, this.stiffnessCurveExponent);
+        const unclampedB = bFromTargetAmount(amount, this.smoothedPivot, this.smoothedSlope);
+        const clampedB = Math.min(Math.max(unclampedB, MIN_B), this.bSafeMax);
+        const maxRealizableAmount = idealCentsAt(this.bSafeMax, this.smoothedPivot, this.smoothedSlope);
+
         this.lastTarget = {
-            amount,
-            knee: this.knee,
-            slope: this.slope,
+            requestedAmount: amount,
+            pivot: this.smoothedPivot,
+            slope: this.smoothedSlope,
             polarity: POLARITY_DEFAULT,
-            pitchLock: PITCH_LOCK_DEFAULT
+            pitchLock: PITCH_LOCK_DEFAULT,
+            unclampedB,
+            clampedB,
+            wasClamped: clampedB !== unclampedB,
+            maxRealizableAmount
         };
 
-        const B = bFromTargetAmount(amount, this.knee, this.slope);
-        const Bc = Math.max(B, 0.000001);
+        const Bc = Math.max(clampedB, MIN_B);
         const logBc = Math.log(Bc);
 
         const ikey = logBase(SEMITONE_RATIO, (f0Hz * SEMITONE_RATIO) / A0_HZ);

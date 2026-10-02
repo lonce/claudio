@@ -379,26 +379,35 @@
 #   stiffness=0 (the filter bypasses entirely, not just a small
 #   coefficient). `dispersionAmount` is the more general magnitude/
 #   direction concept `stiffness` maps onto -- positive-only for now (see
-#   dispersionKnee/dispersionSlope below for its other two live-in-
-#   principle dimensions, and components.yaml's future_affordances for
-#   the deferred negative/synthetic-compression direction).
+#   components.yaml's future_affordances for the deferred negative/
+#   synthetic-compression direction).
 #
-# dispersionKnee / dispersionSlope (component.dispersion-filter's
-#   internal_target_description, components.yaml): WHERE (knee, a
-#   reference partial amount is anchored at -- fixed default 4) and HOW
-#   FAST (slope, the partial-number exponent -- fixed default 2,
-#   literature-matched) dispersion's strength grows through the partial
-#   series. Both are real constructor arguments already, not hardcoded,
-#   but neither is live yet -- knee could be exposed with no further
-#   validation needed; slope cannot (it's coupled to the Rauhala-Valimaki
-#   fit's own calibration -- see claim.dispersion-filter-approximation-
-#   limits and components.yaml's limitations).
+# dispersionPivot / dispersionSlope (component.dispersion-filter's
+#   internal_target_description, components.yaml) -- renamed from
+#   dispersionKnee after direct measurement (see
+#   claim.pivot-is-a-reference-point-not-an-onset-threshold) showed it
+#   behaves as a moving reference/anchor point, not an onset threshold:
+#   WHERE (pivot, the reference partial amount is anchored at -- live,
+#   default 4) `amount` is measured, and HOW FAST (slope, the partial-
+#   number exponent -- live, default 2) the curve grows through the
+#   partial series. BOTH are now live Parameters, confirmed by direct
+#   measurement to each produce genuinely different achieved curves (see
+#   claim.slope-reshapes-not-just-rescales), not three correlated ways of
+#   adjusting one overall inharmonicity knob. `slope` here must not be
+#   confused with the Rauhala-Valimaki a1-from-B fit's OWN separate,
+#   still-fixed internal calibration exponent -- see
+#   components.yaml's pivot_vs_knee note.
 #
 # filter approximation limits (claim.dispersion-filter-approximation-
-#   limits, new this step): the measured, growing divergence between
-#   requested amount (cents) and actually-achieved stretch as B grows,
-#   and the real ceiling this imposes -- found by direct measurement, not
-#   assumed from the closed-form formula's own idealized prediction.
+#   limits): the measured, growing divergence between requested amount
+#   (cents) and actually-achieved stretch as B grows, and the real
+#   ceiling this imposes -- found by direct measurement, not assumed from
+#   the closed-form formula's own idealized prediction. Two SEPARATE
+#   limitations live under this heading, not one: B_SAFE_MAX protects
+#   fundamental TUNING specifically (see
+#   claim.b-safe-max-characterized-in-cents); per-partial breakdown
+#   points protect stretch accuracy AT partials beyond the pivot, and are
+#   unrelated to whether tuning itself stays accurate.
 #
 # damping (component.loop-loss-filter, soundlib/models/WG1/knowledge/
 #   causal-claims.yaml's claim.decay-time-lengthens-decay): frequency-
@@ -433,11 +442,177 @@
 #   empirical fit extrapolating outside its calibrated domain.
 #
 # stiffness (parameter.stiffness): the public, positive, physically-
-#   motivated MACRO control -- the only thing actually live and user-
-#   facing. Maps onto `dispersionAmount` (above) via a steep power curve
-#   (amount = amountMaxCents * stiffness^stiffnessCurveExponent) chosen so
-#   the lower part of the range keeps fine control over plausible string
-#   stiffness while the upper part explores strongly inharmonic,
-#   physically-inspired-but-not-physical territory -- see components.yaml's
-#   "grounding" field for exactly which part of the full mapping chain
-#   (stiffness->amount->B->a1) is physical vs. physically informed.
+#   motivated MACRO control -- retained as the PRIMARY control, per
+#   explicit instruction, even though dispersionPivot/dispersionSlope are
+#   now also live. Maps onto `dispersionAmount` (above) via a steep power
+#   curve (amount = amountMaxCents * stiffness^stiffnessCurveExponent)
+#   chosen so the lower part of the range keeps fine control over
+#   plausible string stiffness while the upper part explores strongly
+#   inharmonic, physically-inspired-but-not-physical territory -- see
+#   components.yaml's "grounding" field for exactly which part of the
+#   full mapping chain (stiffness->amount->pivot/slope->B->a1) is
+#   physical vs. physically informed.
+
+- id: claim.pivot-is-a-reference-point-not-an-onset-threshold
+  subject: parameter.dispersion-pivot
+  relation: renaming-from-knee-to-pivot-is-justified-by
+  object: feature.measured-smooth-continuous-stretch-curve
+  conditions: []
+  expected_direction: not-applicable (a semantic/naming finding, not a magnitude claim)
+  confidence: high
+  scope: component.dispersion-filter
+  mechanism: >
+    The real filter's achieved stretch curve, for any fixed B, grows
+    smoothly and continuously from partial 1 -- there is no flat region
+    at low partial numbers followed by a rise at some threshold. Moving
+    the reference-partial parameter changes which B gets chosen (via the
+    amount-anchoring inversion), which rescales the WHOLE curve; it does
+    not introduce or shift an onset boundary, because the underlying
+    power-law curve shape has none.
+  possible_confounds:
+    - the-real-filter-could-diverge-from-the-idealized-formula-in-a-way-
+      that-creates-an-apparent-knee (RULED OUT by measuring the REAL
+      filter's output directly, not just the idealized continuous
+      formula -- both show the same smooth, continuous growth from n=1)
+  validation:
+    method: >
+      Rendered the real filter's achieved stretch (target AND measured
+      cents) at partials [1,2,3,4,6,8,12,16] for reference-partial values
+      [2,4,8,12], fixed amount=60, slope=2, f0=220Hz.
+    metric: cents-stretch-at-each-partial-vs-reference-partial-value
+    result: >
+      At reference=4: partial 2 already shows 12.3 target/16.1 measured
+      cents (not ~0, as a true onset threshold below the reference would
+      predict). At reference=12: even partial 2 shows a small but
+      nonzero 1.3/1.7 cents. At reference=2 (the lowest tested): partial
+      3 already shows 151.6 target/216.7 measured cents. No tested value
+      showed a flat region below itself. This directly supports renaming
+      `knee`->`pivot` (the chosen, bounded response) over building a
+      separate true onset-threshold mechanism (a larger, declined scope
+      for this step) -- see components.yaml's pivot_vs_knee field for the
+      full writeup.
+
+- id: claim.slope-reshapes-not-just-rescales
+  subject: parameter.dispersion-slope
+  relation: increasing-tends-to-cause
+  object: feature.steeper-upper-partial-concentration
+  conditions:
+    - fixed-pivot-and-amount
+  expected_direction: increase (stretch concentrates more at higher partials as slope increases)
+  confidence: high
+  scope: component.dispersion-filter
+  mechanism: >
+    slope is the partial-number exponent in the amount-to-B inversion
+    (B=(R-1)/(pivot^slope-R)). At a fixed pivot and amount, a higher
+    slope means a SMALLER B is needed to hit the same target at the
+    pivot (since pivot^slope grows with slope) -- and a smaller B
+    concentrates relatively more of the curve's total stretch onto
+    partials above the pivot, less below.
+  possible_confounds:
+    - slope-might-just-be-another-way-to-scale-B-redundant-with-amount
+      (the directive's own explicit concern -- CHECKED directly, the
+      RATIO of stretch at different partials, not just the overall
+      magnitude, changes substantially across slope values, which a pure
+      magnitude/amount-redundant control would not do)
+  validation:
+    method: idealized-curve-ratio-comparison-at-fixed-pivot-and-amount,-cross-checked-against-the-real-filter
+    metric: ratio-of-stretch-at-high-vs-low-partials
+    result: >
+      At pivot=4, amount=60 (idealized formula): the ratio of partial-16-
+      to partial-4-stretch grows from ~4.4x at slope=1 to ~11.5x at
+      slope=2 to ~25.0x at slope=3 -- not a uniform rescale, a genuine
+      reshaping. Cross-checked against the real filter (measured, not
+      just idealized): partial-4 stretch at pivot=4 differs by more than
+      5 cents between slope=1 and slope=3 at the same amount, confirmed
+      in wg2Pipeline.test.js as a permanent regression check. One
+      measured nuance, not a contradiction: because slope's entire effect
+      runs through which B gets selected, two DIFFERENT (pivot,slope)
+      pairs that happen to resolve to the SAME B produce IDENTICAL
+      achieved curves (e.g. pivot=2/slope=2 and pivot=4/slope=1 and
+      pivot=16/slope=0.5 all resolve to B~0.0245 at amount=60, and all
+      three produced the exact same measured p2/p4/p8/p16 cents in the
+      full grid sweep). slope and pivot are two different ways of
+      SELECTING a B, each genuinely useful and non-redundant with
+      `amount`, but not independently expressive once a specific B value
+      is reached by either route.
+
+- id: claim.b-safe-max-characterized-in-cents
+  subject: component.dispersion-filter
+  relation: clamping-B-to-0.05-tends-to-cause
+  object: feature.fundamental-tuning-within-perceptual-tolerance
+  conditions:
+    - pitchLocked-mode
+  expected_direction: stable (small cents error)
+  confidence: high
+  scope: component.dispersion-filter
+  mechanism: >
+    Same mechanism as claim.pitchlocked-compensation-keeps-fundamental-
+    in-tune-across-stiffness -- groupDelaySamplesAt() compensates the
+    rail length based on B/f0 alone, independent of which (pivot,slope)
+    combination produced that B.
+  possible_confounds:
+    - percent-error-can-understate-perceptual-significance (a 1% error is
+      ~17.2 cents -- RESOLVED by measuring and reporting in cents
+      directly, per explicit instruction, rather than relying on percent
+      alone)
+    - fixed-small-DFT-windows-give-misleading-low-frequency-readings
+      (a 4096-sample window captures too few cycles at low f0 for
+      reliable frequency resolution, producing noisy, non-monotonic
+      cents figures that looked like real tuning chaos at 55-110Hz during
+      an early pass of this measurement -- RESOLVED by using a frequency-
+      adaptive window, >=60 cycles of f0, minimum 8192 samples; a B=0
+      sanity check then confirmed exactly 0.000 cents at every tested
+      frequency, validating the corrected method before trusting its
+      B>0 results)
+  validation:
+    method: fundamental-tuning-error-in-cents-vs-B,-corrected-frequency-adaptive-measurement,-55-1760Hz
+    metric: cents-error-vs-B,-5-cent-and-10-cent-threshold-crossings
+    result: >
+      Clean (under ~1.1 cents) from 55-880Hz through B=0.05-0.06; 1760Hz
+      crosses 5 cents around B=0.045 and 10 cents around B=0.05 --
+      earlier and tighter than the lower frequencies, a real, frequency-
+      dependent residual. DISPERSION_B_SAFE_MAX=0.05 (kept PROVISIONALLY,
+      per explicit instruction) therefore stays under ~1.1 cents at
+      55-880Hz but reaches ~10.6 cents at 1760Hz -- right at the stated
+      10-cent tolerance, reported honestly in wg2Pipeline.test.js with a
+      deliberately separate, looser assertion for that frequency rather
+      than a single threshold that would either be too strict (flaky) or
+      hide the residual by being too loose everywhere. Framed per
+      explicit instruction as "the current limit of reliable pitch
+      compensation, not a stability or final expressive limit" -- large B
+      stays finite/stable/correctly-ordered far beyond this (tested to
+      B=0.2 during the amount-widening step's own planning).
+
+- id: claim.clamping-is-transparent-and-detects-dead-zones
+  subject: component.dispersion-filter
+  relation: reporting-unclampedB-clampedB-wasClamped-and-maxRealizableAmount-tends-to-cause
+  object: feature.clamping-never-silent
+  conditions: []
+  expected_direction: always-reported-when-relevant
+  confidence: high
+  scope: component.dispersion-filter
+  mechanism: >
+    getTargetDescription() computes maxRealizableAmount directly from the
+    forward formula (idealCentsAt(B_SAFE_MAX, pivot, slope)) rather than
+    searching for it, so "how far can this combination go" is answerable
+    cheaply on every call, not just when something has already gone
+    wrong.
+  possible_confounds: []
+  validation:
+    method: direct-struct-inspection-plus-a-dead-zone-regression-test
+    metric: wasClamped-correctness-and-dead-zone-detection
+    result: >
+      At the default pivot=4/slope=2, stiffness=1 (amount=100):
+      unclampedB==clampedB==0.00823, wasClamped=false, confirming the
+      default ceiling stays entirely unclamped (matches the amount-
+      widening step's own finding, re-verified here). At the extreme
+      corner pivot=2/slope=0.5, stiffness=1 (amount=100): unclampedB=0.42,
+      clampedB=0.05, wasClamped=true, maxRealizableAmount=16.9 -- meaning
+      only ~17 of the requested 100 cents is actually achievable at that
+      corner, fully visible via the struct rather than silently
+      undershooting. Dead-zone check: at the same corner, stiffness=0.9
+      and stiffness=1.0 both clamp to the IDENTICAL B (0.05) -- confirmed
+      by a direct equality assertion in wg2Pipeline.test.js -- meaning
+      pushing stiffness further in that region produces no additional
+      audible change, exactly the "region where further movement produces
+      little or no additional effect" the directive asked to be detected.

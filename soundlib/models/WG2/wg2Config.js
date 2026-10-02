@@ -67,32 +67,71 @@ export const STIFFNESS_DEFAULT = 0;
 // Valimaki, DAFX-2006) and this value's rationale.
 export const DISPERSION_SECTION_COUNT = 6;
 
-// Phase C, widened-range step -- see DispersionFilter.js's own comment
-// for the full derivation. knee/slope/amountMaxCents/stiffnessCurveExponent
-// are constructor arguments (not hardcoded inside DispersionFilter.js)
-// specifically so a future dispersionKnee/dispersionSlope Parameter is
-// just "pass a different value from here," no filter rewrite needed.
+// Phase C -- see DispersionFilter.js's own comment for the full
+// derivation. pivot/slope/amountMaxCents/stiffnessCurveExponent/bSafeMax/
+// smoothingSeconds are all constructor arguments (not hardcoded inside
+// DispersionFilter.js) specifically so a future dispersionPivot/
+// dispersionSlope Parameter is just "pass a different value from here,"
+// no filter rewrite needed.
 //
-// knee=4 (not 8, used in the first step's headline numbers): partial 8
-// breaks down earlier than partial 4 under the same B (approximation
-// error grows with n^slope), so anchoring the target amount at a lower,
-// more robust partial leaves more usable headroom before the filter's
-// own approximation limits are reached.
-export const DISPERSION_KNEE = 4;
+// NAMING NOTE: this was called DISPERSION_KNEE in an earlier version.
+// Renamed to PIVOT after direct measurement showed the real filter's
+// achieved stretch curve grows smoothly from partial 1 at EVERY tested
+// reference-partial value -- there is no flat "below-knee" onset region
+// at any of them. Moving this value rescales where the target `amount`
+// lands on the same smooth power-law curve; it does not shift an onset
+// boundary the way "knee" implies. See DispersionFilter.js's own
+// "IMPORTANT NAMING NOTE" and causal-claims.yaml for the measurement.
+//
+// pivot=4 (not 8, used in the amount-widening step's own headline
+// numbers): partial 8 breaks down earlier than partial 4 under the same
+// B (approximation error grows with n^slope), so anchoring the target
+// amount at a lower, more robust partial leaves more usable headroom
+// before the filter's own approximation limits are reached.
+export const DISPERSION_PIVOT_MIN = 2;
+export const DISPERSION_PIVOT_MAX = 16;
+export const DISPERSION_PIVOT_DEFAULT = 4; // unchanged from the fixed value used until this step
 // slope=2 matches the literature's own textbook stiff-string exponent
-// (f_n = n*f0*sqrt(1+B*n^2)) -- the Rauhala-Valimaki empirical a1-from-B
-// fit was calibrated assuming this exponent, so it is NOT safe to vary
-// yet; kept fixed until a dispersionSlope control is designed and
-// validated on its own.
-export const DISPERSION_SLOPE = 2;
-// Measured empirically (not guessed): fundamental tuning under
-// pitchLocked stays accurate to B~0.03-0.04, but the partial-4 STRETCH
-// MEASUREMENT ITSELF goes unreliable (non-monotonic, eventually sign-
-// flipped) starting around B~0.009-0.0105 and clearly breaks above
-// B~0.011, consistently across 110/220/440/880Hz. 100 cents at knee=4
-// inverts to B~0.0082 -- a ~5x increase over the first step's effective
-// ceiling (~19-21 cents at partial 4 for the old B_MAX=0.0015), with
-// margin below the measured breakdown zone.
+// (f_n = n*f0*sqrt(1+B*n^2)) as its DEFAULT -- not because it's unsafe to
+// vary (confirmed by direct measurement: varying slope at a fixed pivot/
+// amount genuinely reshapes the curve, e.g. the ratio of partial-16- to
+// partial-4-stretch goes from ~4.4x at slope=1 to ~25x at slope=3, not a
+// uniform rescale -- a real, independent shape control). What stays
+// fixed regardless of this live `slope` value is a DIFFERENT "2": the
+// Rauhala-Valimaki a1-from-B empirical fit's own internal calibration
+// exponent, baked into DispersionFilter.js's K1..M4 constants -- `slope`
+// here only governs the amount-to-B INVERSION (which B gets chosen),
+// never the fit itself. See DispersionFilter.js's own `update()` comment.
+export const DISPERSION_SLOPE_MIN = 0.5;
+export const DISPERSION_SLOPE_MAX = 4;
+export const DISPERSION_SLOPE_DEFAULT = 2; // unchanged -- the literature value
+// Measured empirically (not guessed), using a frequency-adaptive
+// measurement window (>=60 cycles of f0, min 8192 samples -- a fixed
+// 4096-sample window gives misleading, noisy cents figures at low f0,
+// found and corrected during this step's own planning): fundamental
+// tuning stays under ~1 cent from 55-880Hz through B=0.05, growing to
+// ~10.6 cents at 1760Hz at that same B -- right at the stated 10-cent
+// tolerance, reported honestly rather than hidden. Real breakdown
+// (>20 cents) starts around B=0.07-0.08 depending on frequency. 0.05 is
+// kept PROVISIONALLY (per explicit instruction) as "the current limit of
+// reliable pitch compensation, not a stability or final expressive
+// limit" -- large B stays finite/stable/correctly-ordered far beyond
+// this (tested to B=0.2). A future, separate investigation (recorded,
+// not pursued here) could extend this via direct phase-based tuning
+// compensation -- see causal-claims.yaml.
+export const DISPERSION_B_SAFE_MAX = 0.05;
+// One-pole smoothing time constant applied to pivot/slope specifically
+// (NOT to stiffness/amount, which was already measured safe unsmoothed).
+// An abrupt, unsmoothed pivot/slope jump was measured during design to
+// produce a real, if modest, sample-level discontinuity (~2-2.5x the
+// local baseline delta) -- this smooths that out. Starting value;
+// confirmed adequate (not just assumed) by the abrupt-jump-with-
+// smoothing regression test in wg2Pipeline.test.js.
+export const DISPERSION_SMOOTHING_SECONDS = 0.03;
+// 100 cents at pivot=4/slope=2 inverts to B~0.0082 -- comfortably under
+// DISPERSION_B_SAFE_MAX (0.05), so the default shape's own ceiling stays
+// entirely unclamped; this value is unchanged from the amount-widening
+// step.
 export const DISPERSION_AMOUNT_MAX_CENTS = 100;
 // stiffness -> amount = amountMaxCents * stiffness^stiffnessCurveExponent.
 // Exponent 3 keeps the lower half of the stiffness range inside "fine
@@ -125,8 +164,14 @@ export const WG2_CONFIG = {
     stiffnessMax: STIFFNESS_MAX,
     stiffnessDefault: STIFFNESS_DEFAULT,
     dispersionSectionCount: DISPERSION_SECTION_COUNT,
-    dispersionKnee: DISPERSION_KNEE,
-    dispersionSlope: DISPERSION_SLOPE,
+    dispersionPivotMin: DISPERSION_PIVOT_MIN,
+    dispersionPivotMax: DISPERSION_PIVOT_MAX,
+    dispersionPivotDefault: DISPERSION_PIVOT_DEFAULT,
+    dispersionSlopeMin: DISPERSION_SLOPE_MIN,
+    dispersionSlopeMax: DISPERSION_SLOPE_MAX,
+    dispersionSlopeDefault: DISPERSION_SLOPE_DEFAULT,
+    dispersionBSafeMax: DISPERSION_B_SAFE_MAX,
+    dispersionSmoothingSeconds: DISPERSION_SMOOTHING_SECONDS,
     dispersionAmountMaxCents: DISPERSION_AMOUNT_MAX_CENTS,
     dispersionStiffnessCurveExponent: DISPERSION_STIFFNESS_CURVE_EXPONENT
 };
