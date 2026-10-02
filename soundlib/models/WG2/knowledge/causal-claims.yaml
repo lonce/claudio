@@ -616,3 +616,207 @@
       pushing stiffness further in that region produces no additional
       audible change, exactly the "region where further movement produces
       little or no additional effect" the directive asked to be detected.
+
+- id: claim.reset-must-snap-not-resmooth
+  subject: component.dispersion-filter
+  relation: resetting-smoothedPivot-smoothedSlope-to-construction-defaults-tends-to-cause
+  object: feature.audible-pitch-glide-at-note-onset
+  conditions:
+    - stiffness-above-bypass-epsilon
+    - pivot-or-slope-set-away-from-construction-defaults-(4,2)
+    - fresh-note-after-a-full-stop (reset() called -- NOT a retrigger
+      while already playing, which skips startSound()/reset() entirely)
+  expected_direction: eliminated-by-the-fix (was present, now absent)
+  confidence: high
+  scope: component.dispersion-filter
+  mechanism: >
+    reset() used to unconditionally snap smoothedPivot/smoothedSlope back
+    to this.defaultPivot/defaultSlope (the construction-time values, 4
+    and 2), regardless of what the LIVE dispersionPivot/dispersionSlope
+    Parameters currently said. Every fresh note then had to re-smooth
+    from (4,2) up to the real target over the smoothing time constant
+    (~30-150ms), and because railLength is derived from the smoothed
+    state via pitchLocked compensation, this dragged railLength through a
+    wide swing right at note onset. Changing a digital waveguide's
+    geometric delay length WHILE it is actively circulating energy is a
+    genuine Doppler-style pitch glide -- documented in the original spec
+    (section 8.3, "fast delay modulation creates Doppler-like pitch
+    behavior") -- not a cosmetic side effect of a slow parameter ramp.
+  possible_confounds:
+    - could-be-an-app-level-bug-in-how-the-UI-triggers-notes (CHECKED --
+      app/main.js's startSound() correctly calls updateSound() -- which
+      sets frequency/other x/y-mapped parameters -- BEFORE calling
+      currentSound.play(), so parameter delivery ORDER was not the cause;
+      the bug was entirely inside DispersionFilter's own smoothing state)
+    - could-be-the-pitchLocked-compensation-formula-itself-being-wrong
+      (CHECKED -- the formula 2*railLength+compensation=sampleRate/
+      frequency is self-consistent for any FIXED a1 -- the bug was never
+      about the formula being wrong for a given state, it was about
+      railLength changing RAPIDLY while already-circulating energy was
+      present, which is audible regardless of whether each individual
+      instant's railLength was "correct" for ITS OWN a1)
+  validation:
+    method: >
+      Direct internal-state instrumentation (not just audio-domain
+      measurement, which proved too coarse to clearly show the effect):
+      rendered railLength block-by-block for the first 15 blocks (~43ms)
+      after reset(), for a target (pivot=2, slope=1, stiffness=1) with a
+      large compensation delta from the (4,2) defaults.
+    metric: railLength-samples-per-block-immediately-after-reset
+    result: >
+      BEFORE the fix: railLength swung from 55.64 samples at block 0 down
+      to the converged, correct value of 14.52 samples by block 11 (~32ms)
+      -- a ~4x change in geometric delay length while the string was
+      actively ringing, consistent with the user's own report of "a fast
+      tone glide during the beginning of the note" specifically on a
+      fresh trigger (not a retrigger while already playing, which this
+      investigation confirmed skips reset() entirely -- matching the
+      user's own observation that retriggering while playing did NOT
+      show the artifact). AFTER the fix (reset() sets a needsSnap flag;
+      the next update() call jumps directly to the target instead of
+      smoothing toward it): railLength measured 14.52 samples -- the
+      fully-converged, correct value -- from block 0 onward, with zero
+      swing. The live-smoothing behavior itself (a pivot/slope change
+      made WHILE a note is already sounding, no reset() involved) was
+      re-verified unaffected: the same target reached via update() calls
+      alone, without an intervening reset(), still ramps gradually
+      over ~11 blocks as designed -- confirming the fix is scoped
+      correctly (smooths live changes, snaps fresh-note starts) rather
+      than accidentally disabling smoothing altogether.
+
+- id: claim.lagrange3-unstable-at-short-fractional-rail-length
+  subject: component.lagrange-interpolator
+  relation: reading-at-a-short-fractional-offset-tends-to-cause
+  object: feature.exponential-loop-gain-runaway
+  conditions:
+    - offsetSamples-below-approximately-4
+    - offsetSamples-has-a-nonzero-fractional-part
+    - the-offset-is-used-as-a-propagation-critical-feedback-tap (NOT an
+      excitation/pickup tap, which this does not affect -- see mechanism)
+  expected_direction: instability (confirmed, not a hypothesis)
+  confidence: high
+  scope: component.lagrange-interpolator
+  mechanism: >
+    LagrangeInterpolator.read() needs 4 support points at integer offsets
+    base-1, base, base+1, base+2 relative to the floor of the fractional
+    read position. When the read offset (railLength in WG2's case) is
+    small, base+2 can land AT OR PAST the delay line's current write
+    index -- reading stale buffer content from nearly a FULL buffer
+    length in the past (the circular buffer wraps) instead of recent
+    history, because the read happens before the write in the same tick.
+    When that stale value's own Lagrange coefficient is nonzero (true
+    whenever the fractional part is nonzero), it gets woven into the
+    interpolated output and fed back into the loop, creating a feedback
+    path whose effective gain is NOT the intended near-unity loop gain.
+    At EXACTLY integer offsets, the coefficient on that same dangerous
+    tap is exactly zero (c3=((frac+1)*frac*(frac-1))/6=0 when frac=0),
+    so the stale value never actually contributes -- this is why the
+    instability is specific to FRACTIONAL short offsets, not short
+    offsets in general.
+  possible_confounds:
+    - could-be-a-general-loop-gain-problem-unrelated-to-the-interpolator
+      (RULED OUT -- swapping ONLY the interpolator, linear instead of
+      lagrange3, at the EXACT SAME railLength, fully stabilizes the
+      identical configuration; the bug is specific to the interpolator's
+      own stencil, not the surrounding loop/termination/loss structure)
+    - could-require-ONLY-short-offsets-regardless-of-fractional-part
+      (RULED OUT -- integer railLength values (1, 2, 3, 4...) stayed
+      stable for lagrange3 even at railLength=1 in an isolated
+      self-feedback-loop test; only fractional short values (e.g. 1.5)
+      produced runaway growth)
+    - could-be-reachable-without-dispersion-at-all (RULED OUT for the
+      currently-supported frequency range -- WG2's own railLength at
+      stiffness=0 is sampleRate/(2*frequency), which at the max supported
+      frequency (4000Hz) is ~5.5 samples, above the ~4-sample danger
+      floor. Only dispersion's own compensation, which can be large
+      relative to the total period at high frequency, pushes railLength
+      down into the dangerous sub-4-sample fractional range)
+  validation:
+    method: >
+      (1) Broad grid search across frequency x stiffness x dispersionPivot
+      x dispersionSlope x excitationType via the real WG2 pipeline,
+      flagging peak/RMS near the OutputConditioner's hard clamp (4.0).
+      (2) Isolated the found corner (f0=2000Hz, stiffness=0.8, pivot=2,
+      slope=0.5) by driving the raw waveguide block-by-block, tracking
+      peak growth directly (bypassing the output clamp) to distinguish
+      genuine instability from "loud but bounded."
+      (3) Re-ran the SAME configuration with linear interpolation
+      substituted for lagrange3, same railLength, to isolate the
+      interpolator as the specific cause.
+      (4) Isolated further with a minimal single-delay-line self-feedback
+      loop (no waveguide, no termination, no dispersion filter) at a
+      sweep of railLength values, comparing linear vs. lagrange3 at each.
+    metric: raw-pre-clamp-peak-amplitude-growth-over-successive-blocks
+    result: >
+      Grid search flagged 6 of 48 tested combinations (peak pegged at
+      exactly 4.000, RMS ~3.8-3.9 -- a signal clipping almost constantly,
+      not merely loud) across f0=[2000,4000]Hz, stiffness=[0.5,1.0],
+      pivot=[2,16], slope=0.5 specifically. Isolated case (f0=2000,
+      stiffness=0.8, pivot=2, slope=0.5): railLength=1.0876 samples; raw
+      peak grew from 0.37 (block 0) to 1.48e15 (block 90) -- confirmed
+      exponential, not merely elevated. At the IDENTICAL railLength with
+      linear interpolation substituted: raw peak stayed at 0.357 across
+      the same 100 blocks -- fully stable. Minimal self-feedback-loop
+      isolation confirmed the general pattern: railLength=1.5 produced
+      3.87e36 for lagrange3 vs. 0.75 for linear; railLength=1,2,3,4 (all
+      integer) stayed stable (~1.0) for BOTH interpolators.
+  remediation_decision:
+    # Three options were presented; the user explicitly chose this one
+    # "to try first," with explicit permission to revert it if
+    # "playability" issues come up during further exploration -- this is
+    # a provisional choice, not a final, closed decision.
+    chosen: >
+      Raised the geometric railLength's own floor from 1 to
+      DISPERSION_MIN_SAFE_RAIL_LENGTH_SAMPLES=2 (soundlib/models/WG2/
+      wg2Config.js), applied at the SAME site the old floor already was
+      in wg2Processor.js/wg2PipelineCore.js -- not a new parallel
+      calculation. This indirectly caps how much compensation dispersion
+      can effectively demand at high frequency: wherever the unclamped
+      formula would want railLength below 2, the floor now engages and
+      the actually-achieved compensation is implicitly less than what
+      DispersionFilter's own groupDelaySamplesAt() computed, trading
+      pitchLocked tuning accuracy for stability at that specific corner.
+    value_derivation: >
+      2 is not a round-number guess -- a fine sweep (0.05 steps) of a
+      minimal self-feedback loop found the lagrange3 danger zone is
+      EXACTLY the open interval (1, 2) samples (e.g. railLength=1.35
+      produced raw peak ~1.6e61 over 3000 iterations), with railLength=2
+      and every tested fractional value from 2 up through 5 fully stable
+      (~1.0). This matches the stencil mechanism exactly: the dangerous
+      tap (base+2) lands precisely at the write index when railLength is
+      in (1,2), and one sample earlier (safe) once railLength reaches 2.
+    not_chosen: >
+      (a) Capping compensation directly via a separate calculation --
+      not pursued; raising the existing railLength floor achieves the
+      identical practical effect with less new code, reusing the
+      established clamp site. (b) Falling back to linear interpolation
+      specifically at short railLength -- not pursued, kept as a
+      recorded option if the chosen fix is reverted. (c) Restricting
+      exposed parameter ranges -- explicitly declined per direct
+      instruction ("I don't want to restrict too much the range of
+      parameters I can explore").
+    verification: >
+      Re-ran the original 48-combination grid search that found 68
+      flagged renders (across the full cross product, counting each
+      excitationType separately) -- zero flagged after the fix. The
+      exact originally-reported corner (f0=2000Hz, stiffness=0.8,
+      pivot=2, slope=0.5) now measures peak=0.50/rms=0.15 (was
+      peak=4.0/rms=3.86, i.e. clipping almost constantly). Default
+      settings (stiffness=0, or pivot/slope left at 4/2) remain
+      byte-identical to before this fix -- confirmed directly, not
+      assumed. The permanent low-resolution safety grid-search test in
+      wg2Pipeline.test.js now passes; it was deliberately left in place
+      (not removed) so future parameter additions get the same
+      multi-parameter-interaction coverage automatically.
+    known_tradeoff: >
+      One pre-existing test corner (pivot=2, slope=0.5, f0=1760 --
+      originally written to isolate DISPERSION_B_SAFE_MAX's own effect)
+      now ALSO engages this new floor (its own unclamped railLength
+      measured ~1.28, inside the same danger zone), compounding both
+      safety mechanisms at once. Measured tuning error there worsened
+      from ~10.6 cents (B_SAFE_MAX alone) to ~108 cents (both
+      mechanisms) -- the test's bound was widened accordingly and the
+      cause documented in place, not hidden. This is the kind of
+      "playability issue" the user asked to watch for if this option is
+      explored further; revisit if real playing reveals it matters more
+      broadly than this one synthetic corner.

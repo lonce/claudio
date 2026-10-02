@@ -163,13 +163,29 @@ export class DispersionFilter {
         this.a1 = 0;
         this.bypassed = true;
         this.lastTarget = null; // set by update(); see getTargetDescription()
+        this.needsSnap = false; // see reset()/update()
     }
 
+    // BUG FIX (found from a real, reported artifact -- a fast pitch
+    // glide at the start of every fresh note once pivot/slope were moved
+    // away from their construction defaults): this does NOT reset
+    // smoothedPivot/smoothedSlope back to this.defaultPivot/defaultSlope
+    // -- doing so forced every fresh note to re-smooth from (4,2) up to
+    // whatever the user's actual sliders say, over ~30-150ms, dragging
+    // railLength through a wide swing right at note onset (changing a
+    // waveguide's geometric delay length WHILE it's actively circulating
+    // is a genuine Doppler-style pitch glide, not a cosmetic artifact --
+    // see the spec's own section 8.3 on fast delay modulation). Smoothing
+    // exists to protect against audible jumps from a LIVE pivot/slope
+    // change WHILE a note is sounding; a brand-new note should start
+    // immediately at the currently-dialed-in values, same as every other
+    // parameter (frequency, stiffness, ...) already does. `needsSnap`
+    // tells the NEXT update() call to jump straight to its target instead
+    // of smoothing toward it, exactly once, right after a reset.
     reset() {
         this.xPrev.fill(0);
         this.yPrev.fill(0);
-        this.smoothedPivot = this.defaultPivot;
-        this.smoothedSlope = this.defaultSlope;
+        this.needsSnap = true;
     }
 
     // Requested-vs-achieved reporting: the full target description
@@ -206,10 +222,21 @@ export class DispersionFilter {
     // assumption. See the module comment's "IMPORTANT NAMING NOTE" and
     // this file's own history for why this distinction matters.
     update(stiffness, pivot, slope, f0Hz, sampleRate) {
-        const blockDurationSeconds = ASSUMED_BLOCK_SAMPLES / sampleRate;
-        const smoothingCoefficient = Math.exp(-blockDurationSeconds / this.smoothingSeconds);
-        this.smoothedPivot += (pivot - this.smoothedPivot) * (1 - smoothingCoefficient);
-        this.smoothedSlope += (slope - this.smoothedSlope) * (1 - smoothingCoefficient);
+        if (this.needsSnap) {
+            // Right after a reset (a brand-new note) -- jump straight to
+            // the current target instead of smoothing toward it. See
+            // reset()'s own comment for why: smoothing a fresh note's
+            // OWN starting value (rather than only a later, live change)
+            // was the actual bug.
+            this.smoothedPivot = pivot;
+            this.smoothedSlope = slope;
+            this.needsSnap = false;
+        } else {
+            const blockDurationSeconds = ASSUMED_BLOCK_SAMPLES / sampleRate;
+            const smoothingCoefficient = Math.exp(-blockDurationSeconds / this.smoothingSeconds);
+            this.smoothedPivot += (pivot - this.smoothedPivot) * (1 - smoothingCoefficient);
+            this.smoothedSlope += (slope - this.smoothedSlope) * (1 - smoothingCoefficient);
+        }
 
         if (stiffness <= STIFFNESS_EPSILON) {
             this.bypassed = true;

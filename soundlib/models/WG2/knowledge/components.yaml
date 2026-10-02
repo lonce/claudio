@@ -215,6 +215,40 @@
       unsmoothed jump was measured during design to produce a real,
       if modest, sample-level discontinuity (~2-2.5x local baseline
       delta), which this smoothing addresses)
+    - reset-snaps-rather-than-resmooths (a real bug, found from a user
+      report, not a design choice that was always correct -- see
+      claim.reset-must-snap-not-resmooth. The smoother's purpose is to
+      protect a LIVE in-note change, not a fresh note's own starting
+      value; reset() used to snap smoothedPivot/smoothedSlope back to the
+      construction defaults unconditionally, forcing every fresh note to
+      re-smooth up to the real target over ~30-150ms, which dragged
+      railLength through a wide swing right at note onset -- an audible
+      Doppler-style pitch glide, not a cosmetic artifact, since changing
+      a waveguide's geometric delay length while it's actively
+      circulating IS a real pitch change (see
+      scratch/WaveguideResonator-v1-Specification-and-Reasoning-Model.md
+      section 8.3. Fixed -- reset() now sets a needsSnap flag; the NEXT
+      update() call jumps straight to its target instead of smoothing
+      toward it, exactly once, right after a reset -- a live change made
+      while a note is already sounding still smooths normally)
+    - railLength-floor-protects-against-a-real-interpolator-instability
+      (another real bug, found from a user report of a loud, distorted
+      "blast" -- see claim.lagrange3-unstable-at-short-fractional-rail-
+      length. dispersion's own pitchLocked compensation could push
+      BidirectionalWaveguide's railLength down to a short, FRACTIONAL
+      value at high frequency; the default lagrange3 interpolator's
+      4-point stencil then reads a tap at/past the write index,
+      producing confirmed exponential feedback gain (not merely
+      imprecise tuning) until the output's hard clamp caught it. Fixed
+      by raising railLength's own floor from 1 to
+      WG2_CONFIG.dispersionMinSafeRailLengthSamples (2, the exact
+      measured boundary of the danger zone) at the existing clamp site in
+      wg2Processor.js/wg2PipelineCore.js. This is one of three
+      remediation options presented and explicitly chosen to try first,
+      with permission to revert if "playability" issues come up during
+      further exploration -- see the claim's own remediation_decision
+      field for the other two options and the known tradeoff this one
+      introduces at one specific, already-extreme test corner)
     - bypasses-entirely-at-stiffness-near-zero (process() returns its
       input unchanged, groupDelaySamplesAt() returns 0 -- not merely a
       near-zero coefficient, giving stiffness=0 the cleanest possible

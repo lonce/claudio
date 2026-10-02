@@ -128,6 +128,43 @@ export const DISPERSION_B_SAFE_MAX = 0.05;
 // confirmed adequate (not just assumed) by the abrupt-jump-with-
 // smoothing regression test in wg2Pipeline.test.js.
 export const DISPERSION_SMOOTHING_SECONDS = 0.03;
+
+// SAFETY FIX for a real, user-reported bug (a loud, distorted "blast" at
+// high frequency + high stiffness + certain dispersionPivot/
+// dispersionSlope combinations) -- see
+// soundlib/models/WG2/knowledge/causal-claims.yaml's
+// claim.lagrange3-unstable-at-short-fractional-rail-length for the full
+// investigation. Root cause: dispersion's own compensation
+// (DispersionFilter.groupDelaySamplesAt) can demand more delay than the
+// geometric rail can supply at high frequency, forcing railLength toward
+// its floor -- and the default lagrange3 interpolator's 4-point stencil
+// becomes genuinely UNSTABLE (confirmed exponential, not just imprecise)
+// at short, FRACTIONAL railLength values specifically. Measured directly
+// (a fine sweep of a minimal self-feedback loop, lagrange3 vs. linear):
+// the danger zone is the open interval (1, 2) samples -- e.g. railLength
+// =1.35 produced a raw peak of ~1.6e61 in 3000 iterations, while
+// railLength=2.0 and every tested fractional value from 2.0 up through
+// 5.0 stayed stable (~1.0). Exactly integer railLength values (1, 2, 3,
+// ...) are ALSO stable even below 2 (the dangerous stencil tap's own
+// Lagrange coefficient is exactly zero when the fractional part is
+// exactly zero) -- but compensation is a continuous value and will
+// essentially never land on an exact integer, so this can't be relied on.
+//
+// Chosen remediation (of three options presented; this one explicitly
+// chosen to try first, with the option to revert if it causes
+// "playability" issues during further exploration): clamp the
+// geometric railLength's own floor from 1 up to this value, which
+// INDIRECTLY caps how much compensation dispersion's own pitchLocked
+// calculation can effectively demand at high frequency -- the floor is
+// applied at the same site the old Math.max(1, ...) floor already was in
+// wg2Processor.js/wg2PipelineCore.js, not a new parallel calculation.
+// Where this floor engages, pitchLocked tuning accuracy can degrade
+// further at that specific (frequency, stiffness, pivot, slope) corner
+// rather than the waveguide becoming unstable -- a tuning-accuracy
+// tradeoff, not a new one in kind (same spirit as DISPERSION_B_SAFE_MAX
+// above), just at a different, more extreme corner of the parameter
+// space than B_SAFE_MAX alone was protecting.
+export const DISPERSION_MIN_SAFE_RAIL_LENGTH_SAMPLES = 2;
 // 100 cents at pivot=4/slope=2 inverts to B~0.0082 -- comfortably under
 // DISPERSION_B_SAFE_MAX (0.05), so the default shape's own ceiling stays
 // entirely unclamped; this value is unchanged from the amount-widening
@@ -173,7 +210,8 @@ export const WG2_CONFIG = {
     dispersionBSafeMax: DISPERSION_B_SAFE_MAX,
     dispersionSmoothingSeconds: DISPERSION_SMOOTHING_SECONDS,
     dispersionAmountMaxCents: DISPERSION_AMOUNT_MAX_CENTS,
-    dispersionStiffnessCurveExponent: DISPERSION_STIFFNESS_CURVE_EXPONENT
+    dispersionStiffnessCurveExponent: DISPERSION_STIFFNESS_CURVE_EXPONENT,
+    dispersionMinSafeRailLengthSamples: DISPERSION_MIN_SAFE_RAIL_LENGTH_SAMPLES
 };
 
 export default WG2_CONFIG;

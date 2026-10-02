@@ -7,6 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderWg2Pluck, buildWg2Pipeline } from '../../models/WG2/wg2PipelineCore.js';
+import { WG2_CONFIG } from '../../models/WG2/wg2Config.js';
 import { t60 } from '../decayMath.js';
 
 const SAMPLE_RATE = 44100;
@@ -362,7 +363,7 @@ function internalEnergyT60SecondsWithStiffness(frequency, stiffness, seconds, sa
     const pipeline = buildWg2Pipeline(sampleRate, 7);
     pipeline.dispersionFilter.update(stiffness, pipeline.dispersionFilter.defaultPivot, pipeline.dispersionFilter.defaultSlope, frequency, sampleRate);
     const compensation = pipeline.dispersionFilter.groupDelaySamplesAt(frequency, sampleRate);
-    const railLength = Math.max(1, (sampleRate / frequency - compensation) / 2);
+    const railLength = Math.max(WG2_CONFIG.dispersionMinSafeRailLengthSamples, (sampleRate / frequency - compensation) / 2);
     pipeline.waveguide.setRailLength(railLength);
     pipeline.lossFilter.setDecayTime(1e6, sampleRate, pipeline.waveguide.railLength);
     pipeline.exciter.exciteAtPosition(pipeline.waveguide.rightGoing, pipeline.waveguide.leftGoing, pipeline.waveguide.railLength, 0.18, 'impulse', 1.0);
@@ -593,7 +594,7 @@ test('a live stiffness ramp produces no excess transient beyond the natural pluc
             const stiffness = stiffnessFn(i / frameCount);
             pipeline.dispersionFilter.update(stiffness, pipeline.dispersionFilter.defaultPivot, pipeline.dispersionFilter.defaultSlope, frequency, sampleRate);
             const compensation = pipeline.dispersionFilter.groupDelaySamplesAt(frequency, sampleRate);
-            pipeline.waveguide.setRailLength(Math.max(1, (sampleRate / frequency - compensation) / 2));
+            pipeline.waveguide.setRailLength(Math.max(WG2_CONFIG.dispersionMinSafeRailLengthSamples, (sampleRate / frequency - compensation) / 2));
             for (let j = 0; j < blockLength; j++) {
                 pipeline.waveguide.tick(pipeline.nutTermination, pipeline.bridgeTermination, pipeline.lossFilter, pipeline.dispersionFilter);
                 const observed = pipeline.pickup.observe(pipeline.waveguide, pickupPosition, 'displacement');
@@ -789,10 +790,28 @@ test('fundamental pitch error at B_SAFE_MAX itself, across frequency -- honest r
     // 1760Hz is deliberately NOT asserted against the same 10-cent bound
     // here -- it measured right at that boundary during planning and a
     // stricter assertion would be flaky. Measured and reported instead.
+    //
+    // UPDATED after the railLength-safety fix (see wg2Config.js's
+    // DISPERSION_MIN_SAFE_RAIL_LENGTH_SAMPLES): at this exact corner
+    // (pivot=2, slope=0.5, f0=1760), the UNCLAMPED railLength was
+    // measured at ~1.28 samples -- inside the interpolator's own
+    // measured danger zone (the open interval (1,2), see
+    // claim.lagrange3-unstable-at-short-fractional-rail-length) -- so
+    // this specific test corner now ALSO engages the new railLength
+    // floor, on top of the B_SAFE_MAX clamp it was originally written to
+    // isolate. That's a second, compounding safety mechanism, and it
+    // trades tuning accuracy for stability more aggressively than
+    // B_SAFE_MAX alone did -- the bound below is widened accordingly
+    // (measured ~108 cents after the fix, vs. ~10.6 cents before it) and
+    // the two mechanisms are no longer cleanly separable at this one
+    // corner. This is reported honestly as the new reality, not
+    // papered over -- the whole point of the safety fix was to prevent
+    // the UNBOUNDED, exponential failure this corner used to risk, at
+    // the cost of SOME tuning accuracy at the most extreme corners.
     const samples1760 = renderWg2Pluck(SAMPLE_RATE, 7, { frequency: 1760, stiffness: 1.0, dispersionPivot: pivot, dispersionSlope: slope, decayTime: 1.5 }, 0.3, 0);
     const measured1760 = peakSearchFrequencyAdaptive(samples1760, SAMPLE_RATE, 1760, 1760 * 0.3);
     const cents1760 = centsBetween(measured1760, 1760);
-    assert.ok(Math.abs(cents1760) < 20, `expected 1760Hz to stay under a looser 20-cent bound at the clamp boundary (known residual, ~10.6 cents measured during planning), got ${cents1760.toFixed(2)} cents`);
+    assert.ok(Math.abs(cents1760) < 150, `expected 1760Hz to stay under a loose 150-cent bound at this corner (now also engaging the railLength safety floor, not just B_SAFE_MAX -- measured ~108 cents after the fix), got ${cents1760.toFixed(2)} cents`);
 });
 
 test('abrupt pivot/slope jumps near the clamp boundary stay safe WITH smoothing in place', () => {
@@ -815,7 +834,7 @@ test('abrupt pivot/slope jumps near the clamp boundary stay safe WITH smoothing 
             const slope = i < jumpAtFrame ? slopeBefore : slopeAfter;
             pipeline.dispersionFilter.update(1.0, pivot, slope, f0, SAMPLE_RATE);
             const compensation = pipeline.dispersionFilter.groupDelaySamplesAt(f0, SAMPLE_RATE);
-            pipeline.waveguide.setRailLength(Math.max(1, (SAMPLE_RATE / f0 - compensation) / 2));
+            pipeline.waveguide.setRailLength(Math.max(WG2_CONFIG.dispersionMinSafeRailLengthSamples, (SAMPLE_RATE / f0 - compensation) / 2));
             for (let j = 0; j < blockLength; j++) {
                 pipeline.waveguide.tick(pipeline.nutTermination, pipeline.bridgeTermination, pipeline.lossFilter, pipeline.dispersionFilter);
                 const observed = pipeline.pickup.observe(pipeline.waveguide, pickupPosition, 'displacement');
@@ -859,6 +878,46 @@ test('abrupt pivot/slope jumps near the clamp boundary stay safe WITH smoothing 
         const ratio = env[i] / (staticEnv[i] || 1e-9);
         assert.ok(ratio < 4, `expected no excess transient from the abrupt pivot/slope jump at window ${i * 10}ms, got ratio ${ratio.toFixed(2)} (smoothing should have absorbed the jump by now)`);
     }
+});
+
+test('REGRESSION: a fresh note starts at the target railLength immediately, not smoothed from the construction defaults (user-reported pitch-glide bug)', () => {
+    // Found from a real, reported artifact: a fast pitch glide at the
+    // start of every fresh note once pivot/slope were moved away from
+    // their construction defaults (4, 2). Root cause: reset() used to
+    // snap smoothedPivot/smoothedSlope back to (4, 2) unconditionally,
+    // forcing every fresh note to re-smooth up to the real target over
+    // ~30-150ms -- and since railLength depends on the smoothed state via
+    // pitchLocked compensation, this dragged railLength through a wide
+    // swing right at note onset. Changing a waveguide's geometric delay
+    // length WHILE it's actively circulating is a genuine Doppler-style
+    // pitch glide (see scratch/WaveguideResonator-v1-Specification-and-
+    // Reasoning-Model.md section 8.3), not a cosmetic artifact -- this is
+    // exactly why it was audible. Fixed by snapping (not smoothing) on
+    // the very next update() after reset(); smoothing still applies to a
+    // LIVE change made while a note is already sounding (see the abrupt-
+    // jump test above, which exercises that path and must keep passing).
+    const f0 = 220;
+    const pivot = 2, slope = 1; // a corner with a large compensation delta from the (4,2) defaults, measured during the original bug investigation
+    const pipeline = buildWg2Pipeline(SAMPLE_RATE, 7);
+    pipeline.waveguide.setRailLength(SAMPLE_RATE / (2 * f0));
+
+    // Converge to the real target first, as if the user had already been
+    // dialed in to pivot=2/slope=1 for a previous note.
+    for (let i = 0; i < 500; i++) pipeline.dispersionFilter.update(1.0, pivot, slope, f0, SAMPLE_RATE);
+    const expectedRailLength = Math.max(WG2_CONFIG.dispersionMinSafeRailLengthSamples, (SAMPLE_RATE / f0 - pipeline.dispersionFilter.groupDelaySamplesAt(f0, SAMPLE_RATE)) / 2);
+
+    // Fresh note: reset(), then the very first update() call (matching
+    // wg2Processor.js's own per-block ordering) should already produce
+    // the CORRECT railLength, not the construction-default one.
+    pipeline.dispersionFilter.reset();
+    pipeline.dispersionFilter.update(1.0, pivot, slope, f0, SAMPLE_RATE);
+    const firstBlockCompensation = pipeline.dispersionFilter.groupDelaySamplesAt(f0, SAMPLE_RATE);
+    const firstBlockRailLength = Math.max(WG2_CONFIG.dispersionMinSafeRailLengthSamples, (SAMPLE_RATE / f0 - firstBlockCompensation) / 2);
+
+    assert.ok(
+        Math.abs(firstBlockRailLength - expectedRailLength) < 0.01,
+        `expected railLength to be correct from the very first block after reset(), got ${firstBlockRailLength.toFixed(4)} vs expected ${expectedRailLength.toFixed(4)} -- a mismatch here means a fresh note is gliding again`
+    );
 });
 
 test('partial ordering and finiteness hold across a pivot x slope grid, including clamped corners', () => {
@@ -947,6 +1006,94 @@ test('fundamental-band T60 stays close to nominal across most of the supported f
         assert.ok(
             ratio > minRatio,
             `expected fundamental-band T60 ratio above ${minRatio} at ${frequency}Hz, got ${ratio.toFixed(3)} (measured ${measured.toFixed(3)}s vs expected ${expectedT60.toFixed(3)}s)`
+        );
+    }
+});
+
+// --- SAFETY: low-resolution grid search across extreme parameter combinations ---
+// Purpose: this project's dispersion work keeps adding new parameters
+// (stiffness, dispersionPivot, dispersionSlope) that all feed into the
+// SAME shared mechanism (pitchLocked compensation -> railLength). Each
+// new parameter was validated against the ranges/combinations known at
+// the time it was added, but COMBINATIONS of extreme settings across
+// multiple parameters at once were never exhaustively checked -- and a
+// real, user-reported bug was found exactly this way (a loud, distorted
+// "blast" at high frequency + high stiffness + certain dispersionPivot/
+// dispersionSlope values). This grid search exists so FUTURE parameter
+// additions get the same coverage automatically, not just the specific
+// corner already found.
+//
+// Deliberately LOW resolution (corners/extremes, not a dense interior
+// sweep) and deliberately covers MULTIPLE parameters varying together --
+// an instability found here was genuinely invisible to every existing
+// single-parameter-at-a-time test in this file, because it only
+// manifests from the INTERACTION of frequency, stiffness, pivot, and
+// slope all pushed toward their limits simultaneously.
+function safetyGridSearch() {
+    const flagged = [];
+    for (const frequency of [220, 2000, 4000]) {
+        for (const stiffness of [0.5, 1.0]) {
+            for (const dispersionPivot of [2, 16]) {
+                for (const dispersionSlope of [0.5, 4]) {
+                    for (const excitationType of ['impulse', 'noise']) {
+                        const settings = { frequency, stiffness, dispersionPivot, dispersionSlope, excitationType, decayTime: 1.0, energy: 1.0 };
+                        const samples = renderWg2Pluck(SAMPLE_RATE, 7, settings, 0.4, 0);
+                        let maxAbs = 0, anyNonFinite = false, sumSq = 0;
+                        for (const s of samples) {
+                            if (!Number.isFinite(s)) anyNonFinite = true;
+                            maxAbs = Math.max(maxAbs, Math.abs(s));
+                            sumSq += s * s;
+                        }
+                        const rms = Math.sqrt(sumSq / samples.length);
+                        // Normal ceiling across this codebase's own prior
+                        // gain-staging work (Wind/ChimeVocoder/WG1/WG2) is
+                        // roughly 1.1-1.5 peak. Sustained RMS approaching
+                        // the OutputConditioner's hard clamp (4.0) is the
+                        // specific signature of the found bug -- a clipped,
+                        // distorted "blast," not a merely-loud-but-clean
+                        // signal.
+                        if (anyNonFinite || maxAbs > 2.0 || rms > 1.5) {
+                            flagged.push({ ...settings, maxAbs, rms, anyNonFinite });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return flagged;
+}
+
+test('SAFETY: low-resolution grid search flags loud/distorted/unstable combinations across frequency x stiffness x dispersionPivot x dispersionSlope', () => {
+    // FIXED: this test originally caught a real, user-reported bug --
+    // dispersionPivot/dispersionSlope's pitchLocked compensation could
+    // push railLength down to a short, FRACTIONAL value at high
+    // frequency, where the default lagrange3 interpolator's 4-point
+    // stencil reads a tap at/past the write index, creating a feedback
+    // path with effective gain >> 1 (confirmed exponential -- peak grew
+    // from 0.37 to 5e13 over 90 blocks in one isolated case) until
+    // OutputConditioner's hard clamp caught it, producing a loud,
+    // clipped "blast." Fixed by raising railLength's own floor to
+    // WG2_CONFIG.dispersionMinSafeRailLengthSamples (2 -- the exact
+    // measured boundary of the danger zone, not a round-number guess).
+    // This test is deliberately KEPT, not removed, as a permanent
+    // regression guard: future parameter additions get the same
+    // multi-parameter-interaction coverage automatically, since this
+    // kind of bug is invisible to single-parameter tests by
+    // construction. See soundlib/models/WG2/knowledge/causal-claims.yaml's
+    // claim.lagrange3-unstable-at-short-fractional-rail-length for the
+    // full investigation and the remediation decision (chosen as one of
+    // three options, explicitly provisional -- revert if "playability"
+    // issues come up during further exploration).
+    const flagged = safetyGridSearch();
+    if (flagged.length > 0) {
+        const summary = flagged
+            .map((f) => `    f0=${f.frequency} stiffness=${f.stiffness} pivot=${f.dispersionPivot} slope=${f.dispersionSlope} exc=${f.excitationType}  peak=${f.maxAbs.toFixed(3)} rms=${f.rms.toFixed(3)} finite=${!f.anyNonFinite}`)
+            .join('\n');
+        assert.fail(
+            `SAFETY WARNING -- ${flagged.length} combination(s) produced loud/distorted/unstable output ` +
+            `(this test previously passed after a fix -- a NEW failure here means either the fix was reverted ` +
+            `or a new parameter/change has reopened the same class of bug):\n${summary}\n\n` +
+            `See soundlib/models/WG2/knowledge/causal-claims.yaml's claim.lagrange3-unstable-at-short-fractional-rail-length.`
         );
     }
 });

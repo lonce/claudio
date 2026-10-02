@@ -87,7 +87,10 @@ export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAt
     // once here, unlike the real worklet's per-block recompute.
     pipeline.dispersionFilter.update(stiffness, dispersionPivot, dispersionSlope, clampedFrequency, sampleRate);
     const compensationSamples = pipeline.dispersionFilter.groupDelaySamplesAt(clampedFrequency, sampleRate);
-    const railLength = Math.max(1, (sampleRate / clampedFrequency - compensationSamples) / 2);
+    // Floor raised from 1 to WG2_CONFIG.dispersionMinSafeRailLengthSamples
+    // (2) as a safety fix for a real, measured instability -- see that
+    // constant's own comment in wg2Config.js for the full investigation.
+    const railLength = Math.max(WG2_CONFIG.dispersionMinSafeRailLengthSamples, (sampleRate / clampedFrequency - compensationSamples) / 2);
     pipeline.waveguide.setRailLength(railLength);
     pipeline.lossFilter.setDecayTime(decayTime, sampleRate, pipeline.waveguide.railLength);
 

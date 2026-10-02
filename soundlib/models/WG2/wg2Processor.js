@@ -152,7 +152,10 @@ class WG2Processor extends AudioWorkletProcessor {
             this.processorSampleRate
         );
         const compensationSamples = this.dispersionFilter.groupDelaySamplesAt(frequency, this.processorSampleRate);
-        const railLength = Math.max(1, (this.processorSampleRate / frequency - compensationSamples) / 2);
+        // Floor raised from 1 to WG2_CONFIG.dispersionMinSafeRailLengthSamples
+        // (2) as a safety fix for a real, measured instability -- see that
+        // constant's own comment in wg2Config.js for the full investigation.
+        const railLength = Math.max(WG2_CONFIG.dispersionMinSafeRailLengthSamples, (this.processorSampleRate / frequency - compensationSamples) / 2);
         this.waveguide.setRailLength(railLength);
         this.lossFilter.setDecayTime(parameters.decayTime[0], this.processorSampleRate, this.waveguide.railLength);
 
