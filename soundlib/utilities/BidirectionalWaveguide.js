@@ -53,6 +53,12 @@ export class BidirectionalWaveguide {
         // PointPickup's 'bridgeForce' type, which is inherently a
         // bridge-specific quantity, not a function of pickupPosition.
         this.lastBridgeIncoming = 0;
+        // Phase C transmission port: the bridge termination's own
+        // transmittedSignal (see FilteredTermination.js), surfaced here the
+        // same way lastBridgeIncoming already is. RigidTermination
+        // instances (WG1/WG2, unchanged) have no .lastTransmitted field --
+        // the `?? 0` in tick() keeps this a true no-op for them.
+        this.lastTransmittedSignal = 0;
 
         this.bridgeTapInterpolator = createInterpolator(interpolationMode);
         this.nutTapInterpolator = createInterpolator(interpolationMode);
@@ -62,6 +68,7 @@ export class BidirectionalWaveguide {
         this.rightGoing.reset();
         this.leftGoing.reset();
         this.lastBridgeIncoming = 0;
+        this.lastTransmittedSignal = 0;
         this.bridgeTapInterpolator.reset();
         this.nutTapInterpolator.reset();
     }
@@ -93,7 +100,9 @@ export class BidirectionalWaveguide {
         const nutIncoming = this.leftGoing.readAt(this.railLength, this.nutTapInterpolator);
         this.lastBridgeIncoming = bridgeIncoming;
 
-        let bridgeReflected = lossFilter.process(bridgeTermination.reflect(bridgeIncoming));
+        const bridgeReflectedRaw = bridgeTermination.reflect(bridgeIncoming);
+        this.lastTransmittedSignal = bridgeTermination.lastTransmitted ?? 0;
+        let bridgeReflected = lossFilter.process(bridgeReflectedRaw);
         if (dispersionFilter) bridgeReflected = dispersionFilter.process(bridgeReflected);
         const nutReflected = lossFilter.process(nutTermination.reflect(nutIncoming));
 

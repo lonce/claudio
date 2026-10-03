@@ -46,7 +46,15 @@ export function buildWg2Pipeline(sampleRate, seed, interpolationMode = DEFAULT_I
 // see createInterpolator.js. Plucks once at pluckAtSeconds (default 0).
 // blockSize matches the worklet's own per-block k-rate recompute
 // granularity (128 samples, the standard Web Audio render quantum).
-export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAtSeconds = 0, blockSize = 128, interpolationMode = DEFAULT_INTERPOLATION_MODE) {
+// overrides (optional): { bridgeTermination, onSample }. bridgeTermination,
+// if given, replaces the pipeline's default RigidTermination bridge --
+// lets a caller (e.g. WG3's own wg3PipelineCore.js) reuse this whole
+// function with a different termination instead of restating the render
+// loop. onSample(observed, pipeline), if given, is applied to the pickup's
+// observed sample before output.tick() -- the extension point WG3 uses to
+// mix in a transmission-port monitor signal. Omitting overrides reproduces
+// today's exact behavior (see wg2Pipeline.test.js -- unchanged by this).
+export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAtSeconds = 0, blockSize = 128, interpolationMode = DEFAULT_INTERPOLATION_MODE, overrides = {}) {
     const {
         frequency = WG2_CONFIG.frequencyDefaultHz,
         energy = WG2_CONFIG.energyDefault,
@@ -63,6 +71,7 @@ export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAt
     const pipeline = buildWg2Pipeline(sampleRate, seed, interpolationMode);
     pipeline.excitationType = excitationType;
     pipeline.pickupType = pickupType;
+    if (overrides.bridgeTermination) pipeline.bridgeTermination = overrides.bridgeTermination;
 
     const frameCount = Math.round(sampleRate * seconds);
     const pluckAtFrame = Math.round(sampleRate * pluckAtSeconds);
@@ -114,7 +123,8 @@ export function renderWg2Pluck(sampleRate, seed, settings = {}, seconds, pluckAt
         for (let j = 0; j < blockLength; j++) {
             pipeline.waveguide.tick(pipeline.nutTermination, pipeline.bridgeTermination, pipeline.lossFilter, pipeline.dispersionFilter);
             const observed = pipeline.pickup.observe(pipeline.waveguide, pickupPosition, pipeline.pickupType);
-            samples[i + j] = pipeline.output.tick(observed);
+            const finalValue = overrides.onSample ? overrides.onSample(observed, pipeline) : observed;
+            samples[i + j] = pipeline.output.tick(finalValue);
         }
 
         i += blockLength;

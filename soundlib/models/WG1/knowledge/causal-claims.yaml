@@ -8,6 +8,15 @@
 # result attached to it") and this project's established "measure, don't
 # assume" discipline (see docs/MODEL_PATTERNS.md's Wind/ChimeVocoder
 # gain-staging notes for prior examples of this same discipline).
+#
+# `status:` field added retroactively (2026-10-03) to the 3 claims below
+# whose epistemic kind was unambiguous, using docs/MODEL_DESIGN_CHARTER.md's
+# vocabulary (confirmed-dsp-property / measured-in-this-model /
+# perceptual-hypothesis / provisional-design-hypothesis /
+# known-numerical-artifact). The other 3 claims in this file predate that
+# vocabulary and are intentionally left untagged for now -- a full
+# per-model retrofit was judged out of scope for a "brief inspection,"
+# per the charter's own instruction not to force a redesign in one pass.
 
 - id: claim.decay-time-lengthens-decay
   subject: parameter.decay-time
@@ -69,6 +78,7 @@
       near the top of the supported range.
 
 - id: claim.linear-interpolation-smoothing-shortens-decay
+  status: known-numerical-artifact
   subject: component.linear-interpolator
   relation: increasing-tends-to-cause
   object: feature.shorter-than-nominal-decay
@@ -111,6 +121,7 @@
       see the next claim.
 
 - id: claim.linear-interpolation-collapses-at-high-frequency
+  status: known-numerical-artifact
   subject: component.linear-interpolator
   relation: increasing-tends-to-cause
   object: feature.catastrophic-broadband-energy-loss
@@ -153,6 +164,7 @@
       the default -- see the next claim.
 
 - id: claim.lagrange3-interpolation-resolves-energy-loss-without-tuning-regression
+  status: confirmed-dsp-property
   subject: component.lagrange-interpolator
   relation: replacing-linear-with-tends-to-cause
   object: feature.preserved-energy-and-accurate-tuning

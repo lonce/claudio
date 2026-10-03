@@ -5,6 +5,26 @@
 # section 9.1: only the components Phase A actually built, described from
 # the real implementation, not speculatively ahead of it. Schema follows
 # the spec's own suggested ComponentType shape.
+#
+# See docs/MODEL_DESIGN_CHARTER.md for the project-level intent these
+# records are building toward (models as executable causal lessons,
+# organized around 5 causal layers: gesture/event process, driver/energy
+# source, coupling mechanism, resonator/propagating structure, radiation/
+# observation). OPEN OMISSION relative to that charter, noted here rather
+# than papered over: WG1/WG2/WG3 have no distinct GESTURE-OR-EVENT-PROCESS
+# component at all. `InitialConditionExciter` (below) is squarely the
+# charter's layer-2 DRIVER role (it supplies the energy/initial
+# condition); the decision of WHEN a pluck happens is made entirely
+# outside this model, by the app's single mousedown handler calling
+# play() -- there is no scripted/statistical event generator analogous to
+# archetype 4's phaseEventProcessor-family worklets elsewhere in this
+# library. This is a genuine, currently-uninstantiated layer for this
+# model family, not a modeling error -- a future compliant-striker or
+# stick-slip-bow excitation mechanism (see the charter's "Excitation as
+# an Early Example of the Method" section) would be the natural place to
+# introduce one, since "when/how often does contact happen" becomes a
+# real design question once excitation is state-dependent or statistical
+# rather than a single scripted trigger.
 
 - id: component.fractional-delay-waveguide
   name: Fractional-Delay Waveguide

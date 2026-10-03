@@ -1,0 +1,325 @@
+# ComponentType records for WG3 (WaveguideResonator v1, Phase C continued
+# -- filtered, transmitting bridge termination; Phase C.5, one-way body
+# coupling). Pilot scale, same discipline as WG1's/WG2's own knowledge
+# files -- only the genuinely NEW component this model introduces. Every
+# other piece WG3 uses (BidirectionalWaveguide, LoopLossFilter,
+# DispersionFilter, InitialConditionExciter, PointPickup,
+# OutputConditioner, RigidTermination at the nut) is unchanged, already
+# documented in WG1's/WG2's own components.yaml -- not duplicated here.
+# See soundlib/models/WG2/knowledge/components.yaml's
+# component.bidirectional-waveguide entry for the small, additive update
+# describing the new lastTransmittedSignal output that WG3's own
+# BridgeTermination now feeds.
+#
+# C.5.1 added component.body-mode-bank with one fixed body configuration.
+# C.5.2 (below) generalizes that to a registry of several NAMED presets
+# (see bodyConfig.js's BODY_PRESETS), live-switchable via WG3's own
+# bodyPreset string Parameter -- component.body-mode-bank's own entry is
+# UPDATED in place for this, not duplicated.
+#
+# See docs/MODEL_DESIGN_CHARTER.md for the project-level intent, and
+# WG1/knowledge/components.yaml's own header for the still-open
+# gesture/event-process-layer omission every model in this family
+# inherits (a single, undifferentiated app-triggered pluck -- no
+# event-generator component). pickupGain/transmissionGain/
+# bodyRadiationGain (component.filtered-termination's own entry, below,
+# plus WG3.js) are a direct instance of the charter's "radiation and
+# observation system" layer AND its "monitor gains must never silently
+# alter physical state or coupling" rule -- already verified true here
+# by dedicated tests (see wg3Pipeline.test.js's "never feeds back into
+# waveguide state" tests), not merely asserted.
+
+- id: component.filtered-termination
+  name: Filtered Termination
+  # First multi-value roles: list in this codebase -- every existing
+  # entry (WG1/WG2's own components.yaml) has exactly one role. A
+  # termination that both reflects AND transmits AND sits at a coupling
+  # boundary genuinely plays all four of these roles at once; flagged
+  # explicitly rather than silently introducing the first exception.
+  roles:
+    - termination
+    - reflector
+    - transmitter
+    - coupling-junction
+  physical_domain: boundary-reflection-and-transmission
+  implementation_family:
+    - one-pole-shelf-blend
+  stateful: true
+  linear_regime: linear
+  energy_behavior: splits-reflects-transmits-and-dissipates
+  inputs:
+    - incident-sample
+  outputs:
+    - reflected-sample (returned to the waveguide, via reflect()'s normal
+      return value -- the same contract RigidTermination.reflect() has)
+    - transmitted-sample (read via lastTransmitted, surfaced one level up
+      as BidirectionalWaveguide.lastTransmittedSignal -- see
+      soundlib/models/WG2/knowledge/components.yaml's
+      component.bidirectional-waveguide entry)
+    - dissipated-sample (read via lastDissipated -- diagnostic only, not
+      consumed anywhere downstream in v1)
+  # Pre-C.5.3 reparameterization: this component's own LOW-LEVEL fields
+  # (reflection, reflectionTilt, couplingEfficiency -- renamed from
+  # terminationDamping, INVERTED sense) are unchanged in shape, but are
+  # no longer directly exposed as WG3-level live Parameters. WG3's own
+  # bridgeDecayVal/bodyCouplingEfficiency are higher-level, physically
+  # intelligible controls computed/converted in wg3Processor.js (see
+  # bridgeDecayMath.js) -- this component itself stays a general,
+  # reusable mechanism, agnostic to how a caller arrives at its
+  # reflection/couplingEfficiency field values.
+  parameters:
+    - parameter.reflection (low-level, diagnostic/advanced -- see
+      wg3PipelineCore.js's reflectionOverride escape hatch; the WG3-level
+      live control is parameter.bridge-decay-val, mapped onto this field)
+    - parameter.reflection-tilt
+    - parameter.coupling-efficiency (renamed from parameter.termination-
+      damping, INVERTED sense -- eta=1 fully transmitted, eta=0 fully
+      dissipated -- the WG3-level live control is
+      parameter.body-coupling-efficiency, passed straight through with
+      no sign flip)
+  preconditions:
+    - reflection-within-0-1
+    - reflection-tilt-within-minus1-1
+    - coupling-efficiency-within-0-1
+  affordances:
+    - frequency-dependent-reflection-shape (reflectionTilt blends flat
+      reflection toward a one-pole lowpass or complementary highpass
+      shape -- darker or brighter bridge character)
+    - exact-ENERGY-accounting-identity-at-neutral-tilt
+      (reflected^2+transmitted^2+dissipated^2 === incidentSample^2, every
+      sample, by construction, at reflectionTilt=0 -- see
+      claim.energy-accounting-identity-holds-exactly-at-neutral-tilt.
+      SUPERSEDES an earlier exact AMPLITUDE identity -- see
+      claim.amplitude-accounting-identity-holds-exactly's own
+      superseded_note)
+    - provably-passive-by-construction (|baseReflected| <= reflection <=
+      1 at every frequency, a convex-combination/triangle-inequality
+      argument, independently confirmed by a swept-sinusoid measurement
+      -- see claim.filtered-termination-is-passive-by-construction --
+      UNCHANGED by the energy-accounting revision)
+    - drop-in-replacement-for-RigidTermination-at-the-call-site-level
+      (same reflect(incidentSample) contract; BidirectionalWaveguide.
+      tick() needed zero signature changes to accept it)
+    - neutral-settings-reproduce-RigidTermination-exactly (reflection=1,
+      reflectionTilt=0 -- see
+      claim.neutral-settings-reproduce-rigid-termination)
+    - physically-intelligible-pitch-compensated-primary-control (WG3's
+      own bridgeDecayVal, mapped geometrically onto an actual bridge-only
+      T60 in seconds via bridgeDecayMath.js, replacing a raw per-round-
+      trip amplitude coefficient whose musically useful region was
+      compressed into a sliver near r=1 -- see
+      claim.bridge-only-t60-matches-requested-bridgedecayval-derived-t60)
+  limitations:
+    - single-port-one-way-transmission-only (see port_model below)
+    - fixed-internal-shelf-corner-frequency-not-yet-exposed-as-a-live-
+      Parameter (WG3_CONFIG.bridgeShelfCornerHz, a real constructor
+      argument per DispersionFilter's own established precedent, so
+      exposing it later needs no filter rewrite -- just not done in this
+      pass)
+    - no-sourced-literature-grounding-for-this-specific-blend-design
+      (see grounding below -- physically informed, not physical, unlike
+      DispersionFilter's Rauhala-Valimaki citation)
+    - ships-as-a-preset-specialization-not-the-universal-type (see
+      BridgeTermination note below)
+    - energy-identity-is-only-exact-at-reflectionTilt-0 (an approximation
+      under nonzero tilt, confirmed by measurement not just assumed --
+      see claim.energy-identity-is-approximate-under-tilt; deferred per
+      explicit instruction to establish the broadband mapping first)
+  grounding:
+    physical: none -- this is a deliberately simple, low-order filter per
+      the spec's own explicit v1 allowance (section 5.5 -- "BridgeTermination
+      may be a stable low-order filter rather than a full impedance-derived
+      model"), not derived from a specific cited source.
+    physically_informed: >
+      The one-pole lowpass/highpass shelf-blend structure is a standard,
+      well-understood DSP technique (a "tilt EQ" shape), correctly applied
+      here to preserve the expected causal direction (positive tilt
+      genuinely reduces high-frequency reflection relative to low, the
+      direction a real absorptive bridge would move in) and provably
+      stable/passive by construction -- but the SPECIFIC shelf-corner
+      frequency (1500Hz) and the reflection/tilt/couplingEfficiency
+      parameter ranges are chosen for audible, explorable range, not
+      measured against a real bridge's own impedance curve. reflection
+      and couplingEfficiency are PERCEPTUAL MACROS (overall amount
+      controls, not derived quantities) at THIS component's own level;
+      WG3's bridgeDecayVal (which reflection is computed FROM) is
+      PHYSICALLY INFORMED -- it encodes a real, verified round-trip-rate
+      relationship (one bridge encounter per fundamental period -- see
+      claim.one-bridge-encounter-per-round-trip-equals-one-fundamental-
+      period), not an arbitrary rescaling. reflectionTilt remains
+      PHYSICALLY INFORMED (preserves causal direction, simplified
+      mechanism).
+  code_ref: soundlib/utilities/FilteredTermination.js
+  # BridgeTermination (soundlib/utilities/BridgeTermination.js): ships as
+  # one preset/specialization subclass of this component -- the concrete
+  # class WG3 instantiates, with no different defaults from
+  # FilteredTermination itself for v1 (no sourced "typical bridge" value
+  # exists yet to calibrate against). Documented here explicitly as ONE
+  # interpretation of this general role, not the universal type, per the
+  # multiport-compatibility framing below -- a future ResonantTermination
+  # (mass/compliance/multiple-bridge-resonances) would be a SIBLING
+  # specialization, not a replacement for this one.
+  #
+  # Multiport-compatibility documentation (future shared-bridge work):
+  # this termination is a single-port specialization of a future, NOT YET
+  # IMPLEMENTED MultiportScatteringJunction -- no multi-string bridge,
+  # scattering matrix, or unused arrays/generalized graph infrastructure
+  # exist in this codebase yet. Recorded here only so the evolutionary
+  # path stays clear.
+  port_model: single-port
+  future_generalization:
+    type: MultiportScatteringJunction
+    capabilities:
+      - multiple-strings-sharing-one-bridge
+      - sympathetic-excitation-via-shared-junction
+      - conceptual-scattering-relationship -- b(omega) = S(omega) * a(omega),
+        where a is the vector of incident waves from each connected string
+        and b the vector of reflected/coupled waves back to them
+  current_limitations:
+    - transmitted-signal-is-one-way-only-no-return-path-implemented (a
+      downstream resonator can be driven by lastTransmittedSignal, but
+      nothing feeds back into the waveguide from it -- confirmed by
+      construction and by a test; see
+      claim.transmitted-signal-can-drive-a-downstream-resonator)
+    - bridge-local-state-not-yet-separated-from-a-specific-waveguide-
+      instance (one FilteredTermination instance belongs to exactly one
+      BidirectionalWaveguide today -- no notion of a bridge shared by
+      more than one string)
+    - no-point-pickup-or-output-mixing-embedded-in-the-termination-itself
+      (WG3's transmissionGain mix happens in wg3Processor.js's
+      _finalizeSample(), outside this component entirely -- kept this way
+      deliberately so a future shared bridge doesn't inherit any one
+      string's own output-mixing decisions)
+
+- id: component.body-mode-bank
+  name: Body Mode Bank
+  # Phase C.5.1 -- a small, fixed, one-way downstream body driven by
+  # component.filtered-termination's own transmittedSignal. Reuses
+  # component.resonator-bank (soundlib/utilities/ResonatorBank.js --
+  # already generic, used across the PhISEM family and elsewhere; not
+  # re-documented here, no changes needed to it) entirely unchanged --
+  # this entry documents only the genuinely new wrapper.
+  roles:
+    - resonator
+    - radiator
+  physical_domain: shared-point-excitation-resonance
+  implementation_family:
+    - shared-excitation-two-pole-mode-bank
+  stateful: true
+  linear_regime: linear
+  energy_behavior: resonates-and-radiates-no-return-path
+  inputs:
+    - shared-excitation-sample (the SAME value drives every configured
+      mode each sample, the way a real body responds to whatever arrives
+      at one coupling point -- NOT ResonatorBank's own more general
+      per-mode-targeted excite(), which Maraca/BambooChimes use for
+      per-collision mode SELECTION, a different pattern not applicable
+      here)
+  outputs:
+    - body-radiation-sample (the normalized sum of all configured modes'
+      own output, read via tick()'s return value)
+  parameters: []
+  # Still no live NUMERIC Parameters in C.5.2 -- mode frequency/decay/
+  # relativeGain remain construction-time-only data per preset (see
+  # bodyConfig.js). C.5.2 DOES add one live STRING Parameter, WG3's own
+  # `bodyPreset` (addStringParameter, same shape as excitationType/
+  # pickupType) -- a discrete choice AMONG whole, fixed preset
+  # configurations, not a continuous per-mode control. Live-tunable
+  # per-mode Parameters (frequency/decay/gain sliders) remain explicitly
+  # future (C.5.4) work.
+  preconditions:
+    - modeConfigs-non-empty
+  affordances:
+    - multiple-independently-tuned-modes-from-plain-config-data
+    - shared-excitation-drive-matching-a-real-body's-single-coupling-point
+    - correlated-source-normalization (1/sqrt(activeModes), DOCUMENTED
+      (C.5.2) as a headroom heuristic for a fixed mode count, not a
+      physical energy-conservation guarantee -- see BodyModeBank.js's own
+      tick() comment)
+    - per-mode-steady-state-gain-compensation-at-the-actual-runtime-
+      sample-rate (see grounding below -- a real, measured necessity, not
+      a nicety; RE-VALIDATED in C.5.2 as an EXACT closed-form evaluation,
+      not an empirical fit -- see claim.gain-compensation-formula-is-
+      exact-not-empirical)
+    - live-switchable-among-several-named-preset-configurations (C.5.2 --
+      WG3's own bodyPreset string Parameter; see model_graph record below
+      for the full preset registry and the multi-preset demonstration
+      this enables)
+  limitations:
+    - one-way-only-no-return-path-to-the-source (body state never
+      influences the waveguide/termination -- see the model_graph record
+      below and claim.body-radiation-monitor-gain-never-feeds-back-into-
+      waveguide-state)
+    - fixed-per-preset-mode-configuration-not-yet-live-tunable (bodyPreset
+      switches among whole presets; no per-mode frequency/decay/gain
+      Parameters yet -- C.5.4's job)
+    - only-uniform-modal-spacing-so-far (every C.5.2 preset keeps evenly-
+      reasoned, non-harmonic-but-regular spacing; genuinely IRREGULAR
+      modal spacing/mixed Q within one preset is C.5.3's job, not
+      attempted here)
+    - shared-excitation-only (every mode is driven by the identical
+      signal -- no per-mode-targeted excitation path from the string side,
+      unlike ResonatorBank's own more general excite(index, amount))
+    - BodyModeBank.js itself remains fully generic -- "wood"/"metal"/
+      "large"/"small" character labels live ONLY in bodyConfig.js's preset
+      metadata and in causal-claims.yaml's explicit perceptual-hypothesis
+      entries, never hardcoded into this component
+  grounding:
+    physical: none -- reuses ResonatorBank's own already-grounded 2-pole
+      mechanism, but this wrapper's specific mode frequencies/decay/
+      relativeGain are not measured against a real instrument body.
+    physically_informed: >
+      A real, necessary correction was found and applied, not assumed
+      away: a CONTINUOUSLY-driven near-unity-pole discrete resonator has
+      an enormous steady-state gain at its own resonant frequency even at
+      a genuinely low Q (measured: Q=4 gave ~470-6800x depending on
+      frequency, for gain=1), and that gain is NOT sample-rate invariant
+      (confirmed ~15% different between 44100 and 48000 for identical
+      Q/frequency) -- so it cannot be precomputed once into static config.
+      soundlib/utilities/decayMath.js's discreteResonatorGainAtCenter()
+      (a new, closed-form, reusable helper -- not a runtime simulation)
+      computes this at BodyModeBank's own construction time, at the
+      ACTUAL runtime sample rate, and each mode's relativeGain (a
+      perceptual-macro-level intended balance, declared in bodyConfig.js)
+      is divided by it. This was found via gain-staging measurement, not
+      derived from first principles in advance -- an earlier pass
+      shipped decaySeconds values that were short in absolute seconds but
+      still implied Q~87-178 (high, ringing, NOT "low-Q" as intended), and
+      even after correcting to a genuinely low Q=4, the FIRST
+      implementation had no gain compensation at all and produced an
+      unclamped peak of ~400x input amplitude -- caught by deliberately
+      re-measuring at a tiny monitor gain so OutputConditioner's own hard
+      clamp couldn't mask the true unclamped magnitude (the same
+      discipline documented for Wind's own gain-staging in
+      docs/MODEL_PATTERNS.md).
+  code_ref: soundlib/utilities/BodyModeBank.js (mode config --
+    soundlib/models/WG3/bodyConfig.js; gain-compensation formula --
+    soundlib/utilities/decayMath.js's discreteResonatorGainAtCenter)
+
+# First use of a model_graph record in this codebase -- the literal
+# structure the C.5.1 directive asked for, recorded directly rather than
+# built out into a general graph schema (this project's established
+# "pilot scale, only what's needed now" discipline -- see e.g. the
+# port_model/future_generalization fields above, the first time THOSE
+# were introduced). Kept as a list entry like every component.* record
+# above (same file, same flat list), identified by model_graph.* instead
+# of component.* since it documents a composition, not a single component.
+- id: model_graph.wg3-with-body-c5-1
+  nodes: >
+    InitialConditionExciter -> DispersiveWaveguide (BidirectionalWaveguide
+    + DispersionFilter) -> FilteredTermination (as BridgeTermination) ->
+    BodyModeBank -> BodyRadiationObservation
+  limitation: >
+    body is downstream-only; body state does not yet modify bridge
+    impedance or string behavior (see component.filtered-termination's
+    own current_limitations for the matching one-way-transmission note).
+  # C.5.2 update: this node structure is UNCHANGED -- what changed is
+  # that BodyModeBank can now be constructed from any of 4 named presets
+  # (bodyConfig.js's BODY_PRESETS: sparseLowQ, sparseHighQ,
+  # sparseLowQLarge, sparseLowQSmall), live-switchable via WG3's own
+  # bodyPreset Parameter -- demonstrating this exact graph shape can
+  # acquire a distinctly different identity by swapping ONLY the
+  # BodyModeBank node's own configuration, with every other node
+  # (exciter, string, termination, coupling mechanism) held fixed. See
+  # claim.sparsehighq-persists-measurably-longer-than-sparselowq and the
+  # matched-system/loudness-matched comparison in wg3Pipeline.test.js.

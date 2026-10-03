@@ -13,6 +13,12 @@
 # now accepts, same as FractionalDelayWaveguide) are defined once in WG1's
 # components.yaml, not duplicated here -- they're soundlib/utilities/
 # components shared by both models.
+#
+# See docs/MODEL_DESIGN_CHARTER.md for the project-level intent, and
+# WG1/knowledge/components.yaml's own header for the still-open
+# gesture/event-process-layer omission this model inherits unchanged
+# (WG2's pluck is the same single, undifferentiated app-triggered
+# excitation as WG1 -- no event-generator component here either).
 
 - id: component.bidirectional-waveguide
   name: Bidirectional (Two-Rail) Waveguide
@@ -28,6 +34,13 @@
     - boundary-reflection-inputs
   outputs:
     - position-addressable-wave-state
+    - lastTransmittedSignal -- the bridge termination's own transmitted
+      portion (0 for a RigidTermination bridge; a real value when a
+      FilteredTermination/BridgeTermination is supplied -- see
+      soundlib/models/WG3/knowledge/components.yaml's
+      component.filtered-termination). Read-only, additive -- tick() sets
+      it every call via bridgeTermination.lastTransmitted (defaulting to
+      0) but never feeds it back into propagation state itself.
   parameters:
     - parameter.frequency
   preconditions:
@@ -44,6 +57,10 @@
       per-tap state; see soundlib/models/WG1/knowledge/components.yaml
       for the three available strategies -- interpolationMode is a
       construction-time/developer choice, not a user-facing Parameter)
+    - accepts-any-termination-implementing-reflect()-at-either-boundary
+      (RigidTermination, or now component.filtered-termination/its
+      BridgeTermination specialization -- tick()'s own signature never
+      changed to support this)
   limitations:
     - each-round-trip-crosses-the-interpolation-tap-twice-once-per-rail
       (vs. FractionalDelayWaveguide's once -- this is why WG2's own
@@ -51,8 +68,14 @@
       interpolator, though small, is larger than WG1's; see
       claim.lagrange3-resolves-wg2s-high-frequency-energy-collapse in
       this model's own causal-claims.yaml)
-    - terminations-remain-rigid-frequency-independent-boundary-filtering-
-      (BridgeTermination) is still unbuilt-future-phase-c-work
+  # UPDATED (Phase C continued, WG3): the limitation previously recorded
+  # here ("terminations remain rigid -- BridgeTermination is still
+  # unbuilt") is now stale. WG2 itself still uses RigidTermination at
+  # both boundaries unchanged (zero behavior change to the shipped
+  # model); WG3 (a new, separate top-level model -- see
+  # soundlib/models/WG3/knowledge/components.yaml) is what now supplies
+  # a BridgeTermination at the bridge boundary and reads
+  # lastTransmittedSignal above.
   code_ref: soundlib/utilities/BidirectionalWaveguide.js
 
 - id: component.point-pickup

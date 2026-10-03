@@ -1,5 +1,5 @@
 import { AudioSystem } from '/soundlib/AudioSystem.js';
-import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes, ChimeVocoder, Wind, WG1, WG2 } from '/soundlib/models/index.js';
+import { RissetBasic, DroneModel, WaveTrigger, ClickerWorkletSoundModel, AnotherGranny, FaustClarinet, WorkerFM, WaterFillRNN, Ping, ChuaOscillator, RendezvousPingerII, RendezvousPingerIII, RendezvousChimes, ChimeTube, WindChimes, BellStrike, Maraca, MaracaExtended, Cabasa, BambooChimes, ChimeVocoder, Wind, WG1, WG2, WG3 } from '/soundlib/models/index.js';
 import { HamburgerLadyChua13, DronePreset, RissetPreset, WaveTriggerPreset, WorkletClickerPreset, GrannyInteractive, FaustClarinetPreset, RendezvousPingerIIPreset, ChimeStrikePreset, WindChimesPreset, MaracaExtendedPreset, WG1Preset } from '/soundlib/models/index_presets.js';
 import { requestMotionPermissions } from './MotionPermission.js';
 import { createNudgeSliderControl } from './NudgeSlider.js';
@@ -125,6 +125,7 @@ async function initApp() {
             audioSystem.createSound(Wind, 'Wind', 0),
             audioSystem.createSound(WG1, 'WG1', 0),
             audioSystem.createSound(WG2, 'WG2', 0),
+            audioSystem.createSound(WG3, 'WG3', 0),
             audioSystem.createSound(HamburgerLadyChua13, 'Hamburger Lady (Chua13)', 0),
             audioSystem.createSound(DronePreset, 'Drone preset', 0),
             audioSystem.createSound(RissetPreset, 'Risset preset', 0),

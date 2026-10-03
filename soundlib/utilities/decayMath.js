@@ -119,3 +119,46 @@ export function qFromDecay(f0Hz, decaySeconds) {
 export function decaySecondsFromQ(f0Hz, q) {
     return q / (Math.PI * f0Hz);
 }
+
+/**
+ * Closed-form steady-state magnitude gain, at its own resonant frequency,
+ * of a ResonatorBank-style two-pole mode (y[n] = a1*y[n-1] + a2*y[n-2] +
+ * gain*x[n], a1=2r*cos(theta), a2=-r^2) driven CONTINUOUSLY (not
+ * impulsively) by a sustained sinusoid at f0Hz, with gain=1.
+ *
+ * This is a DIFFERENT quantity from Q/decaySeconds/T60 above (those are
+ * sample-rate-independent physical/acoustic quantities) -- it's the
+ * discrete filter's own continuous-drive steady-state response, which
+ * genuinely depends on sampleRate (found empirically: NOT sample-rate
+ * invariant even when decaySeconds/Q are held fixed -- confirmed ~15%
+ * different between 44100 and 48000 for the same decaySeconds/frequency).
+ * Needed because even a modest, genuinely-low Q (e.g. Q=4) gives an
+ * enormous continuous-drive steady-state gain for a near-unity-pole
+ * discrete resonator -- measured in the hundreds to thousands, NOT
+ * obvious from Q alone, and easy to miss if only impulse response is
+ * checked (an impulse's total injected energy is tiny compared to a
+ * sustained drive's). A caller that continuously excites a ResonatorBank
+ * mode (as opposed to a one-shot strike -- see
+ * soundlib/utilities/BodyModeBank.js) should divide its intended gain by
+ * this value before calling ResonatorBank.setMode(), so the mode's own
+ * steady-state response at resonance stays near the intended target
+ * rather than scaling unpredictably with Q and sample rate.
+ *
+ * Derivation: evaluate the mode's own transfer function
+ * H(z) = gain / (1 - a1*z^-1 - a2*z^-2) at z = e^(j*theta) and return
+ * 1/|H| for gain=1.
+ *
+ * @param {number} f0Hz - mode center frequency, in Hz.
+ * @param {number} decaySeconds - tau, in seconds.
+ * @param {number} sampleRate - the ACTUAL runtime sample rate.
+ * @returns {number} steady-state output/input magnitude ratio at f0Hz, for gain=1.
+ */
+export function discreteResonatorGainAtCenter(f0Hz, decaySeconds, sampleRate) {
+    const theta = (2 * Math.PI * f0Hz) / sampleRate;
+    const r = Math.exp(-1 / (decaySeconds * sampleRate));
+    const c = Math.cos(theta);
+    const s = Math.sin(theta);
+    const real = (1 - r) * (1 + r - 2 * r * c * c);
+    const imag = 2 * r * c * s * (1 - r);
+    return 1 / Math.sqrt(real * real + imag * imag);
+}

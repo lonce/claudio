@@ -21,7 +21,17 @@ import { WG2_CONFIG } from './wg2Config.js';
  * Not a WG1 subclass at the DSP level despite sharing most components --
  * a genuinely different propagation structure.
  */
-class WG2Processor extends AudioWorkletProcessor {
+// Exported (not just module-private) so WG3's own worklet processor can
+// subclass it directly -- see soundlib/models/WG3/wg3Processor.js. Zero
+// behavior change for WG2 itself from this export alone.
+export class WG2Processor extends AudioWorkletProcessor {
+    // Message types this.port.onmessage accepts, as a static field (not a
+    // hardcoded check inline) so a subclass (WG3Processor) can extend the
+    // accepted set via its own static field without restating this list --
+    // same this.constructor.X polymorphic-static pattern already used for
+    // PROCESSOR_NAME on WG2.js/WG3.js.
+    static ACCEPTED_MESSAGE_TYPES = ['pluck', 'reset', 'set-excitation-type', 'set-pickup-type'];
+
     static get parameterDescriptors() {
         return [
             { name: 'active', defaultValue: 0, minValue: 0, maxValue: 1 },
@@ -117,12 +127,7 @@ class WG2Processor extends AudioWorkletProcessor {
 
         this.pendingCommands = [];
         this.port.onmessage = ({ data }) => {
-            if (
-                data?.type === 'pluck' ||
-                data?.type === 'reset' ||
-                data?.type === 'set-excitation-type' ||
-                data?.type === 'set-pickup-type'
-            ) {
+            if (this.constructor.ACCEPTED_MESSAGE_TYPES.includes(data?.type)) {
                 this.pendingCommands.push(data);
             }
         };
@@ -167,6 +172,7 @@ class WG2Processor extends AudioWorkletProcessor {
                 this.waveguide.reset();
                 this.output.reset();
                 this.dispersionFilter.reset();
+                this._onReset();
             } else if (command.type === 'set-excitation-type') {
                 this.excitationType = command.excitationType;
             } else if (command.type === 'set-pickup-type') {
@@ -180,6 +186,8 @@ class WG2Processor extends AudioWorkletProcessor {
                     this.excitationType,
                     parameters.energy[0]
                 );
+            } else {
+                this._handleUnknownCommand(command);
             }
         }
         this.pendingCommands.length = 0;
@@ -192,11 +200,34 @@ class WG2Processor extends AudioWorkletProcessor {
         for (let i = 0; i < channel.length; i++) {
             this.waveguide.tick(this.nutTermination, this.bridgeTermination, this.lossFilter, this.dispersionFilter);
             const observed = this.pickup.observe(this.waveguide, pickupPosition, this.pickupType);
-            channel[i] = this.output.tick(observed);
+            channel[i] = this._finalizeSample(observed);
         }
 
         return true;
     }
+
+    // Extracted so a subclass (WG3Processor) can mix in extra signal (e.g.
+    // a transmission-port monitor tap) before output conditioning, without
+    // restating this whole process() loop. Default behavior is identical
+    // to the inline code this replaced.
+    _finalizeSample(observed) {
+        return this.output.tick(observed);
+    }
+
+    // Extracted so a subclass (WG3Processor) can reset extra stateful
+    // components (e.g. a filtered bridge termination's internal filter
+    // state) on every fresh note, matching this project's established
+    // "reset every startSound(), not just at construction" convention. A
+    // no-op by default -- WG2 has nothing extra to reset here.
+    _onReset() {}
+
+    // Dispatched for any pendingCommand whose type this class doesn't
+    // itself recognize (paired with ACCEPTED_MESSAGE_TYPES above, which
+    // controls what even reaches pendingCommands in the first place). A
+    // no-op by default -- lets a subclass (WG3Processor's own
+    // 'set-body-preset') add new command types without restating this
+    // whole dispatch loop.
+    _handleUnknownCommand(command) {}
 }
 
 registerProcessor('wg2Processor', WG2Processor);

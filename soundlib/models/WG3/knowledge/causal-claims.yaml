@@ -1,0 +1,771 @@
+# CausalClaim records for WG3 (WaveguideResonator v1, Phase C continued).
+# Pilot scale, same two-entity-type discipline as WG1's/WG2's own
+# causal-claims.yaml -- every claim below is backed by an actual
+# measurement (run against FilteredTermination.js/BridgeTermination.js
+# directly, or against wg3PipelineCore.js's renderWg3Pluck), not asserted
+# from the design alone. See soundlib/utilities/test/
+# FilteredTermination.test.js and wg3Pipeline.test.js for the automated
+# versions of these same checks.
+#
+# C.5.2 adds a new `status:` field (first use in this codebase),
+# alongside (not replacing) `confidence:` -- confidence is "how sure are
+# we this measurement is right"; status is "what KIND of claim is this":
+#   confirmed-dsp-property  -- a general fact about the mechanism itself,
+#                              not tied to one specific config/instance.
+#   measured-in-this-model  -- true of this exact implementation/config,
+#                              not asserted to generalize beyond it.
+#   perceptual-hypothesis   -- explicitly NOT validated by DSP
+#                              measurement alone; a hypothesis recorded
+#                              for a human listener to judge, which a
+#                              render comparison can't confirm or refute
+#                              on its own.
+# Every claim recorded BEFORE C.5.2 predates this field and is
+# `measured-in-this-model` by default where not otherwise obvious --
+# not retroactively re-tagged, since none of them were mis-stated by its
+# absence.
+#
+# Pre-C.5.3 reparameterization adds a `status: superseded` value (plus
+# `superseded_by:`/`superseded_note:` fields) -- used when a later
+# directive deliberately overrides an earlier guarantee rather than
+# merely refining it (here: the energy-accounting identity replacing the
+# amplitude-accounting one, which cannot both hold exactly at once). The
+# superseded claim is kept in place, not deleted, as a record of what
+# changed and why -- consistent with this project's general discipline
+# of recording decisions rather than erasing history.
+#
+# OPEN REPRESENTATIONAL QUESTION (flagged per docs/MODEL_DESIGN_CHARTER.md's
+# instruction not to force a new concept into an existing category):
+# `superseded` is NOT one of the charter's 5 status values
+# (confirmed-dsp-property / measured-in-this-model / perceptual-
+# hypothesis / provisional-design-hypothesis / known-numerical-artifact).
+# It answers a genuinely different question -- not "what KIND of claim is
+# this" but "is this claim still the currently-accepted one, or has a
+# later finding overridden it" -- and currently shares the same `status:`
+# field as the charter's epistemic-kind vocabulary, conflating two
+# orthogonal axes into one field. A cleaner future shape might be a
+# separate `active: true/false` (or `superseded_by:` alone implying
+# inactive) orthogonal to `status:`'s epistemic-kind value. Not changed
+# now -- this is exactly the kind of schema question the charter asks to
+# be recorded rather than silently resolved or silently ignored.
+
+- id: claim.amplitude-accounting-identity-holds-exactly
+  status: superseded
+  superseded_by: claim.energy-accounting-identity-holds-exactly-at-neutral-tilt
+  subject: component.filtered-termination
+  relation: guarantees-by-construction
+  object: feature.no-double-counted-or-lost-energy-in-the-reflected-
+    transmitted-dissipated-split
+  conditions: []
+  expected_direction: not-applicable (an exact identity, not a magnitude trend)
+  confidence: high
+  scope: component.filtered-termination
+  mechanism: incidentSample-equals-BRIDGE_POLARITY-times-reflectedWave-plus-
+    transmittedSignal-plus-dissipated-by-algebraic-construction-not-
+    approximation
+  possible_confounds: []
+  validation:
+    method: drive-with-a-mixed-sinusoid-plus-discontinuity-signal-across-a-
+      reflection-x-tilt-x-damping-grid-reconstruct-incident-from-the-three-
+      outputs-every-sample
+    metric: max-absolute-reconstruction-error-across-the-whole-grid
+    result: >
+      Across reflection in {0, 0.3, 0.6, 1}, reflectionTilt in {-1, -0.5,
+      0, 0.5, 1}, terminationDamping in {0, 0.5, 1} (36 combinations, 500
+      samples each): max reconstruction error was 1.11e-16 -- floating-
+      point epsilon, not an approximation. See
+      soundlib/utilities/test/FilteredTermination.test.js's "exact
+      amplitude-accounting identity" test.
+  superseded_note: >
+    Pre-C.5.3 reparameterization explicitly asked for an ENERGY-
+    conserving accounting instead (reflected^2+transmitted^2+
+    dissipated^2 = incident^2), since the amplitude-domain split above is
+    a convenient but non-energy-conserving proxy. An exact linear sum and
+    an exact quadratic sum cannot both hold simultaneously for the same
+    three-way split (except degenerate cases) -- this claim is kept here,
+    marked superseded rather than deleted, as a record of what the
+    component used to guarantee and why that guarantee was deliberately
+    replaced, not silently dropped.
+
+- id: claim.energy-accounting-identity-holds-exactly-at-neutral-tilt
+  subject: component.filtered-termination
+  relation: guarantees-by-construction
+  object: feature.no-double-counted-or-lost-energy-in-the-reflected-
+    transmitted-dissipated-split-ENERGY-domain
+  conditions:
+    - reflectionTilt-equals-0
+  expected_direction: not-applicable (an exact identity, not a magnitude trend)
+  confidence: high
+  scope: component.filtered-termination
+  mechanism: reflected-transmitted-dissipated-are-all-plain-scalar-
+    multiples-r-t-d-of-the-same-incident-sample-with-r-squared-plus-t-
+    squared-plus-d-squared-equal-1-identically-by-construction-since-t-
+    equals-sqrt(eta-times-(1-r-squared))-and-d-equals-sqrt((1-eta)-times-
+    (1-r-squared))
+  possible_confounds:
+    - does-this-generalize-to-nonzero-reflectionTilt (explicitly NOT --
+      see claim.energy-identity-is-approximate-under-tilt below, kept as
+      a SEPARATE, distinct finding rather than conflated into this one)
+  validation:
+    method: drive-with-a-mixed-sinusoid-plus-discontinuity-signal-across-
+      a-reflection-x-couplingEfficiency-grid-at-reflectionTilt-0-sum-the-
+      squares-of-the-three-outputs-every-sample
+    metric: max-absolute-error-between-the-squared-sum-and-incidentSample-
+      squared-across-the-whole-grid
+    result: >
+      Across reflection in {0, 0.3, 0.6, 1} x couplingEfficiency in {0,
+      0.5, 1} at reflectionTilt=0 (12 combinations, 500 samples each):
+      max error was 3.3e-16 -- floating-point epsilon. Also re-confirmed
+      at the pipeline level (wg3Pipeline.test.js) across a
+      bridgeDecayVal x bodyCouplingEfficiency grid using the actual
+      bridgeDecayVal-derived r. See
+      soundlib/utilities/test/FilteredTermination.test.js's "exact
+      ENERGY-accounting identity" test.
+
+- id: claim.energy-identity-is-approximate-under-tilt
+  subject: component.filtered-termination
+  relation: discovered-during-implementation-that
+  object: feature.the-energy-identity-does-not-hold-exactly-once-
+    reflectionTilt-is-nonzero
+  conditions:
+    - reflectionTilt-not-equal-0
+  expected_direction: not-applicable (a discovered limitation, not a magnitude trend)
+  confidence: high
+  scope: component.filtered-termination
+  mechanism: transmitted-and-dissipated-are-deliberately-computed-from-
+    the-SCALAR-reflection-field-regardless-of-tilt-so-they-stay-well-
+    defined-and-bounded-at-any-tilt-but-the-ACTUAL-reflected-sample-is-
+    tilt-shaped-and-can-differ-in-magnitude-from-reflection-times-
+    incidentSample-at-a-given-frequency-so-the-three-squared-terms-no-
+    longer-sum-to-incidentSample-squared-exactly
+  possible_confounds: []
+  validation:
+    method: same-energy-sum-check-as-the-neutral-tilt-claim-but-at-
+      reflectionTilt-1-reflection-0.7-couplingEfficiency-0.5
+    metric: max-absolute-error-between-the-squared-sum-and-
+      incidentSample-squared
+    result: >
+      A real, nonzero gap (> 1e-6, i.e. not floating-point noise) was
+      confirmed at reflectionTilt=1 -- this is an explicitly accepted,
+      documented approximation for this step, per the directive's own
+      allowance to establish the broadband (tilt=0) mapping first and
+      defer full tilt-energy integration. See
+      soundlib/utilities/test/FilteredTermination.test.js's "the energy
+      identity is only an approximation under nonzero reflectionTilt"
+      test.
+
+- id: claim.one-bridge-encounter-per-round-trip-equals-one-fundamental-period
+  subject: component.bidirectional-waveguide
+  relation: confirmed-by-direct-code-inspection-that
+  object: feature.the-bridge-termination-is-encountered-exactly-f0-times-
+    per-second
+  conditions: []
+  expected_direction: not-applicable (a structural/architectural fact,
+    not a magnitude trend)
+  confidence: high
+  scope: model_graph.wg3-with-body-c5-1
+  mechanism: railLength-equals-(sampleRate-over-frequency-minus-
+    compensationSamples)-over-2-so-a-full-round-trip-(2-times-railLength-
+    samples)-equals-sampleRate-over-frequency-samples-exactly-one-
+    fundamental-period-at-zero-dispersion-compensation-and-pitchLocked-
+    compensation-is-specifically-designed-to-preserve-this-same-total-
+    round-trip-period-when-active
+  possible_confounds:
+    - could-pitchLocked-dispersion-compensation-break-this-relationship
+      (checked directly -- pitchLocked's own stated purpose is keeping
+      the fundamental in tune, which requires preserving this exact
+      round-trip period; not assumed, confirmed against
+      wg2Processor.js's own railLength computation)
+  validation:
+    method: direct-code-inspection-of-BidirectionalWaveguide.js-tick()-
+      and-wg2Processor.js-s-own-railLength-computation-not-assumed-from-
+      the-user-s-own-proposed-model
+    metric: not-applicable-a-structural-verification-not-a-measurement
+    result: >
+      Confirmed directly: wg2Processor.js computes railLength =
+      (sampleRate/frequency - compensationSamples)/2, and
+      BidirectionalWaveguide.tick() calls bridgeTermination.reflect()
+      exactly once per sample. This justifies
+      r = exp(-1/(tau_bridge*f0)) directly (bridgeDecayMath.js's
+      computeBridgeReflectionCoefficient), reusing decayMath.js's own
+      perSampleCoefficient() with f0 standing in for "sample rate" --
+      see soundlib/utilities/test/wg3Pipeline.test.js's own "#2" test
+      for the resulting r-increases-with-frequency confirmation.
+
+- id: claim.bridgedecayval-to-seconds-mapping-is-geometric-not-linear
+  subject: parameter.bridge-decay-val
+  relation: guarantees-by-construction
+  object: feature.equal-knob-travel-corresponds-to-equal-ratios-of-
+    bridge-decay-time-not-equal-absolute-seconds
+  conditions: []
+  expected_direction: not-applicable (an exactness guarantee, not a trend)
+  confidence: high
+  scope: model_graph.wg3-with-body-c5-1
+  mechanism: bridgeDecayValToSeconds(v,-min,-max)-equals-min-times-(max-
+    over-min)-raised-to-v-so-v-equals-0.5-lands-on-sqrt(min-times-max)-
+    the-geometric-mean-not-the-arithmetic-mean-(min-plus-max)-over-2
+  possible_confounds: []
+  validation:
+    method: direct-evaluation-of-bridgeDecayValToSeconds-at-0-0.5-1-
+      against-the-provisional-0.05-30-second-range
+    metric: exact-value-comparison
+    result: >
+      bridgeDecayValToSeconds(0, 0.05, 30) = 0.05 (exact);
+      bridgeDecayValToSeconds(0.5, 0.05, 30) = 1.2247 (matches
+      sqrt(0.05*30) = 1.2247 exactly, NOT the arithmetic mean 15.025);
+      bridgeDecayValToSeconds(1, 0.05, 30) = 30 (exact). Confirms the
+      geometric-mapping design decision reached in discussion (not a
+      LogarithmicParameter subclass -- Parameter.js itself is untouched;
+      the mapping lives entirely in bridgeDecayMath.js).
+
+- id: claim.bridge-only-t60-matches-requested-bridgedecayval-derived-t60
+  subject: parameter.bridge-decay-val
+  relation: setting-to-a-requested-t60-causes
+  object: feature.measured-bridge-only-decay-time-matching-that-request
+  conditions:
+    - distributed-string-loss-(decayTime)-set-long-enough-to-not-
+      meaningfully-contribute-over-the-measurement-window
+  expected_direction: not-applicable (a matches-request claim, not a magnitude trend)
+  confidence: high
+  scope: model_graph.wg3-with-body-c5-1
+  mechanism: r-equals-computeBridgeReflectionCoefficient(requested-T60,-
+    f0)-directly-encodes-the-requested-decay-rate-per-round-trip-per-
+    claim.one-bridge-encounter-per-round-trip-equals-one-fundamental-
+    period
+  possible_confounds:
+    - distributed-string-loss-could-contaminate-the-measurement (ruled
+      out by setting decayTime to 30, far longer than the measurement
+      window, isolating the bridge's own contribution)
+  validation:
+    method: block-RMS-ratio-T60-measurement-(measuredT60Seconds,-same-
+      technique-already-established-in-wg1-wg2Pipeline.test.js)-across-
+      4-representative-fundamentals-at-a-requested-bridge-T60-of-0.4s
+    metric: relative-error-between-requested-and-measured-bridge-T60
+    result: >
+      At requestedBridgeT60=0.4s: 110Hz measured 0.395s (1.2% error),
+      220Hz measured 0.394s (1.5%), 440Hz measured 0.393s (1.7%), 880Hz
+      measured 0.396s (1.1%) -- all well within the required tolerance,
+      confirming the mapping is accurate across the tested frequency
+      range, not just at one reference point. See
+      soundlib/utilities/test/wg3Pipeline.test.js's "#1" test and its own
+      measurement-table test for the fuller requested/computed-r/
+      measured/transmitted-fraction table across more combinations.
+
+- id: claim.combined-decay-rate-follows-reciprocal-sum-approximately
+  subject: model_graph.wg3-with-body-c5-1
+  relation: measured-that
+  object: feature.combined-string-plus-bridge-T60-approximately-follows-
+    1-over-T-total-equals-1-over-T-s-plus-1-over-T-b
+  conditions:
+    - both-mechanisms-behave-exponentially-and-independently
+  expected_direction: not-applicable (a measured-relationship claim, not a magnitude trend)
+  confidence: high
+  scope: model_graph.wg3-with-body-c5-1
+  mechanism: distributed-string-loss-(decayTime-s-LoopLossFilter)-and-
+    bridge-loss-(bridgeDecayVal-s-FilteredTermination.reflection)-are-
+    separate-multiplicative-per-round-trip-scalar-factors-and-two-
+    independent-exponential-decay-processes-combine-with-reciprocal-
+    time-constants-adding-exactly-for-IDEALIZED-exponential-decay
+  possible_confounds:
+    - discretization-interpolation-or-measurement-window-effects-could-
+      make-the-real-system-deviate-from-the-idealized-relationship
+      (addressed by measuring across 4 (stringT60,bridgeT60) combinations
+      rather than asserting the relationship from the formula alone)
+  validation:
+    method: render-with-both-decayTime-(converted-to-tau)-and-
+      bridgeDecayVal-(via-reflectionOverride)-set-independently-measure-
+      combined-T60-compare-to-the-predicted-reciprocal-sum
+    metric: relative-error-between-predicted-and-measured-combined-T60
+    result: >
+      stringT60=0.6/bridgeT60=0.4: predicted 0.24s, measured 0.238s
+      (0.7% error). stringT60=0.6/bridgeT60=0.9: predicted 0.36s,
+      measured 0.357s (0.9%). stringT60=1.2/bridgeT60=0.4: predicted
+      0.3s, measured 0.298s (0.6%). stringT60=1.2/bridgeT60=0.9:
+      predicted 0.514s, measured 0.509s (1.0%). WG3 follows the
+      reciprocal-sum relationship closely (under 1% error in every
+      tested combination) -- confirmed, not just assumed to hold. See
+      soundlib/utilities/test/wg3Pipeline.test.js's "#9" test.
+
+- id: claim.filtered-termination-is-passive-by-construction
+  subject: component.filtered-termination
+  relation: guarantees-by-construction
+  object: feature.reflection-magnitude-never-exceeds-the-reflection-parameter
+  conditions: []
+  expected_direction: not-applicable (a bound, not a magnitude trend)
+  confidence: high
+  scope: component.filtered-termination
+  mechanism: baseReflected-is-a-convex-combination-of-two-responses-each-
+    individually-magnitude-bounded-by-1-the-flat-unity-response-and-a-
+    standard-one-pole-lowpass-highpass-so-the-combination-stays-magnitude-
+    bounded-by-reflection-at-every-frequency-via-the-triangle-inequality
+  possible_confounds:
+    - the-derivation-alone-could-be-wrong-despite-looking-correct
+      (addressed directly by measuring, not just trusting the algebra)
+  validation:
+    method: swept-steady-state-sinusoid-measure-output-over-input-peak-
+      ratio-after-letting-transient-settle-across-a-reflection-x-tilt-x-
+      frequency-grid
+    metric: worst-case-magnitude-ratio-across-the-whole-grid
+    result: >
+      Across reflection in {0.3, 0.7, 1.0}, reflectionTilt in {-1, -0.5,
+      0, 0.5, 1}, frequency in {50, 220, 1000, 4000, 10000, 20000} Hz (90
+      combinations): worst-case ratio was exactly 1.0, reached at
+      reflection=1, reflectionTilt=0, freq=50Hz (the flat, fully-
+      reflecting case, where the bound is tight by construction) -- no
+      combination exceeded its own reflection value. See
+      soundlib/utilities/test/FilteredTermination.test.js's "passive by
+      construction" test.
+
+- id: claim.neutral-settings-reproduce-rigid-termination
+  subject: component.filtered-termination
+  relation: at-specific-parameter-values-reproduces
+  object: component.rigid-termination
+  conditions:
+    - reflection-equals-1
+    - reflectionTilt-equals-0
+  expected_direction: not-applicable (an exact-reproduction claim, not a trend)
+  confidence: high
+  scope: component.filtered-termination
+  mechanism: at-reflection-1-and-tilt-0-baseReflected-equals-incidentSample-
+    exactly-so-nonReflectedWave-is-always-0-and-reflectedWave-equals-
+    BRIDGE_POLARITY-times-incidentSample-identical-to-RigidTermination(-1).reflect()
+  possible_confounds: []
+  validation:
+    method: direct-sample-by-sample-comparison-against-a-RigidTermination(-1)-
+      instance-driven-by-the-same-input-sequence-and-separately-a-byte-
+      identical-full-pipeline-render-comparison-WG3-vs-WG2-at-matching-settings
+    metric: max-absolute-difference
+    result: >
+      Component level: 0 difference across 500 samples of a mixed
+      sinusoid, for every terminationDamping in {0, 0.5, 1} (irrelevant at
+      this reflection/tilt, since nothing is ever non-reflected).
+      Pipeline level: renderWg3Pluck at reflection=1/reflectionTilt=0/
+      terminationDamping=0/transmissionGain=0 produced a
+      byte-identical render to renderWg2Pluck at the same seed/settings,
+      across 4 representative settings combinations (noise/impulse/
+      triangle excitation, displacement/velocity pickup, with and without
+      dispersion active) -- max diff 0 in every case. See
+      soundlib/utilities/test/wg3Pipeline.test.js's REGRESSION test.
+
+- id: claim.reflection-tilt-reshapes-reflection-spectrum
+  subject: parameter.reflection-tilt
+  relation: changing-value-tends-to-cause
+  object: feature.frequency-dependent-reflection-magnitude
+  conditions: []
+  expected_direction: not-applicable (a directional reshaping claim, not a
+    single-direction magnitude trend)
+  confidence: high
+  scope: component.filtered-termination
+  mechanism: positive-tilt-blends-toward-a-one-pole-lowpass-shape-reducing-
+    high-frequency-reflection-magnitude-relative-to-low-negative-tilt-
+    blends-toward-the-complementary-highpass-shape-doing-the-opposite
+  possible_confounds: []
+  validation:
+    method: steady-state-magnitude-measurement-at-a-low-100Hz-and-high-
+      8000Hz-frequency-at-fixed-reflection-0.9-across-tilt-in--1-0-1
+    metric: low-vs-high-frequency-magnitude-ratio-at-each-tilt-value
+    result: >
+      At reflection=0.9: flat (tilt=0): low=0.9000, high=0.9000 (no
+      shaping, as expected). Darkening (tilt=1): low=0.8980,
+      high=0.1880 -- high frequencies reflect ~4.8x less than low.
+      Brightening (tilt=-1): low=0.0542, high=0.8665 -- low frequencies
+      reflect ~16x less than high. A real, measured, directional
+      reshaping in both directions, not a uniform rescale. See
+      soundlib/utilities/test/FilteredTermination.test.js's
+      "reflectionTilt genuinely reshapes" test.
+
+- id: claim.transmitted-signal-can-drive-a-downstream-resonator
+  subject: component.filtered-termination
+  relation: enables
+  object: feature.a-downstream-resonant-component-can-be-driven-by-
+    lastTransmittedSignal-with-no-changes-to-that-component
+  conditions:
+    - terminationDamping-less-than-1
+  expected_direction: not-applicable (an enablement claim, not a magnitude trend)
+  confidence: high
+  scope: component.filtered-termination
+  mechanism: BidirectionalWaveguide.lastTransmittedSignal-is-a-plain-
+    per-sample-number-readable-by-any-caller-feeding-it-into-
+    ResonatorBank.excite()-plus-tick()-needs-no-new-capability-on-either-
+    side-proving-the-Exciter-DispersiveWaveguide-FilteredTermination-
+    second-resonator-chain-from-the-directive-works-end-to-end
+  possible_confounds:
+    - the-downstream-resonator-might-produce-nonzero-output-even-when-
+      nothing-is-transmitted-for-an-unrelated-reason (ruled out directly
+      by also testing terminationDamping=1, where nothing is ever
+      transmitted by construction, and confirming silence)
+  validation:
+    method: manually-drive-a-BidirectionalWaveguide-plus-BridgeTermination-
+      pluck-feed-lastTransmittedSignal-into-a-1-mode-ResonatorBank-via-
+      excite()-plus-tick()-each-sample-measure-the-downstream-resonator-s-
+      own-output-RMS
+    metric: downstream-resonator-RMS-at-terminationDamping-0.3-vs-1.0
+    result: >
+      At terminationDamping=0.3 (some energy transmitted): downstream
+      resonator RMS = 1.4285 over a 0.3s render (220Hz pluck, 330Hz
+      downstream mode) -- clearly nonzero, finite, audible-scale output.
+      At terminationDamping=1.0 (nothing transmitted, by the amplitude-
+      accounting identity): downstream resonator RMS = 0 exactly -- the
+      resonator never receives any excitation. See
+      soundlib/utilities/test/FilteredTermination.test.js's "REUSE
+      DEMONSTRATION" test.
+
+- id: claim.continuous-drive-steady-state-gain-is-enormous-even-at-low-q
+  subject: component.body-mode-bank
+  relation: discovered-during-implementation-that
+  object: feature.a-continuously-driven-near-unity-pole-resonator-needs-
+    explicit-per-mode-gain-compensation
+  conditions: []
+  expected_direction: not-applicable (a discovered necessity, not a magnitude trend)
+  confidence: high
+  scope: component.body-mode-bank
+  mechanism: a-two-pole-resonator-s-own-steady-state-continuous-drive-gain-
+    at-resonance-scales-with-1-over-(1-r)-where-r-is-the-pole-radius-which-
+    stays-close-to-1-even-at-modest-Q-because-decaySeconds-expressed-in-
+    SAMPLES-at-audio-sample-rates-is-still-hundreds-of-samples
+  possible_confounds:
+    - an-impulse-response-alone-would-not-reveal-this (a single impulse's
+      total injected energy is tiny compared to a sustained drive's --
+      checking only impulse response, as BodyModeBank.test.js's own
+      per-mode frequency/decay checks do, would miss this entirely;
+      caught instead via full-pipeline gain-staging measurement with
+      CONTINUOUS excitation, matching how transmittedSignal actually
+      drives the body in practice)
+  validation:
+    method: measure-worst-case-render-peak-RMS-across-a-parameter-grid-
+      then-re-measure-at-a-deliberately-tiny-monitor-gain-so-
+      OutputConditioner-s-hard-clamp-cannot-mask-the-true-unclamped-
+      magnitude-dividing-back-out
+    metric: implied-true-unclamped-peak-at-bodyRadiationGain-equals-1
+    result: >
+      First pass (decaySeconds chosen directly, 0.08-0.15s, without
+      checking the resulting Q): measured unclamped peak ~400x input
+      amplitude. Root cause found to be TWO compounding errors: (1) those
+      decaySeconds values implied Q~87-178 at these frequencies (Q =
+      pi*f0*decaySeconds), not "low-Q" as intended. (2) even after
+      correcting to a genuinely low Q=4 (decaySeconds derived via
+      decayMath.js's decaySecondsFromQ), the per-mode steady-state
+      continuous-drive gain at resonance (gain=1, uncompensated) measured
+      6828.88x (185Hz), 2027.39x (340Hz), 921.84x (505Hz), 468.26x
+      (710Hz) at 48000Hz sample rate -- confirmed by an independent
+      closed-form formula (decayMath.js's new
+      discreteResonatorGainAtCenter()) matching the simulated measurement
+      exactly. This gain is also NOT sample-rate invariant: the same
+      Q/frequency measured ~15.5% lower at 44100Hz than 48000Hz. Fixed by
+      computing per-mode compensation live, at BodyModeBank's own
+      construction time, using the actual runtime sampleRate.
+
+- id: claim.body-mode-bank-is-silent-without-excitation
+  subject: component.body-mode-bank
+  relation: guarantees-by-construction
+  object: feature.zero-output-with-zero-input
+  conditions: []
+  expected_direction: not-applicable (an exact guarantee, not a trend)
+  confidence: high
+  scope: component.body-mode-bank
+  mechanism: ResonatorBank-s-own-tick()-returns-exactly-0-when-every-
+    mode-s-excitation-and-prior-state-are-0-and-BodyModeBank-adds-no-
+    independent-state-of-its-own
+  possible_confounds: []
+  validation:
+    method: construct-and-tick-1000-times-with-no-excite()-calls
+    metric: exact-zero-check
+    result: 1000/1000 samples returned exactly 0.
+
+- id: claim.body-modes-respond-near-their-configured-frequency-and-decay
+  subject: component.body-mode-bank
+  relation: configuring-a-mode-causes
+  object: feature.impulse-response-peaking-near-that-frequency-and-
+    decaying-near-that-rate
+  conditions:
+    - mode-isolated-in-a-single-mode-bank
+  expected_direction: not-applicable (a configuration-matches-behavior
+    claim, not a magnitude trend)
+  confidence: medium
+  scope: component.body-mode-bank
+  mechanism: BodyModeBank-s-constructor-correctly-forwards-each-mode-s-
+    frequencyHz-decaySeconds-and-compensated-gain-to-ResonatorBank-
+    setMode()-whose-own-frequency-decay-accuracy-is-separately-already-
+    proven
+  possible_confounds:
+    - low-Q-(Q=4)-gives-a-genuinely-broad-resonance-peak-so-frequency-
+      measurement-precision-is-inherently-looser-than-a-high-Q-mode-would-
+      allow (not a bug -- confidence recorded as medium rather than high
+      for exactly this reason, not because the wiring is in doubt)
+  validation:
+    method: isolate-each-mode-in-its-own-single-mode-BodyModeBank-excite-
+      once-measure-peak-frequency-via-swept-DFT-and-decay-via-block-RMS-
+      ratio-after-one-tau
+    metric: measured-frequency-vs-configured-and-decay-ratio-vs-expected-
+      1-over-e
+    result: >
+      185Hz: measured 183.5Hz (0.8% error), decay ratio after 1 tau =
+      0.415 (expected ~0.368). 340Hz: measured 337.3Hz (0.8% error),
+      ratio 0.412. 505Hz: measured 501.1Hz (0.8% error), ratio 0.339.
+      710Hz: measured 704.3Hz (0.8% error), ratio 0.326. All within the
+      loose tolerance a Q=4 mode's own broad peak and short-window RMS
+      estimate imply -- see BodyModeBank.test.js's own looser-than-usual
+      assertion bounds, documented there as deliberate given Q=4.
+
+- id: claim.body-radiation-is-measurably-distinct-from-string-pickup
+  subject: component.body-mode-bank
+  relation: produces-output-that-is
+  object: feature.substantially-uncorrelated-with-the-string-s-own-pickup-
+    signal
+  conditions: []
+  expected_direction: not-applicable (a distinctness claim, not a magnitude trend)
+  confidence: high
+  scope: model_graph.wg3-with-body-c5-1
+  mechanism: the-body-s-4-fixed-mode-frequencies-(185-340-505-710Hz)-are-
+    deliberately-non-harmonic-relative-to-the-string-s-own-220Hz-default-
+    fundamental-and-the-two-signals-are-read-from-structurally-different-
+    processes-(waveguide-propagation-vs-resonant-mode-bank)
+  possible_confounds:
+    - both-signals-ultimately-derive-from-the-same-pluck-so-some-residual-
+      correlation-is-expected (addressed by measuring actual correlation,
+      not just asserting distinctness)
+  validation:
+    method: isolate-the-body-s-own-additive-contribution-(withBody-minus-
+      pickupOnly)-then-compute-sample-wise-correlation-against-the-
+      pickup-only-signal
+    metric: rms-of-each-contribution-and-their-correlation-coefficient
+    result: >
+      At frequency=220Hz, reflection=0.3, impulse excitation: pickup
+      rms=0.005423, body-contribution rms=0.029625 (louder than the
+      pickup itself at bodyRadiationGain=100), correlation=-0.148
+      -- small in magnitude and even negatively signed, confirming the
+      two signals are substantially independent, not a scaled copy of
+      one another.
+
+- id: claim.body-radiation-monitor-gain-never-feeds-back-into-waveguide-state
+  subject: parameter.body-radiation-monitor-gain
+  relation: guarantees-by-construction
+  object: feature.the-body-s-own-additive-output-contribution-is-exactly-
+    isolable-and-reversible
+  conditions: []
+  expected_direction: not-applicable (an exact guarantee, not a trend)
+  confidence: high
+  scope: model_graph.wg3-with-body-c5-1
+  mechanism: the-body-is-excited-and-mixed-entirely-within-
+    _finalizeSample()-after-waveguide.tick()-has-already-finished-
+    advancing-propagation-state-for-that-sample-with-no-code-path-from-
+    BodyModeBank-back-into-BidirectionalWaveguide-FilteredTermination-or-
+    DispersionFilter
+  possible_confounds: []
+  validation:
+    method: render-with-bodyRadiationGain-at-0-and-at-its-max-
+      subtract-to-isolate-the-body-s-own-contribution-then-subtract-that-
+      contribution-back-out-of-the-max-gain-render-and-confirm-it-exactly-
+      reconstructs-the-gain-0-render
+    metric: max-absolute-reconstruction-error
+    result: max reconstruction error was below 1e-12 (floating-point
+      epsilon) -- the body's contribution is exactly additive and
+      reversible, confirming no hidden feedback path exists.
+
+- id: claim.gain-compensation-formula-is-exact-not-empirical
+  subject: component.body-mode-bank
+  relation: implements
+  object: feature.an-exact-not-fitted-closed-form-gain-compensation
+  conditions: []
+  status: confirmed-dsp-property
+  expected_direction: not-applicable (an exactness claim, not a trend)
+  confidence: high
+  scope: component.body-mode-bank
+  mechanism: discreteResonatorGainAtCenter()-algebraically-evaluates-
+    ResonatorBank-s-own-literal-difference-equation-s-transfer-function-
+    at-z-equals-e-to-the-j-theta-not-a-regression-or-curve-fit-against-
+    sampled-data
+  possible_confounds:
+    - a-correct-looking-derivation-could-still-be-wrong-despite-matching-
+      a-few-spot-checked-points (addressed by re-validating across the
+      FULL C.5.2 range, not just the points already checked during C.5.1)
+  validation:
+    method: compare-the-formula-s-output-against-direct-time-domain-
+      settle-and-measure-simulation-across-every-modal-frequency-used-by-
+      every-preset-x-both-supported-sample-rates-44100-and-48000
+    metric: worst-case-relative-error-between-formula-and-simulation
+    result: >
+      Worst relative error across all 4 presets' modes x 2 sample rates
+      (32 combinations) was 1.6e-5 (0.0016%), at sparseHighQ's 505Hz mode
+      at 44100Hz (formula: 9673.56, simulation: 9673.41). This residual
+      is consistent with simulation measurement noise (finite settle
+      time, discrete sampling of a continuous sinusoid's true peak), not
+      formula error -- confirming the formula is exact, not merely
+      accurate in the narrower range C.5.1 happened to check. See
+      soundlib/utilities/test/BodyModeBank.test.js's own validation test.
+
+- id: claim.increasing-modal-q-lengthens-body-mode-decay
+  subject: parameter.modal-q
+  relation: increasing-value-causes
+  object: feature.longer-per-mode-impulse-decay-time
+  conditions: []
+  status: confirmed-dsp-property
+  expected_direction: increase
+  confidence: high
+  scope: component.body-mode-bank
+  mechanism: decaySeconds-equals-q-divided-by-pi-times-f0-a-direct-
+    algebraic-relationship-not-an-approximation
+  possible_confounds: []
+  validation:
+    method: compare-sparseLowQ-q-4-and-sparseHighQ-q-50-per-mode-decay-
+      measurements-at-identical-frequencies
+    metric: measured-decaySeconds-ratio-vs-the-q-ratio-12.5x
+    result: >
+      sparseHighQ's decaySeconds are exactly 12.5x sparseLowQ's at every
+      matching frequency, by construction (decaySecondsFromQ(f,50) /
+      decaySecondsFromQ(f,4) = 50/4 = 12.5 algebraically) -- e.g. 185Hz:
+      0.00688s (q=4) vs. 0.08603s (q=50). Both independently confirmed to
+      produce their own correctly-matching impulse decay in
+      BodyModeBank.test.js's per-preset decay test.
+
+- id: claim.sparsehighq-persists-measurably-longer-than-sparselowq
+  subject: component.body-mode-bank
+  relation: at-matched-physical-settings-produces
+  object: feature.a-longer-audible-decay-tail-than-sparseLowQ
+  conditions:
+    - identical-reflection-terminationDamping-bodyRadiationGain-
+      and-frequency-matched-system-comparison
+  status: measured-in-this-model
+  expected_direction: increase
+  confidence: high
+  scope: model_graph.wg3-with-body-c5-1
+  mechanism: higher-Q-modes-ring-down-more-slowly-after-excitation-stops-
+    per-claim.increasing-modal-q-lengthens-body-mode-decay-so-the-body-s-
+    own-isolated-contribution-stays-above-a-fixed-fraction-of-its-own-
+    peak-for-longer
+  possible_confounds:
+    - the-persistence-difference-could-be-an-artifact-of-one-preset-
+      simply-being-louder-overall-rather-than-a-genuine-character-
+      difference (ruled out directly by also measuring persistence AFTER
+      loudness-matching sparseHighQ's contribution to sparseLowQ's own
+      RMS -- the persistence gap survives)
+  validation:
+    method: isolate-each-preset-s-own-additive-body-contribution-matched-
+      system-settings-only-bodyPreset-differs-compute-50ms-block-RMS-over-
+      a-1.5s-render-find-the-last-block-still-above-10-percent-of-its-own-
+      peak-block-repeat-after-loudness-matching-sparseHighQ-to-
+      sparseLowQ-s-RMS
+    metric: last-block-index-above-10-percent-of-peak-matched-system-and-
+      loudness-matched
+    result: >
+      Matched-system (raw levels, reflection=0.3, terminationDamping=0,
+      bodyRadiationGain=50, 220Hz impulse pluck, decayTime=0.3s):
+      sparseLowQ's body contribution overall RMS 0.006076, dropping below
+      10% of its own peak by the END of the first 50ms block (~50ms
+      total). sparseHighQ's body contribution overall RMS 0.001561 (quieter
+      overall, a real and reported consequence of Q, not hidden), but
+      persisting through block index 2 (~150ms) before dropping below
+      10% -- 3x longer. After loudness-matching sparseHighQ's contribution
+      up to sparseLowQ's own RMS (scale factor 3.891, measurement-only,
+      never fed back into WG3_CONFIG/bodyConfig.js/BodyModeBank.js), the
+      persistence advantage survives unchanged (still block index 2,
+      ~150ms) -- confirming this is a genuine character difference, not
+      a loudness artifact. See wg3Pipeline.test.js's own matched-system/
+      loudness-matched test.
+
+- id: claim.modal-frequency-scaling-preserves-ratios-and-q
+  subject: component.body-mode-bank
+  relation: guarantees-by-construction
+  object: feature.scaled-presets-keep-exact-modal-frequency-ratios-and-
+    the-same-q-as-their-base-preset
+  conditions: []
+  status: confirmed-dsp-property
+  expected_direction: not-applicable (an exactness guarantee, not a trend)
+  confidence: high
+  scope: component.body-mode-bank
+  mechanism: scalePreset()-multiplies-every-frequencyHz-by-the-same-
+    factor-preserving-ratios-trivially-and-re-derives-decaySeconds-from-
+    decaySecondsFromQ-at-the-new-frequency-for-the-SAME-q-rather-than-
+    copying-the-base-preset-s-absolute-decaySeconds-which-would-silently-
+    change-q
+  possible_confounds: []
+  validation:
+    method: arithmetic-comparison-of-sparseLowQLarge-sparseLowQSmall-s-
+      own-modal-frequencies-q-and-recomputed-decaySeconds-against-
+      sparseLowQ-s
+    metric: exact-ratio-and-q-equality-check
+    result: >
+      sparseLowQLarge's/sparseLowQSmall's modal frequencies are exactly
+      0.5x/2.0x sparseLowQ's at every mode (verified to floating-point
+      precision), q is identical (4) at every mode, and decaySeconds
+      matches decaySecondsFromQ(scaledFrequency, 4) exactly -- not a
+      copy of sparseLowQ's own decaySeconds values. relativeGain is
+      untouched. See BodyModeBank.test.js's own scaling-preservation test.
+
+# Perceptual hypotheses -- explicitly NOT validated by any DSP
+# measurement above. Recorded as hypotheses a human listener would need
+# to judge, per the C.5.2 directive's own example format, not claims this
+# project's test suite can or does confirm.
+
+- id: claim.sparsehighq-sounds-more-metallic
+  subject: component.body-mode-bank
+  relation: perceptually-suggests
+  object: feature.a-metallic-material-character
+  conditions: []
+  status: perceptual-hypothesis
+  expected_direction: not-applicable (untested perceptual claim)
+  confidence: provisional
+  scope: model_graph.wg3-with-body-c5-1
+  mechanism: not-applicable-this-is-a-hypothesis-about-human-perception-
+    not-a-dsp-mechanism
+  possible_confounds:
+    - longer-decay-and-narrower-bandwidth-both-correlate-with-a-
+      colloquial-metallic-description-but-neither-measurement-alone-
+      establishes-the-perceptual-label
+  validation:
+    method: not-yet-performed-requires-human-listening-evaluation
+    metric: not-applicable
+    result: UNTESTED. What IS measured (claim.sparsehighq-persists-
+      measurably-longer-than-sparselowq) is persistence, a DSP-level
+      property -- "metallic" is a listener's own judgment call, offered
+      here only as the kind of hypothesis that measured property might
+      plausibly support, not as something this project has confirmed.
+
+- id: claim.lower-modal-scale-suggests-a-larger-darker-body
+  subject: parameter.body-frequency-scale
+  relation: perceptually-suggests
+  object: feature.a-larger-darker-body
+  conditions:
+    - frequencyScale-less-than-1
+  status: perceptual-hypothesis
+  expected_direction: not-applicable (untested perceptual claim)
+  confidence: provisional
+  scope: model_graph.wg3-with-body-c5-1
+  mechanism: not-applicable-this-is-a-hypothesis-about-human-perception-
+    not-a-dsp-mechanism
+  possible_confounds:
+    - real-instrument-bodies-conflate-size-with-many-correlated-acoustic-
+      properties-at-once-not-just-modal-frequency-so-a-single-scale-
+      factor-is-at-best-a-loose-proxy
+  validation:
+    method: not-yet-performed-requires-human-listening-evaluation
+    metric: not-applicable
+    result: >
+      UNTESTED. sparseLowQLarge (frequencyScale=0.5, modes at 92.5-355Hz)
+      is confirmed (claim.modal-frequency-scaling-preserves-ratios-and-q)
+      to have correctly scaled, lower modal frequencies than sparseLowQ --
+      whether that reads perceptually as "larger/darker" is explicitly
+      not tested here.
+
+- id: claim.higher-modal-scale-suggests-a-smaller-brighter-body
+  subject: parameter.body-frequency-scale
+  relation: perceptually-suggests
+  object: feature.a-smaller-brighter-body
+  conditions:
+    - frequencyScale-greater-than-1
+  status: perceptual-hypothesis
+  expected_direction: not-applicable (untested perceptual claim)
+  confidence: provisional
+  scope: model_graph.wg3-with-body-c5-1
+  mechanism: not-applicable-this-is-a-hypothesis-about-human-perception-
+    not-a-dsp-mechanism
+  possible_confounds:
+    - same-as-claim.lower-modal-scale-suggests-a-larger-darker-body-
+      modal-frequency-alone-is-a-loose-proxy-for-perceived-size
+  validation:
+    method: not-yet-performed-requires-human-listening-evaluation
+    metric: not-applicable
+    result: >
+      UNTESTED. sparseLowQSmall (frequencyScale=2.0, modes at
+      370-1420Hz) is confirmed to have correctly scaled, higher modal
+      frequencies than sparseLowQ -- whether that reads perceptually as
+      "smaller/brighter" is explicitly not tested here.

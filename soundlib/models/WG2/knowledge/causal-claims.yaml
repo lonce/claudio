@@ -7,6 +7,15 @@
 # soundlib/models/WG1/knowledge/causal-claims.yaml. frequency/energy/
 # decayTime's basic behavior is unchanged from WG1's own record; the
 # claims below are specific to what Phase B actually added.
+#
+# See docs/MODEL_DESIGN_CHARTER.md for the status: vocabulary (confirmed-
+# dsp-property / measured-in-this-model / perceptual-hypothesis /
+# provisional-design-hypothesis / known-numerical-artifact). Added
+# retroactively (2026-10-03) to the 4 claims below whose epistemic kind
+# was unambiguous (the interpolation/dispersion-approximation findings);
+# the other 11 claims in this file predate that vocabulary and are
+# intentionally left untagged for now -- see WG1's own causal-claims.yaml
+# header for why a full retrofit was judged out of scope here.
 
 - id: claim.excitation-position-creates-movable-modal-nulls
   subject: parameter.excitation-position
@@ -59,6 +68,7 @@
       above, not just a restatement of it.
 
 - id: claim.two-rail-structure-shortens-decay-more-than-single-loop
+  status: known-numerical-artifact
   subject: component.bidirectional-waveguide
   relation: increasing-tends-to-cause
   object: feature.shorter-than-WG1s-nominal-fundamental-decay-shortfall
@@ -100,6 +110,7 @@
       effect, not primarily a fundamental-decay effect -- see next claim.
 
 - id: claim.lagrange3-resolves-wg2s-high-frequency-energy-collapse
+  status: confirmed-dsp-property
   subject: component.lagrange-interpolator
   relation: replacing-linear-with-tends-to-cause
   object: feature.wg2-internal-energy-preserved-across-most-of-the-supported-frequency-range
@@ -279,6 +290,17 @@
       compensation architecture itself.
 
 - id: claim.dispersion-filter-approximation-limits
+  # Borderline case, flagged rather than silently filed: this is an
+  # approximation-VALIDITY-DOMAIN limit (the Rauhala-Valimaki empirical
+  # fit stops reliably producing its intended curve outside the range it
+  # was calibrated against), not a floating-point/interpolation-stencil
+  # artifact like the interpolator claims above. known-numerical-artifact
+  # is the closest existing fit, not a confident categorization -- see
+  # docs/MODEL_DESIGN_CHARTER.md's "Do Not Prematurely Freeze a Universal
+  # Ontology" section; a future model hitting the same shape of limit
+  # (an empirical fit's own calibrated domain, as opposed to a numerical
+  # precision/stability issue) may justify a distinct status value.
+  status: known-numerical-artifact
   subject: component.dispersion-filter
   relation: increasing-B-beyond-a-measured-point-tends-to-cause
   object: feature.unreliable-partial-stretch-measurement
@@ -685,6 +707,7 @@
       than accidentally disabling smoothing altogether.
 
 - id: claim.lagrange3-unstable-at-short-fractional-rail-length
+  status: known-numerical-artifact
   subject: component.lagrange-interpolator
   relation: reading-at-a-short-fractional-offset-tends-to-cause
   object: feature.exponential-loop-gain-runaway

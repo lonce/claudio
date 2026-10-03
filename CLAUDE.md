@@ -251,6 +251,8 @@ The objective is generally **translation into the current sound-model protocol**
 
 @docs/WORKLETS_AND_PRESETS.md
 
+@docs/MODEL_DESIGN_CHARTER.md
+
 @docs/MODEL_PATTERNS.md
 
 @docs/GIT_WORKFLOW.md

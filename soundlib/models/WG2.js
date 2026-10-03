@@ -19,6 +19,11 @@ import { WG2_CONFIG } from './WG2/wg2Config.js';
  */
 export class WG2 extends BaseSoundWithEvents {
     static WORKLET_PATH = new URL('./WG2/wg2Processor.js', import.meta.url).href;
+    // New, alongside WORKLET_PATH -- lets a subclass (WG3) redirect which
+    // registered worklet processor it talks to without overriding
+    // createNodes() at all. Zero behavior change here: WG2 instances still
+    // read 'wg2Processor' via this.constructor.PROCESSOR_NAME.
+    static PROCESSOR_NAME = 'wg2Processor';
 
     constructor(context, name, options = {}) {
         super(context, name, options.gain ?? 0.6);
@@ -62,7 +67,7 @@ export class WG2 extends BaseSoundWithEvents {
     }
 
     createNodes() {
-        this.workletNode = new AudioWorkletNode(this.context, 'wg2Processor', {
+        this.workletNode = new AudioWorkletNode(this.context, this.constructor.PROCESSOR_NAME, {
             processorOptions: {
                 sampleRate: this.context.sampleRate,
                 seed: this.seed
